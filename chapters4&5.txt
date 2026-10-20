@@ -1,0 +1,462 @@
+This slide-by-slide breakdown covers Module 4 (FILL Unit Phase), starting at Page 4-4 and continuing to the end of the chapter (Page 4-63).   In this chapter, you are taking the three Color Tanks (COLOR 100, 200, 300) and building a single, reusable FILL Phase Class so you only have to write the filling code once, yet run it on all three tanks independently.   Part 1: The Big Picture & Physical Hierarchy (Slides 4-4 to 4-12)Slide 4-4 (Batch Definitions — PDF Page 56):
+This diagram shows where the Batch Executive (running on the workstation PC) hands off to the Controller. Notice the dotted green line near the bottom: Procedure, Unit Procedure, and Operation all live up in the Batch Executive, while the Unit Phase (which is created from a Phase Class) actually executes down inside the Controller. On the right side, it shows the Class-to-Instance chain: Process Cell Class $\rightarrow$ Process Cell, Unit Class $\rightarrow$ Unit Module, and Phase Class $\rightarrow$ Unit Phase.   Slide 4-5 (Paint Production - Process Cell — PDF Page 57):
+Shows the P&ID of the entire PAINT_PRODUCTION Process Cell. Everything on this screen (the 3 Color Tanks and the 2 Blenders) belongs to this single Process Cell.   Slide 4-6 (Color Tank Modules / FILL Unit Phase — PDF Page 58):
+Zooms in on the top three tanks. We are going to create three Unit Modules (UM_COLOR_100, UM_COLOR_200, UM_COLOR_300), and each one will get an instance of the FILL Unit Phase.   Notice how identical the hardware is on each tank:   Tank 100: Inlet Valve XV-101, Level LI-104, Outlet Valve XV-102.   Tank 200: Inlet Valve XV-201, Level LI-204, Outlet Valve XV-202.   Tank 300: Inlet Valve XV-301, Level LI-304, Outlet Valve XV-302.   Slide 4-7 (PDF Page 59): (Blank spacer page in the manual.)   Slide 4-8 (New Process Cell Class — PDF Page 60):
+Before you can build a Process Cell in your plant area, S88 requires you to define a Process Cell Class in the Library. Here, under Library -> Advanced Definitions -> Process Cell Classes -> General, they right-click and create a class named PRODUCTION.   Slide 4-9 (New Process Cell Class [Creating the Instance] — PDF Page 61):
+Now they drag and drop the PRODUCTION class from the Library down into the plant area (Control Strategies -> ED_CENTER_BATCH) and rename the instance PAINT_PRODUCTION. Think of PAINT_PRODUCTION as the folder that will hold all of your batch vessels (Units).   Slide 4-10 (New Unit Class Category — PDF Page 62):
+Under Library -> Advanced Definitions -> Unit Classes, they right-click and select New Category to create a folder called ChargeTankUnits. As the slide says, Categories are just folders to keep your library organized—they don't affect the code.   Slide 4-11 (New Unit Class — PDF Page 63):
+Inside that ChargeTankUnits folder, they right-click and select New Unit Class, naming it COLORTANKS. This COLORTANKS class is the master blueprint for all three of our color tanks.   Slide 4-12 (Creating Aliases — PDF Page 64):
+Crucial Architectural Step: Right here on the COLORTANKS Unit Class, you right-click and select New -> Alias.   Since every color tank has an inlet valve, an outlet valve, and a level transmitter, we create three placeholder alias names on COLORTANKS: INLET_VLV, OUTLET_VLV, and TANK_LEVEL.   Notice they don't point to XV-101 or XV-201 yet—they are just abstract variable names attached to the COLORTANKS blueprint.   Part 2: Building the FILL Phase Class & Parameters (Slides 4-13 to 4-23)Slide 4-13 (New Phase Class Category — PDF Page 65):
+Just like we made a category folder for Unit Classes, we go to Library -> Advanced Definitions -> Phase Classes, right-click New Category, and make a folder called TankClasses.   Slide 4-14 (New Phase Class — PDF Page 66):
+Right-click TankClasses -> New Phase Class, and name it FILL. Notice the Algorithm type defaults to Phase Algorithm (which gives us the S88 state machine diagram).   Slide 4-15 (Batch Input Parameters — PDF Page 67):
+When a recipe runs FILL, it needs to tell the phase how many gallons to put in the tank, and the phase needs to report back how many gallons actually went in.   Right-clicking FILL -> New, you see three choices:   Phase Message: For operator pop-up prompts.   Batch input/report parameter: Parameters exchanged with the Batch Executive recipe:   Input (Green icon): Sent down from the recipe into the phase (here they create R_FILL_LEVEL, scaled 0 to 500 gal, default 250).   Report (Yellow icon): Sent up from the phase back to the Batch Historian at the end of the phase (later in the workshop, they create RPT_FNL_LVL).   Phase algorithm parameter: Internal scratchpad variables used only inside the phase logic.   Slide 4-16 (FILL Phase Logic — PDF Page 68):
+When you click on FILL in Explorer, look at the right-hand pane (Contents of 'FILL'). DeltaV automatically generated 6 composite blocks (ABORT_LOGIC, FAIL_MONITOR, HOLD_LOGIC, RESTART_LOGIC, RUN_LOGIC, STOP_LOGIC) and a bunch of standard S88 phase parameters (BCOMMAND, BSTATUS, STEP_INDEX, REQUEST, WATCHDOG, etc.). You right-click FILL and choose Open with Control Studio.   Slide 4-17 (Phase Logic [The S88 State Diagram] — PDF Page 69):
+This is what opens in Control Studio—the ISA-88.01 Phase State Transition Diagram.   Grey boxes with no icon (Idle, Complete, Stopped, Held, Aborted) are resting states (no code runs inside them; the phase just sits there waiting for a command).   Grey boxes with a colored SFC icon (Running, Holding, Restarting, Stopping, Aborting) are active states. You double-click ("drill down" into) those boxes to write the SFC sequence for what the phase should do in that state.   Notice Failure_Monitor in the top-left corner—it runs continuously whenever the phase is active, watching for equipment trips.   Slide 4-18 (RUN_LOGIC — PDF Page 70):
+When you double-click the Running box (RUN_LOGIC), it opens a blank SFC editor starting with a single step S1 and transition T1, with the All SFC Items palette on the right.   Slide 4-19 (Palette Window — PDF Page 71):
+Shows a handy shortcut: instead of dragging Step and Transition one by one, you can drag Sequence onto the sheet and type how many pre-wired steps and transitions you want to drop at once (up to a max of 127 per level).   Slide 4-20 (Browse Buttons — PDF Page 72):
+When you add an Action to a Step, this expression editor pops up. Instead of memorizing tag paths, those 6 buttons on the bottom-left (Insert Internal Parameter..., Insert External Parameter..., Insert Named State..., SELSTR..., LOGEVENT..., Insert Alias...) let you browse and click to insert the exact syntax automatically.   Slides 4-21, 4-22, & 4-23 (Syntax — PDF Pages 73–75):
+The master cheat sheet for DeltaV expression symbols:   / = Internal parameter at the current level.   ^/ = Internal parameter up one block level (e.g., ' ^/REQUEST.CV ' or ' ^/R_FILL_LEVEL.CV '—reaching up from RUN_LOGIC to the FILL Phase level).   // = External parameter outside this phase/module (e.g., '//XV_102/DC1/SP_D').   #...# = Encloses a Unit Alias (always preceded by //, like '//#BLEND_LEV_CV#'). (Exception: checking if an alias is ignored uses '/aliasname.IGN'.)   : = Separates a Named Set from its state name ('vlvnc-sp:OPEN').   := = Assignment operator used in Step Actions ('^/REQUEST.CV' := 3202;). Every action statement ends with a semicolon ;.   =, >, <, >=, <=, != = Comparison operators used in Transitions ('^/REQUEST.CV' = 0—no colon, no semicolon).   Part 3: Linking the Phase to Units & Resolving Aliases (Slides 4-24 to 4-35)Slide 4-24 (Assigning Phase Classes — PDF Page 76):
+Once you finish writing the FILL Phase Class, you have to tell DeltaV that COLORTANKS are allowed to use FILL. You either right-click FILL -> Add To Unit Class... or right-click COLORTANKS -> Assign Phase Class... (or simply drag FILL onto COLORTANKS).   Slide 4-25 (Unit Modules — PDF Page 77):
+Now watch the magic of Class-based design: you drag the COLORTANKS Unit Class from the Library down into your PAINT_PRODUCTION Process Cell three times, naming them UM_COLOR_100, UM_COLOR_200, and UM_COLOR_300.   Look at the tree on the right: because COLORTANKS had FILL and the 3 Aliases attached to it, all three Unit Modules automatically come pre-loaded with a FILL Unit Phase and an Aliases folder!   Slide 4-26 (Resolving Aliases — PDF Page 78):
+Here is where you connect the abstract aliases to the real valves and transmitters on each tank:   You click Aliases under UM_COLOR_100, double-click INLET_VLV, and type XV-101 in the Path: box.   You do the same for OUTLET_VLV (XV-102) and TANK_LEVEL (LI-104/AI1/PV.CV).   Slide 4-27 (PDF Page 79): (Blank spacer page.)   Slides 4-28 & 4-29 (Unit Module & Unit Phase Properties — PDF Pages 80–81):
+Before downloading, you check two Properties boxes:   On the Unit Module (UM_COLOR_100), verify Available to the Batch Executive? is Yes (and set its Primary Control Display to Process).   On the Unit Phase (FILL), set Phase type: to Controller (this tells DeltaV to actually compile and download the phase code into the controller rather than leaving it disabled or external).   Slide 4-30 (Assigning Control Modules to Unit Modules — PDF Page 82):
+For Unit Alarm roll-up and S88 organization, you drag the physical Control Modules (LI-104, XV-101, XV-102) into UM_COLOR_100 so they live underneath the Unit in the Explorer tree.   Slides 4-31 & 4-32 (Assigning & Downloading Unit Modules — PDF Pages 83–84):
+Right-click UM_COLOR_100 -> Assign... -> Unit And All Contained Modules to Node (assigns the Unit, the Phase, and the 3 Control Modules to your controller in one click), and then right-click Download -> Unit Module and contained modules.   Slide 4-33 (Upload Dialog — PDF Page 85):
+Warns you that if you download a Unit Module after running a phase, DeltaV will ask if you want to Upload online values (like P1/R_FILL_LEVEL or P1/XCOMMAND). Usually, you click Select None or OK without checking boxes so you don't overwrite your clean default Phase settings.   Slides 4-34 & 4-35 (Running the Unit Module — PDF Pages 86–87):
+Shows how to test your FILL Phase manually from DeltaV Operate without needing the Batch Executive running yet:   Open the Unit Module faceplate (UM_COLOR_100) and click the ... button next to Load a Phase, typing FILL.   FILL loads into Slot P1 (UM_COLOR_100/P1) in the Idle state with Phase Owner = External (EXT).   Click the Phase Command button (...) and select Start—the Phase transitions from Idle to Running and fills the tank!   Part 4: Workshop 1 — Building FILL & RUN_LOGIC (Slides 4-36 to 4-52)Slides 4-36 to 4-43 (PDF Pages 88–95):
+These are the step-by-step lab instructions repeating everything we just looked at on Slides 4-8 through 4-16: creating PRODUCTION $\rightarrow$ PAINT_PRODUCTION (4-38), creating COLORTANKS with the 3 aliases INLET_VLV, OUTLET_VLV, TANK_LEVEL (4-39), and creating the FILL Phase Class with Input parameter R_FILL_LEVEL (4-41) and Report parameter RPT_FNL_LVL (4-42).   Slides 4-44 & 4-45 (Workshop - FILL Phase [The SFC Logic] — PDF Pages 96–97):
+Here is the complete 4-step SFC inside RUN_LOGIC:   Step 1 (INIT):Action a: '//#OUTLET_VLV#/MODE.TARGET' := CAS; (Put outlet valve in Cascade).   Action b: '//#OUTLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE'; (Command outlet valve closed).   Transition 1 (OUTLET_CLOSED):Condition c: '//#OUTLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED' (Wait until outlet valve is confirmed closed).   Step 2 (OPEN_INLET):Action d: '//#INLET_VLV#/MODE.TARGET' := CAS; (Put inlet valve in Cascade).   Action e: '//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:OPEN'; (Open inlet valve).   Transition 2 (LEVEL_MET):Condition f: '//#TANK_LEVEL#' >= '^/R_FILL_LEVEL.CV' (Wait until tank level reaches recipe target).   Step 3 (CLOSE_INLET — Slide 4-45):Action g: '//#INLET_VLV#/MODE.TARGET' := CAS;   Action h: '//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE'; (Close inlet valve).   Transition 3 (INLET_CLOSED):Condition i: '//#INLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED' (Wait until inlet valve is confirmed closed).   Step 4 (COMPLETE):Action j: '^/RPT_FNL_LVL.CV' := '//#TANK_LEVEL#'; (Record final tank level into the Report parameter).   Action k: '//#INLET_VLV#/MODE.TARGET' := AUTO; (Release inlet valve back to Operator Auto mode).   Action l: '//#OUTLET_VLV#/MODE.TARGET' := AUTO; (Release outlet valve back to Operator Auto mode).   Termination (COMPLETE_2):Condition m: True (Ends RUN_LOGIC, which automatically causes the Phase State Diagram to transition from Running to Complete!).   Slides 4-46 to 4-52 (PDF Pages 98–104):
+Walks through dragging FILL onto COLORTANKS (4-46), creating UM_COLOR_100, 200, and 300 and resolving their Alias tables (4-48 & 4-49), dragging the CMs onto the Units (4-50), downloading to the controller (4-51), and test-running FILL on all 3 tanks (4-52).   Part 5: Workshop 2 — Adding HOLD_LOGIC & RESTART_LOGIC (Slides 4-53 to 4-63)Slide 4-53 (Phase Logic State Diagram — PDF Page 105):
+Look at the state machine path when something goes wrong or an operator clicks Hold while FILL is Running:   Running $\xrightarrow{\text{Fail / Hold}}$ Holding (executes HOLD_LOGIC SFC) $\xrightarrow{\text{Sequence Done}}$ Held (sits safely paused).   When the operator clicks Restart: Held $\xrightarrow{\text{Restart \& not fail}}$ Restarting (executes RESTART_LOGIC SFC) $\xrightarrow{\text{Sequence Done}}$ returns to Running!   Slide 4-54 (PDF Page 106): (Blank spacer page.)   Slides 4-55 & 4-56 (Workshop - Hold — PDF Pages 107–108):What should a Color Tank do if the operator hits Hold while it is filling? Stop the flow immediately by closing the inlet valve!   You drill down into HOLD_LOGIC and add one step (CLOSE_INLET) and one termination (HOLD):   Step CLOSE_INLET: Drive INLET_VLV/MODE.TARGET := CAS; and INLET_VLV/CAS_SP.CV := 'vlvnc-sp:CLOSE';.   Termination HOLD: Wait for '//#INLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'.   The moment the valve confirms closed, HOLD_LOGIC finishes (Sequence Done) and the phase sits safely in the Held state.   Slide 4-57 (Workshop - Restart — PDF Page 109):What should happen when the operator hits Restart from the Held state? Re-open the inlet valve so filling can resume!   You drill down into RESTART_LOGIC and add one step (OPEN_INLET) and one termination (RESTART):   Step OPEN_INLET: Drive INLET_VLV/MODE.TARGET := CAS; and INLET_VLV/CAS_SP.CV := 'vlvnc-sp:OPEN';.   Termination RESTART: Wait for '//#INLET_VLV#/PV.CV' = 'vlvnc-pv:OPEN'.   Once the valve is open, RESTART_LOGIC finishes and jumps right back into RUN_LOGIC where it left off—waiting for TANK_LEVEL >= R_FILL_LEVEL!   Look at the huge time-saver on Step 3 of Slide 4-57: Because we added HOLD_LOGIC and RESTART_LOGIC to the FILL Phase Class in the library, it automatically propagated to UM_COLOR_100, 200, and 300 without us having to write it three times!   Slide 4-58 (Workshop - Verify Functionality — PDF Page 110):
+Tests starting FILL, clicking HOLD mid-fill, watching INLET_VLV close and the phase enter HELD, then clicking RESTART and watching INLET_VLV re-open and finish the fill.   Slides 4-59 to 4-63 (Optional Exercises & Summary — PDF Pages 111–115):4-60 & 4-61 (STOP_LOGIC & ABORT_LOGIC): Asks what you would put in STOP_LOGIC and ABORT_LOGIC. (Just like HOLD_LOGIC, you close INLET_VLV, confirm it closed, and then return INLET_VLV and OUTLET_VLV MODE.TARGET := AUTO since Stopped and Aborted end the phase instead of resuming it!)   4-62 (Overshoot / Pre-act Compensation): Asks how to stop the valve slightly early (e.g., TANK_LEVEL >= R_FILL_LEVEL - 2) if liquid in flight causes the tank to overshoot by 2 gallons while the valve is closing.   Which part of Module 4—the Alias resolution table (4-26 / 4-48), the RUN_LOGIC SFC steps (4-44 / 4-45), or how HOLD_LOGIC and RESTART_LOGIC hand off to RUN_LOGIC (4-53 to 4-58)—do you want to zoom in on or test your understanding of first?   
+
+
+This slide-by-slide breakdown covers Module 5 (Module Classes), spanning Slide 5-1 to Slide 5-54 (PDF Pages 692–745).   
+PDF
++ 2
+
+In Module 4, you built the three Color Tanks manually (creating the Unit Module first, then dragging existing Control Modules into it and manually typing alias paths). In Module 5, you are building the two Blenders (BLENDER 500 and BLENDER 600) using Equipment Module Classes and embedding them directly inside a Unit Class (BLENDERS), so that dragging a single BLENDERS Unit Class into your plant automatically creates the Unit, two Equipment Modules, five Control Modules, and all their aliases in a single step.   
+PDF
++ 4
+
+Part 1: Equipment Module Concepts & The 7 Algorithm Types (Slides 5-1 to 5-9)
+Slides 5-1 to 5-3 (Title & Objectives — PDF Pages 692–694):
+Introduces the module objectives: defining and creating Unit Classes, Equipment Module Classes, and Control Module Classes, instantiating Unit Modules, and resolving aliases.   
+PDF
++ 2
+
+Slide 5-4 (Batch Definitions — PDF Page 695):
+Highlights the Equipment Module layer in the S88 Physical Model (sitting right between the Unit above it and the Control Module below it).   
+PDF
+
+Equipment Module Class: A library template defining common properties and logic for a type of Equipment Module; it can contain child Control Modules (derived from Control Module Classes) and even nested Equipment Modules.   
+PDF
+
+Equipment Module (EM): Provides supervisory coordination for a group of Control Modules that must work together to perform a finite task (like a header manifold or a multi-stage dosing valve), controlled via states or commands.   
+PDF
+
+Slide 5-5 (Equipment Module Classes — PDF Page 696):
+Shows the P&ID of BLENDER 500 and BLENDER 600 and points out the two Equipment Module Classes we are about to build:   
+PDF
+
+BLENDER_COLOR: Supervises the 2-stage top color inlet valve (XV-502 on Blender 500, XV-602 on Blender 600).   
+PDF
++ 3
+
+BLENDER_OUTLET: Supervises the two discharge routing valves at the bottom of each blender—the Product valve (XV-503 / XV-603) and the Waste valve (XV-504 / XV-604).   
+PDF
++ 3
+
+Slide 5-6 (New Equipment Module Class Category — PDF Page 697):
+In DeltaV Explorer under Library -> Advanced Definitions -> Equipment Module Classes, you right-click and select New Category to create an organizational folder named CommandDriven.   
+PDF
++ 1
+
+Slide 5-7 (Equipment Module Class — PDF Page 698):
+Right-clicking the CommandDriven folder and selecting New Equipment Module Class opens the creation dialog for BLENDER_COLOR, where you choose the Algorithm type from a drop-down menu.   
+PDF
+
+Slides 5-8 & 5-9 (Equipment Module Class – Algorithm Types — PDF Pages 699–700):
+Key Architectural Comparison: DeltaV gives you 7 Algorithm Types when creating an Equipment Module Class, with Command-Driven and State-Driven being the two workhorses:   
+PDF
++ 1
+
+Function Block Diagram (FBD): Standard interconnected function blocks.   
+PDF
+
+Sequential Function Chart (SFC): A single standard SFC sequence.   
+PDF
+
+Command-Driven (Slide 5-8): Uses separate SFC sub-blocks triggered by writing a Named Set command to A_COMMAND. Used when multiple steps or timing relationships are required to supervise child Control Modules. Requires a Named Set that includes a mandatory 255 entry for the undefined/Idle state.   
+PDF
++ 2
+
+State-Driven (Slide 5-9): Uses a table-driven state matrix. Used when only a single step/value is needed to align a group of valves or motors simultaneously without complex timing sequences.   
+PDF
++ 2
+
+Phase Algorithm: Full S88 Phase state transition diagram.   
+PDF
+
+Phase with command-driven run logic: Replaces RUN_LOGIC with a command-driven composite block.   
+PDF
+
+Phase with state-driven run logic: Replaces RUN_LOGIC with state-driven logic.   
+PDF
+
+Part 2: Workshop 1 — Building Command-Driven EM BLENDER_COLOR (Slides 5-10 to 5-17)
+Slides 5-10 & 5-11 (Equipment Module Class – BLENDER_COLOR — PDF Pages 701–702):
+Introduces the workshop to build BLENDER_COLOR, which controls the 2-stage color inlet valve (XV-502 / XV-602).   
+PDF
++ 1
+
+Slide 5-12 (Workshop – BLENDER_COLOR [Creation] — PDF Page 703):
+Under Equipment Module Classes -> CommandDriven, you create BLENDER_COLOR, select Algorithm type: Command driven, and attach the Named Set EM-vlvnc-2stage.   
+PDF
+
+Slide 5-13 (Workshop – BLENDER_COLOR [Adding Child CM & Named Set] — PDF Page 704):
+
+First, look at the screenshot of the EM-vlvnc-2stage Named Set:
+
+1 = Close
+
+   
+PDF
+
+2 = Dribble
+
+   
+PDF
+
+3 = Bulk
+
+   
+PDF
+
+4 = Auto Mode
+
+   
+PDF
+
+255 = Idle (Not User Selectable)   
+PDF
++ 1
+
+Second, you drag the Control Module Class 2STAGE_VALVE onto BLENDER_COLOR and rename the embedded child Control Module to COLOR_IN_VLV. Notice that the Equipment Module now owns a child Control Module inside its class definition!   
+PDF
++ 2
+
+Slide 5-14 (Workshop – BLENDER_COLOR [Command Blocks in Control Studio] — PDF Page 705):
+When you open BLENDER_COLOR in Control Studio, DeltaV has automatically generated four SFC sub-blocks matching values 1 through 4 of your Named Set:   
+PDF
++ 2
+
+COMMAND_00001 
+→ State Name: Close
+
+   
+PDF
+
+COMMAND_00002 
+→ State Name: Dribble
+
+   
+PDF
+
+COMMAND_00003 
+→ State Name: Bulk
+
+   
+PDF
+
+COMMAND_00004 
+→ State Name: Auto Mode
+
+   
+PDF
+
+Slides 5-15 to 5-17 (Workshop – BLENDER_COLOR [Writing the 4 Command SFCs] — PDF Pages 706–708):
+You drill down into each of the four COMMAND_0000x blocks and add a 1-step SFC with a confirmation transition:   
+PDF
++ 1
+
+COMMAND_00001 (Close — Slide 5-15):
+
+Step CLOSE_VLV: Put COLOR_IN_VLV/MODE.TARGET := CAS; and set COLOR_IN_VLV/CAS_SP.CV := 'vlvnc2stage-sp:CLOSE';.   
+PDF
+
+Termination VLV_CLOSED: Wait for COLOR_IN_VLV/PV.CV = 'vlvnc2stage-pv:CLOSED'.   
+PDF
+
+COMMAND_00002 (Dribble — Slide 5-15):
+
+Step DRIBBLE_SP: Put COLOR_IN_VLV in CAS mode and set CAS_SP to 'vlvnc2stage-sp:DRIBBLE'.   
+PDF
+
+Termination VLV_DRIBBLE: Wait for COLOR_IN_VLV to open to Dribble.   
+PDF
+
+COMMAND_00003 (Bulk — Slide 5-16):
+
+Step BULK_SP: Put COLOR_IN_VLV in CAS mode and set CAS_SP to 'vlvnc2stage-sp:BULK'.   
+PDF
+
+Termination VLV_BULK: Wait for COLOR_IN_VLV to open to Bulk.   
+PDF
+
+COMMAND_00004 (Auto Mode — Slide 5-16):
+
+Step AUTO_MODE: Place COLOR_IN_VLV in AUTO mode (MODE.TARGET := AUTO).   
+PDF
+
+Termination ACTUAL_AUTO: Wait for COLOR_IN_VLV/MODE.ACTUAL = AUTO.   
+PDF
+
+Slide 5-17 saves and closes Control Studio.   
+PDF
+
+Part 3: Workshop 2 — Building State-Driven EM BLENDER_OUTLET (Slides 5-18 to 5-24)
+Slides 5-18 & 5-19 (Equipment Module Class – BLENDER_OUTLET — PDF Pages 709–710):
+Now look at the bottom of the blenders: we have two block valves (PRODUCT_VLV and WASTE_VLV). Because aligning a discharge manifold doesn't require multi-step timing—we just want one valve open and the other closed simultaneously—a State-Driven Equipment Module is a much cleaner fit than writing four separate SFCs.   
+PDF
++ 4
+
+Slide 5-20 (Workshop – BLENDER_OUTLET [Creation] — PDF Page 711):
+Create a category folder called StateDriven, create a new Equipment Module Class called BLENDER_OUTLET, select Algorithm type: State driven, and attach the Named Set EM_Outlet_State.   
+PDF
+
+Slides 5-21 & 5-22 (Workshop – BLENDER_OUTLET [Child CMs & Named Set] — PDF Pages 712–713):
+
+Look at the screenshot of the EM_Outlet_State Named Set on Slide 5-21:   
+PDF
+
+1 = Closed - CAS
+
+   
+PDF
+
+2 = Draining Waste - CAS
+
+   
+PDF
+
+3 = Releasing Product - CAS
+
+   
+PDF
+
+4 = Auto Mode
+
+   
+PDF
+
+255 = Idle
+
+   
+PDF
+
+Next, you drag the NC_VALVE Control Module Class onto BLENDER_OUTLET twice, naming the two child Control Modules PRODUCT_VLV (Slide 5-21) and WASTE_VLV (Slide 5-22).   
+PDF
++ 1
+
+Slides 5-23 & 5-24 (Workshop – BLENDER_OUTLET [The State Matrix Table] — PDF Pages 714–715):
+This is why we promoted MODE, CAS_SP, and PV to the Module level back in Module 2!
+
+When you open BLENDER_OUTLET in Control Studio, instead of drawing an SFC, you get an Items tab and a States tab.   
+PDF
++ 1
+
+On the Items tab (Slide 5-24, Step 8), you add 4 rows linking each Write parameter path to its confirmation Readback parameter path:   
+PDF
+
+PRODUCT_MODE: Write = PRODUCT_VLV/MODE.TARGET | Readback = PRODUCT_VLV/MODE.ACTUAL
+
+   
+PDF
+
+WASTE_MODE: Write = WASTE_VLV/MODE.TARGET | Readback = WASTE_VLV/MODE.ACTUAL
+
+   
+PDF
+
+PRODUCT_SP: Write = PRODUCT_VLV/CAS_SP.CV | Readback = PRODUCT_VLV/PV.CV
+
+   
+PDF
+
+WASTE_SP: Write = WASTE_VLV/CAS_SP.CV | Readback = WASTE_VLV/PV.CV
+
+   
+PDF
+
+On the States tab (bottom of Slide 5-24, Step 9), you just fill in the truth table for your 4 Named Set states:   
+PDF
+
+Closed - CAS: Both modes = Cascade, PRODUCT_SP = CLOSE, WASTE_SP = CLOSE.   
+PDF
+
+Draining Waste - CAS: Both modes = Cascade, PRODUCT_SP = CLOSE, WASTE_SP = OPEN.   
+PDF
+
+Releasing Product - CAS: Both modes = Cascade, PRODUCT_SP = OPEN, WASTE_SP = CLOSE.   
+PDF
+
+Auto Mode: Both modes = Auto, both SPs = CLOSE.   
+PDF
+
+Whenever a Phase writes Releasing Product - CAS to BLENDER_OUTLET/A_COMMAND, the State-Driven EM automatically writes all 4 values and waits for all 4 Readback paths (MODE.ACTUAL and PV.CV) to match before setting A_PV to Releasing Product - CAS!   
+PDF
++ 2
+
+Part 4: Building the BLENDERS Unit Class & Private vs. Shared Ownership (Slides 5-25 to 5-37)
+Slides 5-25, 5-26, & 5-27 (Adding Module Classes to a Unit Class — PDF Pages 716–718):
+Instead of only putting empty Aliases on a Unit Class like we did for COLORTANKS, you can actually attach Equipment Module Classes and Control Module Classes directly to a Unit Class (BLENDERS). When you add a Module Class to a Unit Class, DeltaV asks for two crucial settings:   
+PDF
+
+Ownership Type (Slide 5-26):
+
+Private: Each Unit belongs exclusively to its own physical equipment (e.g., Blender 500 has its own agitator AGIT-503; Blender 600 has its own agitator AGIT-603). When you instantiate the Unit Class, Private automatically creates a brand-new module instance inside that Unit!   
+PDF
++ 4
+
+Shared: Multiple Units share a single piece of equipment (like BASE_HEADER, which you will build in Module 9). Selecting Shared creates an <unbound> placeholder on each Unit instance that you later bind to the single shared module.   
+PDF
++ 4
+
+Allow variant module to be substituted on module instances (Slide 5-27):
+
+If checked, you can delete a child module on a specific Unit instance (say, if Blender 600 has a VFD pump instead of a 2-state pump) and replace it with a different module class, as long as its interface parameter names and types match.   
+PDF
+
+Slides 5-28 to 5-30 (Workshop – BLENDERS Unit Class [Cleanup] — PDF Pages 719–721):
+Because the training database originally had standalone control modules (AGIT-503, MTR-505, XV-501 through XV-604) sitting loose in the plant area for the manual exercises in Module 2, Steps 1 and 2 have you delete those loose valves/motors so we can auto-generate them cleanly from our new BLENDERS Unit Class. (Note: You keep LI-504 and LI-604 because we already built them in Module 1.) Then you create the BlenderUnits category and the BLENDERS Unit Class.   
+PDF
++ 4
+
+Slides 5-31 to 5-33 (Workshop – BLENDERS Unit Class [Populating the Blueprint] — PDF Pages 722–724):
+Here you load the entire equipment list into the BLENDERS Unit Class (all set to Private ownership):   
+PDF
++ 2
+
+Add 2 Equipment Module Classes (Slide 5-31 & 5-33):
+
+BLENDER_COLOR 
+→ renamed to BLNDR_COLOR
+
+   
+PDF
++ 1
+
+BLENDER_OUTLET 
+→ renamed to BLNDR_OUTLET
+
+   
+PDF
++ 1
+
+Add 3 Control Module Classes (Slide 5-32 & 5-33):
+
+AGIT_MTR 
+→ renamed to AGITATOR
+
+   
+PDF
++ 1
+
+OUT_PMP 
+→ renamed to OUT_PUMP
+
+   
+PDF
++ 1
+
+NC_VALVE 
+→ renamed to BASE_IN_VLV
+
+   
+PDF
++ 1
+
+Look at the right-hand pane on Slide 5-33: Every time you added an Equipment Module Class or Control Module Class to BLENDERS, DeltaV automatically created a matching Unit Alias (BLNDR_COLOR, BLNDR_OUTLET, AGITATOR, OUT_PUMP, BASE_IN_VLV)!   
+PDF
++ 2
+
+You only have to manually add one alias (TANK_LEVEL) because LI-504 and LI-604 already existed outside the Unit Class.   
+PDF
++ 2
+
+Slides 5-34 to 5-36 (Workshop – BLENDERS Unit Class [Instantiating UM_BL_500 & UM_BL_600] — PDF Pages 725–727):
+Now watch the payoff on Slide 5-34:
+
+You drag BLENDERS into PAINT_PRODUCTION twice to create UM_BL_500 and UM_BL_600.   
+PDF
+
+Automatically underneath UM_BL_500, DeltaV created all the Equipment Modules (BL_500_COLOR_IN, BL_500_OUTLET), all their nested Control Modules (XV-502, XV-503, XV-504), all the direct Control Modules (AGIT-503, XV-501, MTR-505), and automatically resolved all 5 of their Aliases!   
+PDF
++ 2
+
+You just rename the newly generated instances to match your P&ID tag numbers (AGIT-503, XV-501, etc. on Slide 5-34; AGIT-603, XV-601, etc. on Slide 5-35), resolve TANK_LEVEL to LI-504/AI1/PV.CV and LI-604/AI1/PV.CV (Slide 5-36), drag LI-504/LI-604 under the units, and download the controller.   
+PDF
++ 2
+
+Slide 5-37 (PDF Page 728): (Blank spacer page.)   
+PDF
+
+Part 5: Testing the Equipment Modules Online (Slides 5-38 to 5-54)
+Slides 5-38 & 5-39 (Workshop – Verify you can run the process — PDF Pages 729–730):
+Tests manual operation of all the newly instantiated Blender Control Modules (XV-501, AGIT-503, MTR-505, etc.) from the DeltaV Operate PROCESS screen to make sure the class-based instances work identically to the old standalone modules.   
+PDF
++ 1
+
+Slides 5-40 to 5-43 (Workshop – Verify Equipment Modules [Key EM Parameters] — PDF Pages 731–734):
+Opens BL_500_COLOR_IN online in Control Studio. Bookmark Slide 5-43 (PDF Page 734)—it defines the four standard parameters that every DeltaV Equipment Module uses:   
+PDF
++ 1
+
+A_COMMAND: The Named Set command you write to the Equipment Module to tell it what to do (e.g., Close, Dribble, Bulk, Auto Mode).   
+PDF
++ 3
+
+A_TARGET: Internal parameter showing the currently executing A_COMMAND.   
+PDF
+
+A_PV: The current confirmed state of the Equipment Module. When the EM's command SFC or state matrix finishes and all valves confirm their positions, A_PV updates to match A_COMMAND (so your Phase transitions will simply check '//#BLNDR_COLOR#/A_PV.CV' = 'EM-vlvnc-2stage:Dribble')!   
+PDF
++ 4
+
+A_ABT_ON_NEW_CMD: Boolean flag (False by default). If False, the EM finishes its current command before starting a new A_COMMAND; if True, writing a new A_COMMAND immediately aborts the in-progress command SFC and jumps to the new command.   
+PDF
++ 1
+
+Slides 5-44 to 5-47 (Testing BL_500_COLOR_IN Online — PDF Pages 735–738):
+Walks you through writing Dribble (5-44), Bulk (5-46), Close (5-47), and Auto Mode (5-47) to A_COMMAND on BL_500_COLOR_IN and watching the appropriate COMMAND_0000x block run, drive XV-502 (COLOR_IN_VLV), and update A_PV.   
+PDF
++ 3
+
+Slides 5-48 to 5-50 (Testing BL_500_OUTLET Online — PDF Pages 739–741):
+Walks you through testing your State-Driven EM (BL_500_OUTLET) by setting A_COMMAND to Draining Waste - CAS (watches XV-503 close and XV-504 open), Releasing Product - CAS (watches XV-503 open and XV-504 close), Closed - CAS, and Auto Mode.   
+PDF
++ 2
+
+Slides 5-51 to 5-54 (Optional Exercises & Summary — PDF Pages 742–745):
+
+Slide 5-53: Suggests adding interlocks/permissives to MTR-505 and MTR-605 so the discharge pumps can't deadhead if both PRODUCT_VLV and WASTE_VLV are closed.   
+PDF
+
+The Big Takeaway from Chapter 5
+Look at how much cleaner your Phase logic in Chapter 6 (AGITATE) and Chapter 8 (CHG_COLOR) is going to be because of Chapter 5:
+
+Instead of the Blender Phase having to individually manipulate modes and setpoints on XV-503 and XV-504 and check both limit switches, the Phase just writes one command to the Equipment Module:
+'//#BLNDR_OUTLET#/A_COMMAND.CV' := 'EM-Outlet_State:Closed-CAS';
+
+   
+PDF
+
+And waits for one readback:
+'//#BLNDR_OUTLET#/A_PV.CV' = 'EM-Outlet_State:Closed-CAS'!   
+PDF
++ 1
+
+Do you have any questions on Command-Driven vs. State-Driven EMs or Private vs. Shared ownership on the Unit Class, or are you ready to roll into Chapter 6 (AGITATE Unit Phase)?
+
+

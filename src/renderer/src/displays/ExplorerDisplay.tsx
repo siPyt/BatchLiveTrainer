@@ -34,6 +34,9 @@ import {
   LibraryTree, PhysicalNetworkTree, LibraryDetail, InstanceContents, ContextMenu, ControllerDownloadDialog,
   instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, type LibrarySelection, type ContentsRow
 } from '../components/LibraryExplorer'
+import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, useBatchEnabled } from '../components/BatchExplorer'
+import { useBatch } from '../engine/batchStore'
+import { useBatchUi } from '../ui/batchUi'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -110,9 +113,7 @@ export function ExplorerDisplay(): JSX.Element {
   const openFaceplate = useUi((s) => s.openFaceplate)
   const [open, setOpen] = useState<Record<string, boolean>>({
     CELL: true,
-    FEED: true,
-    REACTOR: true,
-    PRODUCT: true
+    ED_CENTER_BATCH: true
   })
   const [treeWidth, setTreeWidth] = usePersistentSize('explorer.treeWidth', 560)
   const [createArea, setCreateArea] = useState<string | null>(null)
@@ -142,6 +143,10 @@ export function ExplorerDisplay(): JSX.Element {
   const libraryDeployed = useLibrary(s => s.deployed)
   const libraryClasses = useLibrary(s => s.classes)
   const sims = useLibrary(s => s.sims)
+  const batchContained = useBatch(s => s.contained)
+  const batchCellMembers = useBatch(s => s.cellMembers)
+  const batchCells = useBatch(s => s.processCells)
+  const { batch: batchOn, aum } = useBatchEnabled()
 
   useEffect(() => {
     if (!instMenu) return
@@ -212,6 +217,7 @@ export function ExplorerDisplay(): JSX.Element {
         <span>{m.tag}</span>}
       sub={`${classInstance ? `${classInstance} · ` : ''}${m.description} — ${st.text}`}
       dataAttr={{ 'data-module': m.tag }}
+      drag={{ type: DRAG_MODULE, value: m.tag }}
       onClick={() => { setNode(null); setLibSel(null); setSetupView('modules'); select(m.tag) }}
       onDoubleClick={() => openStudio(m.tag)}
       onKeyDown={classInstance ? e => { if (e.key === 'F2') setRenamingModule({ tag: m.tag, value: m.tag }) } : undefined}
@@ -239,7 +245,7 @@ export function ExplorerDisplay(): JSX.Element {
     const ems = Object.values(equipment).filter((em) => em.area === area)
     const areaSfcs = Object.values(sfcs).map(sfc => ({ ...sfc, ...sfcConfiguredMetadata(sfc, sfcLifecycles[sfc.name]) })).filter(sfc => sfc.area === area)
     return { mods, ems, areaSfcs,
-      unassigned: mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule]),
+      unassigned: mods.filter((m) => (!m.equipmentModule || !equipment[m.equipmentModule]) && !batchContained[m.tag] && !batchCellMembers[m.tag]),
       unassignedSfcs: areaSfcs.filter(sfc => !sfc.equipmentModule || !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area) }
   }
 
@@ -251,7 +257,7 @@ export function ExplorerDisplay(): JSX.Element {
     licensing: 'PROPLUS', securityParameter: 'Parameter Security', securityField: 'Field Security', securityFunction: 'Function Security',
     signatures: 'Electronic Signatures', export: 'Export / Import', hierarchy: 'Equipment Hierarchy', alarmPriorities: 'Alarm Priorities'
   }
-  const libLabel = (s: LibrarySelection): string => s.kind === 'library' ? 'Library' : s.kind === 'folder' ? s.path[s.path.length - 1] :
+  const libLabel = (s: LibrarySelection): string => s.kind === 'batch' ? batchLabel(s.sel) : s.kind === 'library' ? 'Library' : s.kind === 'folder' ? s.path[s.path.length - 1] :
     s.kind === 'template' || s.kind === 'category' || s.kind === 'class' ? s.name : s.kind === 'advanced' ? 'Advanced Definitions' :
       s.kind === 'emClasses' ? 'Equipment Module Classes' : s.kind === 'cmClasses' ? 'Control Module Classes' : s.kind === 'network' ? 'Physical Network' :
         s.kind === 'decom' ? 'Decommissioned Nodes' : s.kind === 'ctlnet' ? 'Control Network' : s.tag
@@ -267,7 +273,7 @@ export function ExplorerDisplay(): JSX.Element {
       row('lib', <DvIcon kind="library" />, 'Library', 'Database', () => setLibSel({ kind: 'library' })),
       row('sys', <DvIcon kind="sysconfig" />, 'System Configuration', 'System Configuration', () => pickNode('sysconfig'))]
     if (key === 'sysconfig') return [
-      row('rec', <DvIcon kind="recipes" />, 'Recipes', 'Recipes', () => pickNode('recipes')),
+      ...(batchOn ? [row('rec', <DvIcon kind="recipes" />, 'Recipes', 'Recipes', () => pickNode('recipes'))] : []),
       row('setup', <DvIcon kind="setup" />, 'Setup', 'Setup', () => pickNode('setup')),
       row('cs', <DvIcon kind="strategies" />, 'Control Strategies', 'Control Strategies', () => pickNode('strategies')),
       row('pn', <DvIcon kind="network" />, 'Physical Network', 'Physical Network', () => setLibSel({ kind: 'network' }))]
@@ -275,6 +281,7 @@ export function ExplorerDisplay(): JSX.Element {
       ['securityField', 'Field Security'], ['securityFunction', 'Function Security'], ['alarmPriorities', 'Alarm Priorities'], ['hierarchy', 'Equipment Hierarchy'], ['export', 'Export / Import']]
       .map(([view, label]) => row(view, <DvIcon kind="item" />, label, 'Setup', () => pickSetup(view as typeof setupView)))
     if (key === 'strategies') return [
+      ...(aum ? [row('ext', <BatchIcon kind="external" />, 'External Phases', 'External Phases', () => setLibSel({ kind: 'batch', sel: { t: 'external' } }))] : []),
       row('uio', <DvIcon kind="unassignedio" />, 'Unassigned I/O References', 'Unassigned I/O References', () => pickNode('unassignedio')),
       ...areas.map(a => row(a, <DvIcon kind="area" />, a, 'Plant Area', () => { setOpen(o => ({ ...o, [a]: true })); pickNode(`AREA:${a}`) }, { data: { 'data-contents-area': a } }))]
     if (key.startsWith('AREA:')) {
@@ -282,10 +289,12 @@ export function ExplorerDisplay(): JSX.Element {
       const c = areaContents(area)
       return [
         ...Object.values(processCells).filter(cell => cell.area === area).map(cell => row(cell.name, <ModuleIcon kind="cell" size={16} />, cell.name, 'Process Cell', () => pickNode(`CELL:${cell.name}`))),
+        ...Object.values(batchCells).filter(cell => cell.area === area).map(cell => row(`pc:${cell.name}`, <BatchIcon kind="pcell" />, cell.name, `Process Cell (${cell.className})`,
+          () => setLibSel({ kind: 'batch', sel: { t: 'cell', name: cell.name } }), { data: { 'data-contents-pcell': cell.name } })),
         ...c.ems.filter(em => !em.unit || !units[em.unit]).map(em => row(em.tag, <ModuleIcon kind="equipment" size={16} />, em.tag, 'Equipment Module', () => pickNode(`EM:${em.tag}`))),
         ...c.unassigned.map(moduleRow),
         ...c.unassignedSfcs.map(sfc => row(sfc.name, <ModuleIcon kind="control" size={16} />, sfc.name, 'Control Module (SFC)', () => { setNode(null); select(sfc.name) })),
-        ...Object.values(sims).filter(x => x.area === area).map(x => row(x.tag, <ModuleIcon kind="control" size={16} />, x.tag, 'Control Module (simulation)', () => setLibSel({ kind: 'sim', tag: x.tag })))
+        ...Object.values(sims).filter(x => x.area === area && !batchCellMembers[x.tag]).map(x => row(x.tag, <ModuleIcon kind="control" size={16} />, x.tag, 'Control Module (simulation)', () => setLibSel({ kind: 'sim', tag: x.tag })))
       ]
     }
     if (key.startsWith('CELL:')) return Object.values(units).filter(u => u.cell === key.slice(5))
@@ -322,7 +331,16 @@ export function ExplorerDisplay(): JSX.Element {
       sub={`Plant Area · ${mods.length} modules`}
       dataAttr={{ 'data-area': area }}
       drag={{ type: DRAG_AREA, value: area }}
-      drop={{ accepts: [DRAG_CLASS], onDrop: (_type, cls) => {
+      drop={{ accepts: [DRAG_CLASS, DRAG_PCELL_CLASS], onDrop: (type, cls) => {
+        if (type === DRAG_PCELL_CLASS) {
+          const r = useBatch.getState().createProcessCell(cls, area)
+          if (alertResult(r)) {
+            setOpen(o => ({ ...o, [area]: true })); setNode(null); select(null)
+            setLibSel({ kind: 'batch', sel: { t: 'cell', name: r.value } })
+            useBatchUi.getState().setRenaming({ kind: 'cell', name: r.value })
+          }
+          return
+        }
         const r = useLibrary.getState().createInstance(cls, area)
         if (alertResult(r)) { setOpen(o => ({ ...o, [area]: true })); setNode(null); setLibSel(null); setSetupView('modules'); select(r.value) }
       } }}
@@ -344,12 +362,15 @@ export function ExplorerDisplay(): JSX.Element {
         </TreeRow>
       })}
       {ems.filter((em) => !em.unit || !units[em.unit]).map((em) => renderEm(em, depth + 1))}
+      <ProcessCellRows area={area} depth={depth + 1} sel={libSel?.kind === 'batch' ? libSel.sel : null}
+        onSelect={s => { setNode(null); select(null); setLibSel({ kind: 'batch', sel: s }) }}
+        renderModule={(tag, d) => modules[tag] ? renderModuleRow(modules[tag], d) : null} />
       {[
         ...unassigned.map(m => ({ key: m.tag, el: renderModuleRow(m, depth + 1) })),
         ...unassignedSfcs.map(sfc => ({ key: sfc.name, el: renderSfcRow(sfc, depth + 1) })),
-        ...Object.values(sims).filter(x => x.area === area).map(sim => ({ key: sim.tag, el: <TreeRow key={sim.tag} depth={depth + 1}
+        ...Object.values(sims).filter(x => x.area === area && !batchCellMembers[x.tag]).map(sim => ({ key: sim.tag, el: <TreeRow key={sim.tag} depth={depth + 1}
           selected={libSel?.kind === 'sim' && libSel.tag === sim.tag} icon={<ModuleIcon kind="control" size={16} />} label={<span>{sim.tag}</span>}
-          dataAttr={{ 'data-sim-module': sim.tag }} sub={sim.description}
+          dataAttr={{ 'data-sim-module': sim.tag }} sub={sim.description} drag={{ type: DRAG_MODULE, value: sim.tag }}
           onClick={() => { setNode(null); select(null); setLibSel({ kind: 'sim', tag: sim.tag }) }} /> }))
       ].sort((a, b) => a.key.localeCompare(b.key)).map(x => x.el)}
     </TreeRow>
@@ -374,7 +395,7 @@ export function ExplorerDisplay(): JSX.Element {
           { label: 'New Area', onClick: newArea },
           { label: 'New Control Module...', onClick: () => { setNewModuleEm(undefined); setCreateArea(selectedArea) } },
           { label: 'New Equipment Module...', onClick: () => setCreateEmArea(selectedArea) },
-          { label: 'Close', onClick: () => useUi.getState().navigate('overview') }] },
+          { label: 'Close', onClick: () => useUi.getState().navigate('process') }] },
         { label: 'Edit', items: [
           { label: 'Cut', disabled: 'Not modeled' }, { label: 'Copy', disabled: 'Not modeled' }, { label: 'Paste', disabled: 'Not modeled' },
           { label: 'Delete', onClick: deleteSelected },
@@ -387,8 +408,8 @@ export function ExplorerDisplay(): JSX.Element {
           { label: 'Properties', disabled: 'Right-click an item and choose Properties' }] },
         { label: 'Applications', items: [
           { label: 'Control Studio', onClick: () => useUi.getState().navigate('studio') },
-          { label: 'DeltaV Operate', onClick: () => useUi.getState().navigate('overview') },
-          { label: 'Batch Operator Interface', onClick: () => useUi.getState().navigate('batch') },
+          { label: 'DeltaV Operate', onClick: () => useUi.getState().navigate('process') },
+          { label: 'Batch Operator Interface', disabled: 'Batch Operator Interface is not part of Course 7016 Chapters 1 and 4; run unit phases from the Process and BatchHelp pictures' },
           { label: 'Diagnostics', onClick: () => useUi.getState().navigate('hardware') },
           { label: 'Process History View', onClick: () => useUi.getState().navigate('trend') }] },
         { label: 'Tools', items: [{ label: 'User Manager', onClick: () => useUi.getState().navigate('users') },
@@ -438,8 +459,8 @@ export function ExplorerDisplay(): JSX.Element {
           <LibraryTree depth={1} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }} />
           <TreeRow depth={1} open={open.SYSCONFIG !== false} onToggle={() => setOpen(o => ({ ...o, SYSCONFIG: o.SYSCONFIG === false }))} selected={containerSelected('sysconfig')}
             icon={<DvIcon kind="sysconfig" />} label={<span>System Configuration</span>} onClick={() => pickNode('sysconfig')}>
-            <TreeRow depth={2} selected={containerSelected('recipes')} icon={<DvIcon kind="recipes" />} label={<span>Recipes</span>}
-              sub="Recipes are built in Recipe Studio (Batch Operator display)" onClick={() => pickNode('recipes')} />
+            {batchOn && <TreeRow depth={2} selected={containerSelected('recipes')} icon={<DvIcon kind="recipes" />} label={<span>Recipes</span>}
+              sub="Recipes are built in Recipe Studio (not used in Course 7016 Chapters 1 and 4)" onClick={() => pickNode('recipes')} />}
             <TreeRow depth={2} open={open.SETUP !== false} onToggle={() => toggle('SETUP')} selected={containerSelected('setup')}
               icon={<DvIcon kind="setup" />} label={<span>Setup</span>} onClick={() => pickNode('setup')}>
               {setupItem('namedSets', 'Named Sets', 3, {
@@ -484,6 +505,9 @@ export function ExplorerDisplay(): JSX.Element {
               dataAttr={{ 'data-control-strategies': '' }}
               onClick={() => pickNode('strategies')}
               onContextMenu={e => { pickNode('strategies'); setMenu({ x: e.clientX, y: e.clientY, kind: 'strategies', target: 'Control Strategies' }) }}>
+              {aum && <div data-library="batch-external"><TreeRow depth={3} selected={libSel?.kind === 'batch' && libSel.sel.t === 'external'} icon={<BatchIcon kind="external" />}
+                label={<span>External Phases</span>} dataAttr={{ 'data-external-phases': '' }}
+                onClick={() => { setNode(null); select(null); setLibSel({ kind: 'batch', sel: { t: 'external' } }) }} /></div>}
               <TreeRow depth={3} selected={containerSelected('unassignedio')} icon={<DvIcon kind="unassignedio" />} label={<span>Unassigned I/O References</span>}
                 onClick={() => pickNode('unassignedio')} />
               {areas.map(area => areaRow(area, 3))}
@@ -502,7 +526,7 @@ export function ExplorerDisplay(): JSX.Element {
         <div className="dvx-detail-body">
         {libSel ? <LibraryDetail selection={libSel} onSelect={setLibSel} /> :
           node ? <div className="dvx-contents"><ContentsList rows={containerRows(node)}
-            empty={node === 'recipes' ? 'Recipes are built in Recipe Studio (Batch Operator display); none are stored here.' : node === 'unassignedio' ? 'No unassigned I/O references.' : 'Empty.'} /></div> :
+            empty={node === 'recipes' ? 'No recipes. Recipe Studio is not used in Course 7016 Chapters 1 and 4.' : node === 'unassignedio' ? 'No unassigned I/O references.' : 'Empty.'} /></div> :
           setupView === 'modules' && selected?.type === 'AI' && libraryInstances[selected.tag] ? <InstanceContents tag={selected.tag} /> :
         setupView === 'alarmPriorities' ? <AlarmPrioritiesPanel /> : setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
           <ExportImportPanel initialNamedSet={selectedNamedSet} />
@@ -621,7 +645,7 @@ export function ExplorerDisplay(): JSX.Element {
                 onClick={() => {
                   const em = equipment[menu.target]
                   setNewModuleEm(menu.target)
-                  setCreateArea(em?.area ?? 'FEED')
+                  setCreateArea(em?.area ?? areas[0] ?? null)
                   setMenu(null)
                 }}
               >

@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import { useStore } from './store'
+import { usePictures } from './pictureStore'
 import { useSecurity } from './security'
 import { controllerIsDown, type Controller } from './hardware'
 import { moduleNameError } from './naming'
 import type { AlarmLimit, AnalogIndicator, AnyModule } from './types'
+import type { NamedSetDefinition } from './namedSets'
 import { makeModule, type NewModuleSpec } from './plant'
 import {
   COURSE_SIMS, DEFAULT_CATEGORIES, TEMPLATE_DEFINITIONS, cloneDefinition, configurableParams, defaultClassName,
@@ -27,6 +29,14 @@ function renameKey<T>(r: Record<string, T>, from: string, to: string): Record<st
 
 export const COURSE_AREA = 'ED_CENTER_BATCH'
 export const COURSE_CONTROLLER = 'CTLR1'
+
+/** Extension points used by the batch configuration (Chapter 4) without a circular import. */
+export const libraryHooks = {
+  /** Download batch objects assigned to the controller; returns { downloaded, warnings }. */
+  controllerDownload: [] as ((controller: string) => { downloaded: string[]; warnings: string[] })[],
+  /** Called after the Course 7016 project (or any project) is (re)installed. */
+  reset: [] as ((course: boolean) => void)[]
+}
 
 export interface DeployedModule { definition: ModuleDefinition; controller: string; at: number; classRevision: number }
 export interface DownloadReport {
@@ -206,6 +216,21 @@ function courseModules(): AnyModule[] {
   ]
 }
 
+/** DV_School named sets used by the batch phase logic (course 7016 pp 2-9..2-11). */
+export function courseNamedSets(): Record<string, NamedSetDefinition> {
+  const set = (name: string, description: string, entries: [string, number][]): NamedSetDefinition => ({
+    name, description, entries: entries.map(([n, value]) => ({ name: n, value, visible: true, userSelectable: true }))
+  })
+  return {
+    'vlvnc-sp': set('vlvnc-sp', 'Normally closed valve setpoint', [['CLOSE', 0], ['OPEN', 1]]),
+    'vlvnc-pv': set('vlvnc-pv', 'Normally closed valve state', [['CLOSED', 0], ['OPEN', 1], ['TRAVEL', 2]]),
+    'vlvnc-2stage-sp': set('vlvnc-2stage-sp', '2 stage valve setpoint', [['CLOSE', 0], ['OPEN', 1], ['DRIBBLE', 2]]),
+    'vlvnc-2stage-pv': set('vlvnc-2stage-pv', '2 stage valve state', [['CLOSED', 0], ['OPEN', 1], ['DRIBBLE', 2], ['TRAVEL', 3]]),
+    'mtr2-sp': set('mtr2-sp', 'Two state motor setpoint', [['STOP', 0], ['START', 1]]),
+    'mtr2-pv': set('mtr2-pv', 'Two state motor state', [['STOPPED', 0], ['RUNNING', 1], ['TRAVEL', 2]])
+  }
+}
+
 function courseController(): Controller {
   return {
     tag: COURSE_CONTROLLER, description: 'DV_School training controller', commissioned: true, redundant: false,
@@ -221,7 +246,7 @@ const empty = (): Pick<LibraryState, 'categories' | 'classes' | 'drafts' | 'inst
 export const useLibrary = create<LibraryState>((set, get) => ({
   ...empty(),
 
-  resetLibrary: () => set(empty()),
+  resetLibrary: () => { set(empty()); libraryHooks.reset.forEach(fn => fn(false)) },
 
   installCourseProject: () => {
     if (!requireUnlockedLock('CAN_CONFIGURE', 'New Project (course 7016 DV_School)')) return false
@@ -232,6 +257,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       areas: ['AREA_A', COURSE_AREA, 'FEED_TANK_AREA'],
       modules: { ...s.modules, ...modules },
       hardware: { ...s.hardware, controllers: { ...s.hardware.controllers, [COURSE_CONTROLLER]: courseController() } },
+      namedSets: { configured: courseNamedSets(), deployed: { [`CONTROLLER:${COURSE_CONTROLLER}`]: courseNamedSets(), WORKSTATION: courseNamedSets() } },
       rev: s.rev + 1
     }))
     const sims = Object.fromEntries(COURSE_SIMS.map(x => [x.tag, { ...x, params: { ...x.params } }]))
@@ -241,7 +267,10 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       process: initialCourseProcess(),
       assignments: Object.fromEntries([...Object.keys(modules), ...Object.keys(sims)].map(tag => [tag, COURSE_CONTROLLER]))
     })
-    log('DV_School', 'Course 7016 training database loaded: area ED_CENTER_BATCH, controller CTLR1, TANKSIM/LEV500-SIM/LEV600-SIM')
+    libraryHooks.reset.forEach(fn => fn(true))
+    // Built-in operator pictures belong to the BatchLive site plant; the course database has none.
+    usePictures.setState({ pictures: {} })
+    log('DV_School', 'Course 7016 training database loaded: areas AREA_A / ED_CENTER_BATCH / FEED_TANK_AREA, controller CTLR1, TANKSIM/LEV500-SIM/LEV600-SIM, named sets vlvnc-sp/vlvnc-pv/vlvnc-2stage-sp/vlvnc-2stage-pv/mtr2-sp/mtr2-pv')
     return true
   },
 
@@ -511,8 +540,13 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     const s = get()
     const tags = Object.entries(s.assignments).filter(([, ctl]) => ctl === controller).map(([t]) => t).sort()
     const report = deploy(s, tags, controller, controller)
+    for (const hook of libraryHooks.controllerDownload) {
+      const extra = hook(controller)
+      report.report.downloaded.push(...extra.downloaded)
+      report.report.warnings.push(...extra.warnings)
+    }
     set({ deployed: { ...s.deployed, ...report.deployed }, lastDownload: report.report })
-    log(controller, `Controller downloaded: ${tags.length} module(s)${report.report.warnings.length ? `, ${report.report.warnings.length} warning(s)` : ''}`)
+    log(controller, `Controller downloaded: ${report.report.downloaded.length} module(s)${report.report.warnings.length ? `, ${report.report.warnings.length} warning(s)` : ''}`)
     return ok(report.report)
   },
 

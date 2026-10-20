@@ -23,7 +23,6 @@ const { DEFAULT_PLANT_AREAS } = require('../src/renderer/src/engine/areas.ts')
 const { moduleNameError } = require('../src/renderer/src/engine/naming.ts')
 const { deviceDescriptorLabel } = require('../src/renderer/src/engine/deviceDescriptors.ts')
 const studio = require('../src/renderer/src/displays/ControlStudioDisplay.tsx')
-const { AreaDisplay } = require('../src/renderer/src/displays/AreaDisplay.tsx')
 const { ValveFaceplate } = require('../src/renderer/src/faceplates/ValveFaceplate.tsx')
 const { PidFaceplate } = require('../src/renderer/src/faceplates/PidFaceplate.tsx')
 
@@ -368,30 +367,4 @@ test('the discharge diverter returns to RECIRC on an out-of-window tank pH and r
   xv05 = s.modules[P + 'XV05']
   assert.equal(xv05.interlock, false)
   assert.equal(xv05.open, true)
-})
-
-test('the process waste picture renders live module state and degrades cleanly when modules are missing', () => {
-  store.useStore.setState({ modules: fresh().modules })
-  const html = render(AreaDisplay, { area: 'PWASTE' })
-  const flat = text(html)
-  for (const fragment of ['Process Waste Neutralization', '3WT-0001-LAHH001', '3WT-0001-LAL002', '3WT-0001-FAL001', 'Equalization',
-    'Neutralization', 'Base', 'Acid', 'Drain', 'RECIRC', 'No Flow', '3WT-0001-NEUT', 'HOLD', 'Ramp Mod']) assert.ok(flat.includes(fragment), fragment)
-  assert.match(html, /3WT-0001-XV010: Closed/)
-  assert.match(html, /3WT-0001-XV01\)?: RECIRC/)
-  assert.match(html, /data-equipment-tag="3WT-0001-P01" data-state="stopped"/)
-  // Both acid/base metering pumps are clickable to the AIC002 loop faceplate, tagged as on the plant screen.
-  assert.equal((html.match(/data-equipment-tag="3WT-0001-AIC002" data-state="idle"/g) || []).length, 2)
-  const started = startArea(fresh())
-  store.useStore.setState({ modules: run(started, 60).modules })
-  const live = render(AreaDisplay, { area: 'PWASTE' })
-  assert.match(live, /3WT-0001-XV010: Open/)
-  assert.match(live, /data-equipment-tag="3WT-0001-P01" data-state="running"/)
-  assert.match(text(live), /TRANSFER/)
-
-  const modules = fresh().modules
-  delete modules[P + 'LAHH001']
-  store.useStore.setState({ modules })
-  assert.match(text(render(AreaDisplay, { area: 'PWASTE' })), /picture is unavailable.*3WT-0001-LAHH001/)
-  let s = { ...fresh(), modules }
-  assert.doesNotThrow(() => { s = run(s, 5) }, 'the plant still steps without the full process waste set')
 })

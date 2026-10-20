@@ -3397,7 +3397,7 @@ test('module primary/detail assignments are independent and navigate actual name
     useUi.getState().forward()
     assert.equal(useUi.getState().builderPicture, 'DETAIL101')
     assert.equal(useUi.getState().openModuleDisplay('LI-101', 'primary'), true)
-    assert.equal(useUi.getState().display, 'overview')
+    assert.equal(useUi.getState().display, 'process')
     assert.equal(useUi.getState().openModuleDisplay('LI-101', 'detail'), true)
     assert.equal(useUi.getState().display, 'alarms')
     assert.equal(useStore.getState().modules['LEVEL-101'], m)
@@ -3454,7 +3454,7 @@ test('picture history branches correctly across Studio and project reset clears 
     useUi.getState().back()
     assert.equal(useUi.getState().builderPicture, 'TANK101')
     useUi.getState().openPicture('DETAIL101')
-    assert.deepEqual(useUi.getState().history, ['overview', 'builder', 'builder'])
+    assert.deepEqual(useUi.getState().history, ['process', 'builder', 'builder'])
     assert.deepEqual(useUi.getState().pictureHistory, [null, 'TANK101', 'DETAIL101'])
     useUi.getState().resetToOverview()
     assert.deepEqual(useUi.getState().pictureHistory, [null])
@@ -3470,7 +3470,7 @@ test('DV09 page 136: Previous Ovw_ref.grf and Next alarmList.grf resolve to real
     assert.equal(pictures.setPictureLinks('TANK101', 'Ovw_ref.grf', 'alarmList.grf'), true)
     const configured = usePictures.getState().pictures.TANK101
     assert.deepEqual(resolvePictureTarget(configured.previousPicture, usePictures.getState().pictures),
-      { kind: 'display', display: 'overview' })
+      { kind: 'display', display: 'process' })
     assert.deepEqual(resolvePictureTarget(configured.nextPicture, usePictures.getState().pictures),
       { kind: 'display', display: 'alarms' })
     assert.equal(configured.elements, original.elements)

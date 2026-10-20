@@ -138,7 +138,11 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-library-config', 'Library: categories, control module classes and class-based modules', 'CAN_CONFIGURE',
     /^(Create|Rename|Delete|Move) (library category|control module class|class-based module) |^Save control module class |^Configure class-based module |^Assign .+ to controller /),
   t('function', 'fn-library-download', 'Download a controller or class-based module', 'CAN_DOWNLOAD',
-    /^Download (controller|class-based module) /)
+    /^Download (controller|class-based module|unit module|unit phase) /),
+  t('function', 'fn-batch-config', 'Batch: process cell, unit and phase classes, aliases, process cells, unit modules and unit phases', 'CAN_CONFIGURE',
+    /^(Create|Rename|Delete) (batch category|process cell class|unit class|phase class|process cell|unit module|alias|phase parameter) |^Save phase class |^Configure (unit class|phase class|unit module|unit phase|alias) |^Assign .+ to (unit module|process cell|unit class) |^Assign .+ to plant area$/),
+  t('function', 'fn-unit-phase', 'Load, command, own and write parameters of unit phases', 'BATCH_OPERATE',
+    /^(Load|Unload|Command|Write parameter of|Change owner of) unit phase /)
 ]
 
 export function findSecurityTarget(lock: LockType, action: string): SecurityTarget | undefined {

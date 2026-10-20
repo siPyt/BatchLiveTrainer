@@ -46,7 +46,7 @@ export function SfcDisplay(): JSX.Element {
   const selected = selectedName && sfcs[selectedName] ? selectedName : names[0] ?? ''
   const setSelected = useUi(s => s.openSfc)
   const [newName, setNewName] = useState('')
-  const [newArea, setNewArea] = useState('FEED')
+  const [newArea, setNewArea] = useState(() => (areas.includes('ED_CENTER_BATCH') ? 'ED_CENTER_BATCH' : areas[0] ?? ''))
   const [showNew, setShowNew] = useState(false)
   const [listWidth, setListWidth] = usePersistentSize('sfc.listWidth', 230)
 

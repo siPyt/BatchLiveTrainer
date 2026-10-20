@@ -134,7 +134,7 @@ test('Explorer SFC opening selects the requested chart, rejects missing targets 
     assert.equal(useUi.getState().openSfc(NAME), true)
     assert.equal(useUi.getState().sfcName, NAME)
     useUi.getState().resetToOverview()
-    assert.equal(useUi.getState().display, 'overview')
+    assert.equal(useUi.getState().display, 'process')
     assert.equal(useUi.getState().sfcName, null)
     assert.equal(useUi.getState().selectedTag, null)
     assert.equal(store.createSfc('LEGACY-SFC', 'FEED'), true)

@@ -397,6 +397,8 @@ export interface CourseProcess { tk100: number; tk200: number; tk300: number; bl
 export const COLOR_TANK_CAPACITY = 500
 export const BLENDER_CAPACITY = 1000
 export const FILL_RATE = 6
+/** Inlet valve capacities differ per color tank (gal/s), so the fill overshoot differs per unit (Chapter 4 optional exercise). */
+export const TANK_FILL_RATE: Record<'tk100' | 'tk200' | 'tk300', number> = { tk100: FILL_RATE, tk200: 8, tk300: 5 }
 export const COLOR_DRAIN_RATE = 5
 export const BLENDER_DRAIN_RATE = 8
 
@@ -408,13 +410,13 @@ export const COURSE_SIMS: SimModule[] = [
   { tag: 'LEV600-SIM', area: 'ED_CENTER_BATCH', description: 'Blender 600 level simulation', params: { '600_LEV': 'bl600' } }
 ]
 
-export function initialCourseProcess(): CourseProcess { return { tk100: 300, tk200: 200, tk300: 400, bl500: 250, bl600: 120 } }
+export function initialCourseProcess(): CourseProcess { return { tk100: 40, tk200: 30, tk300: 50, bl500: 250, bl600: 120 } }
 
 export function stepCourseProcess(p: CourseProcess, open: (tag: string) => boolean, running: (tag: string) => boolean, dt: number): CourseProcess {
   const next = { ...p }
   for (const n of [1, 2, 3] as const) {
     const key = `tk${n}00` as 'tk100' | 'tk200' | 'tk300'
-    if (open(`XV-${n}01`)) next[key] = Math.min(COLOR_TANK_CAPACITY, next[key] + FILL_RATE * dt)
+    if (open(`XV-${n}01`)) next[key] = Math.min(COLOR_TANK_CAPACITY, next[key] + TANK_FILL_RATE[key] * dt)
     const dests = (open(`XV-${n}02`) ? [open('XV-502') ? 'bl500' : null, open('XV-602') ? 'bl600' : null] : [])
       .filter((x): x is 'bl500' | 'bl600' => !!x)
     if (!dests.length) continue

@@ -1,0 +1,175 @@
+BatchLiveTrainer - Course 7016 (DeltaV Batch) implementation record
+=====================================================================
+
+Repository : https://github.com/siPyt/BatchLiveTrainer  (local folder Desktop\BatchLiveTrainer)
+Companion  : https://github.com/siPyt/BatchLive stays the site digital twin and does not contain this course work.
+Source     : Emerson Course 7016 Rev 13 PDF (958791105-7016-8.pdf, local only), chapter1.html, chapters4&5.txt and
+             chapters_1_and_4_navigations_parameters_expressions.pdf (the user's breakdowns).
+
+This file records everything that has been done and how to perform each workshop in BatchLiveTrainer.
+
+
+1. PROJECT SET-UP
+-----------------
+- Chapter 1 work was removed from the BatchLive GitHub repository (main reset to 0203c8f) and moved to the new
+  BatchLiveTrainer repository. Local BatchLive still has a backup branch "course7016" and a stash with the early
+  Chapter 4 work; BatchLive main is untouched.
+- Renamed the app to BatchLiveTrainer: package name/productName, app ID com.batchlivetrainer.app, window title,
+  top-bar brand, status bar, installer name, VS Code task. Electron stores Trainer data separately from BatchLive.
+- The Trainer starts directly in the Course 7016 DV_School database. File -> New Course 7016 Project (DV_School)
+  reloads a clean copy (it discards the current configuration).
+- Removed every visible BatchLive site area: Plant Overview, spatial plant map, photographed WFI plant (N3/N1/N1BP/
+  still), Feed, Reactor, Product, WFI, Autoclaves, Lyophilizers, CIP, TCUs and Process Waste pictures; the GMP Pharma
+  and blank-project presets; the site Batch Operator display (REACT_A recipe); the DV-09 workshops; the site
+  favorites, site picture TANK101 and site navigation. The Process picture is now the home display (Up/Home/Ovw_ref).
+  The simulator engine code is shared with BatchLive and still covered by the engine test suite, but none of the
+  site modules are loaded.
+
+
+2. CHAPTER 1 - Batch Process Overview / Control Module Classes (pp 1-1 .. 1-28)
+-----------------------------------------------------------------------------
+Implemented (committed earlier as c3ed383):
+- DeltaV Explorer laid out as "Exploring DeltaV": DV_School root, Library (FunctionBlockTemplates,
+  CompositeTemplates, ModuleTemplates, Advanced Definitions -> Control Module Classes), System Configuration
+  (Recipes when Batch is enabled, Setup, Control Strategies with AREA_A / ED_CENTER_BATCH / FEED_TANK_AREA,
+  Physical Network -> Control Network -> CTLR1), All Containers / Contents of panes, download-required triangles.
+- Control Module Class categories (New Category, rename), ANALOG template drag -> LEVEL_INDICATOR class.
+- Control Studio on a class (standard ribbon, Hierarchy/Diagram/Palette/Parameter/Alarm panes): AI1 OUT_SCALE with
+  "Allow instance value to be configured", L_TYPE, Alarm View enable/disable, SIMULATE, Special Items Input
+  Parameter (External reference, DO NOT BROWSE), pin-to-pin wiring LEVEL_IN -> SIMULATE_IN, Module Properties
+  primary display = Process, Save.
+- Class-based modules: drag class onto ED_CENTER_BATCH -> LEVEL_INDIC_n, rename, instance values with "Use default
+  value from library object", external paths TANKSIM/TKLEVn00, LEV500-SIM/500_LEV, LEV600-SIM/600_LEV.
+- Area -> controller drag, Download Controller, unresolved-reference warnings, live LI values.
+- Process picture (p1-16) in BatchLive's classic palette.
+
+How to do it: Course 7016 Workshops -> "Workshop - LEVEL_INDICATOR" and "Creating Control Modules from a Control
+Module Class". Every step shows Verified / Not yet with what is missing.
+
+
+3. CHAPTER 2 / CHAPTER 3 PREREQUISITES
+--------------------------------------
+- Chapter 2 named sets are part of the DV_School database: vlvnc-sp (CLOSE 0, OPEN 1), vlvnc-pv (CLOSED 0, OPEN 1,
+  TRAVEL 2), vlvnc-2stage-sp/pv, mtr2-sp/pv.
+- Chapter 3 System Preferences workshop: Utilities -> System Preferences -> check Enable Batch (also selects
+  Advanced Unit Management) -> OK; File -> Shutdown server, then File -> Connect to server. DeltaV Explorer then
+  shows Process Cell Classes, Unit Classes and Phase Classes under Advanced Definitions, Recipes under System
+  Configuration, and Batch Executive / Batch Historian under the ProfessionalPLUS workstation.
+  Workshop: "Workshop - System Preferences (Enable Batch)" with live checks.
+
+
+4. CHAPTER 4 - FILL Unit Phase (pp 4-1 .. 4-64)
+-----------------------------------------------
+Engine (src/renderer/src/engine):
+- batchConfig.ts   classes, aliases, phase classes with batch input/report, algorithm and message parameters,
+                   six composites (ABORT_LOGIC, FAIL_MONITOR, HOLD_LOGIC, RESTART_LOGIC, RUN_LOGIC, STOP_LOGIC),
+                   sequences (steps/transitions/actions with N/P/S/R/D/L qualifiers), S88.01 state machine:
+                   Idle -Start-> Running -done-> Complete -Reset-> Idle; Hold -> Holding -> Held -Restart->
+                   Restarting -> Running (resumes RUN_LOGIC where it was); Stop -> Stopping -> Stopped;
+                   Abort -> Aborting -> Aborted; an evaluation failure sends the phase to Holding with FAIL_INDEX.
+- phaseExpr.ts     DeltaV expression parser/evaluator: '/X.CV', '^/X.CV', '//MOD/PARAM', '//#ALIAS#/PARAM',
+                   '/ALIAS.IGN', 'set:STATE', :=, =, <>, !=, <, >, <=, >=, AND, OR, NOT, + - * /, string
+                   concatenation with "double quotes", SELSTR, LOGEVENT, ABS/MIN/MAX and ; statement ends.
+- batchStore.ts    configuration store (categories, classes, process cells, unit modules, alias resolution,
+                   contained modules, cell members such as TANKSIM, assignment, unit/unit-phase/controller download
+                   with the Upload dialog rows) and runtime (load/unload, owner External/DeltaV Batch, commands,
+                   online parameters, per-unit configured parameter values, cascade remote setpoints on the XV
+                   valves, the phase scan every simulation step).
+- classLibrary.ts  per-tank fill rates (Color 100 6 gal/s, Color 200 8 gal/s, Color 300 5 gal/s) so the overshoot
+                   optional exercise has a different overshoot on each tank.
+
+Screens:
+- DeltaV Explorer: Advanced Definitions -> Process Cell Classes / Unit Classes / Phase Classes (categories,
+  New ... Class, rename, delete, properties), Unit Class New -> Alias, Assign Phase Class..., phase class
+  New -> Batch input/report parameter / Phase algorithm parameter / Phase Message, Open with Control Studio,
+  Add To Unit Class...; drag PRODUCTION onto ED_CENTER_BATCH, COLORTANKS onto PAINT_PRODUCTION, FILL onto
+  COLORTANKS, control modules onto unit modules, TANKSIM onto PAINT_PRODUCTION, PAINT_PRODUCTION onto CTLR1;
+  unit module Aliases (double-click to resolve, Browse..., Ignore), Properties (General / Display tabs: Primary
+  Control Display, Available to the Batch Executive), unit phase Properties (Phase type Controller / Disabled /
+  External Phase, scan rate, Always in memory, Simulate), unit phase parameter Properties (Use default value),
+  Assign... -> Unit Module / Unit And All Contained Modules to Node, Download -> Unit Module [and contained
+  modules] with the Upload dialog (Select All / Select None), Download -> Unit Phase.
+- Phase Control Studio (displays/PhaseStudio.tsx): S88 phase state diagram (double-click Running, Holding,
+  Restarting, Stopping, Aborting or Failure_Monitor to drill down), SFC per composite (initial step, transitions,
+  termination), All SFC Items palette (Sequence, Step, Transition, Termination; click or drag onto the chart),
+  Add Sequence Of Steps And Transitions (number of steps, spacing, 127-item limit), step Properties (General /
+  Actions), action Properties (name, type, qualifier, delay time, expression), transition Properties, expression
+  editor with operator buttons, Insert Internal Parameter..., Insert External Parameter..., Insert Named State...,
+  SELSTR..., LOGEVENT..., Insert Alias... and Parser output; Parameter view (Alphabetic / Categorized); Save
+  (Ctrl+S), Discard, Close; On-Line view of a loaded unit phase (active state and step highlighted).
+- DeltaV Operate: Process picture -> Batch Help button and clickable Color 100/200/300 tanks (unit faceplate).
+  Unit faceplate: Batch ID, Operation, Unit Procedure, Procedure, Active Phases 1...5 / 6...10, Load a Phase ...
+  ("Enter the name of the phase to start :"). Phase faceplate (Faceplate FB): Phase Name + Unload, Phase State,
+  Time in State, Step Index, Watchdog State, Phase Command ... (Current Value / Selections), Phase Owner Toggle
+  (DeltaV Batch / External), batch parameters. BatchHelp picture: every unit phase with owner, state, step and
+  batch parameters; click R_FILL_LEVEL to change it.
+
+How to do the Chapter 4 workshops (Course 7016 Workshops display shows each step with a live check):
+  Workshop - FILL Phase
+    Task 1  Explorer -> Library -> Advanced Definitions -> Process Cell Classes -> General: right-click -> New
+            Process Cell Class PRODUCTION; drag PRODUCTION onto ED_CENTER_BATCH, rename PAINT_PRODUCTION.
+    Task 2  Unit Classes -> New Category ChargeTankUnits -> New Unit Class COLORTANKS -> New -> Alias INLET_VLV,
+            OUTLET_VLV, TANK_LEVEL.
+    Task 3  Phase Classes -> New Category TankClasses -> New Phase Class FILL; New -> Batch input/report parameter
+            R_FILL_LEVEL (Operating, Real, Input, 0 / 250 / 500 gal) and RPT_FNL_LVL (type Report as a new
+            category, Real, Report, gal).
+    Task 4  Open FILL with Control Studio, double-click Running (RUN_LOGIC), Palette -> Sequence (3 steps),
+            rename and fill in:
+              INIT          '//#OUTLET_VLV#/MODE.TARGET' := CAS;  '//#OUTLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE';
+              OUTLET_CLOSED '//#OUTLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'
+              OPEN_INLET    '//#INLET_VLV#/MODE.TARGET' := CAS;   '//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:OPEN';
+              LEVEL_MET     '//#TANK_LEVEL#' >= '^/R_FILL_LEVEL.CV'
+              CLOSE_INLET   '//#INLET_VLV#/MODE.TARGET' := CAS;   '//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE';
+              INLET_CLOSED  '//#INLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'
+              COMPLETE      '^/RPT_FNL_LVL.CV' := '//#TANK_LEVEL#';  '//#INLET_VLV#/MODE.TARGET' := AUTO;
+                            '//#OUTLET_VLV#/MODE.TARGET' := AUTO;
+              COMPLETE_2    TRUE
+            Save; drag FILL onto COLORTANKS.
+    Task 5  Drag COLORTANKS onto PAINT_PRODUCTION three times (UM_COLOR_100/200/300); resolve aliases
+            XV-n01, XV-n02, LI-n04/AI1/PV.CV.
+    Task 6  Drag XV-n01, XV-n02, LI-n04 onto UM_COLOR_n00.
+    Task 7  Unit Properties -> Display -> Primary Control Display = Process; unit phase FILL -> Phase type
+            Controller; drag TANKSIM onto PAINT_PRODUCTION; drag PAINT_PRODUCTION onto CTLR1; Download CTLR1.
+    Task 8  Process -> click Color 100 -> Load a Phase ... -> FILL; BatchHelp -> change R_FILL_LEVEL; phase
+            faceplate -> Phase Command ... -> Start; when Complete -> Reset -> Unload. Repeat for 200 and 300.
+  Workshop - Hold & Restart: HOLD_LOGIC = CLOSE_INLET (CAS, 'vlvnc-sp:CLOSE') + HOLD ('vlvnc-pv:CLOSED');
+    RESTART_LOGIC = OPEN_INLET (CAS, 'vlvnc-sp:OPEN') + RESTART ('vlvnc-pv:OPEN'); Save; Download -> Unit Phase.
+  Workshop - Verify Functionality: Start, Hold (Held, XV closed), Restart (XV opens, Running, filling resumes);
+    repeat on 200 and 300 (download them first).
+  Optional exercises: STOP_LOGIC and ABORT_LOGIC (close both valves, wait CLOSED, return to AUTO), verify with
+    Stop / Abort; overshoot compensation in LEVEL_MET, hard coded (... - 20) and/or per unit (phase parameter such as
+    OVERSHOOT, configured differently on each UM_COLOR unit phase and downloaded).
+
+Syntax reference (chapters_1_and_4 PDF section 4.3) is executed by tests: '/REQUEST.CV' := 3202;
+'^/REQUEST.CV' = 3202, <>, !=, '/INLET_VLV.IGN', '//XV-102/DC1/SP_D', LOGEVENT("..." + value), etc.
+
+
+5. TESTS AND VERIFICATION
+-------------------------
+- tests/course7016-ch1.test.cjs     Chapter 1 end to end.
+- tests/course7016-ch4.test.cjs     Chapter 3 Enable Batch; expression language; FILL workshop end to end on
+                                    UM_COLOR_100; Hold & Restart; unresolved alias failure; syntax reference;
+                                    workshop checkers (every FILL step Verified after a scripted run; Hold/Restart,
+                                    Verify and the optional exercises including per-unit OVERSHOOT, STOP and ABORT).
+- tests/operator-ribbons.test.cjs   the Trainer shows only course displays (no site areas, presets or DV-09).
+- Full suite: 748 of 749 pass; tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual text, not in
+  this repository) and fails at load, as it did before this work.
+- Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
+  desktop: npm run dev.
+
+
+6. NOT SIMULATED (shown as disabled with an explanation)
+--------------------------------------------------------
+Batch Executive procedures, Recipe Studio and the Batch Operator Interface (not used in Chapters 1 and 4),
+FAIL_MONITOR execution, Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
+Studio, version control (Check Out), unit arbitration, batch history/reporting.
+
+
+7. NEXT: CHAPTER 5 - Module Classes (Equipment Module Classes, BLENDERS unit class)
+-----------------------------------------------------------------------------------
+Planned from chapters4&5.txt and the PDF: Equipment Module Class categories (CommandDriven, StateDriven);
+command-driven BLENDER_COLOR (named set EM-vlvnc-2stage with 255 Idle, child CM COLOR_IN_VLV from 2STAGE_VALVE,
+COMMAND_00001..00004 SFCs); state-driven BLENDER_OUTLET (EM_Outlet_State, PRODUCT_VLV/WASTE_VLV from NC_VALVE,
+Items and States tabs); A_COMMAND / A_TARGET / A_PV / A_ABT_ON_NEW_CMD runtime; BLENDERS unit class with
+Private/Shared module ownership and automatic aliases; UM_BL_500 / UM_BL_600 instantiation, renaming, TANK_LEVEL
+alias, download; online EM testing from Control Studio and DeltaV Operate; optional MTR-505/605 interlocks.

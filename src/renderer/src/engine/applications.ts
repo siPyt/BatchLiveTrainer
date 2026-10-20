@@ -21,7 +21,7 @@ export interface DeltaVApplication {
 
 export const DELTAV_APPLICATIONS: DeltaVApplication[] = [
   {
-    id: 'operate-run', native: 'DeltaV Operate (Run mode)', role: 'Operate', display: 'overview',
+    id: 'operate-run', native: 'DeltaV Operate (Run mode)', role: 'Operate', display: 'process',
     does: ['Navigate process pictures, open faceplates, change setpoints, modes and outputs, acknowledge alarms'],
     notSupported: ['Native picture files and the Windows desktop shell', 'Operate toolbar customisation'],
     keys: ['CONTROL', 'ALARMS']
@@ -69,10 +69,10 @@ export const DELTAV_APPLICATIONS: DeltaVApplication[] = [
     keys: ['SYSTEM_ADMIN']
   },
   {
-    id: 'batch', native: 'Batch Operator Interface and Recipe Studio', role: 'Operate', display: 'batch',
-    does: ['Start, hold, restart, stop and abort a batch; select and edit recipes'],
-    notSupported: ['DeltaV Batch Executive services and unit procedures', 'Batch history and reporting'],
-    keys: ['BATCH_OPERATE', 'BUILD_RECIPES']
+    id: 'batch', native: 'DeltaV Operate unit and phase faceplates (BatchHelp picture)', role: 'Operate', display: 'batchhelp',
+    does: ['Load and unload unit phases, toggle the phase owner, send Start/Hold/Restart/Stop/Abort/Reset commands and edit batch input parameters'],
+    notSupported: ['Batch Operator Interface, Recipe Studio and Batch Executive procedures', 'Batch history and reporting'],
+    keys: ['BATCH_OPERATE']
   },
   {
     id: 'alarms', native: 'Alarm List and Alarm Banner', role: 'Operate', display: 'alarms',

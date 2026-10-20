@@ -234,7 +234,7 @@ test('DV09-031/051/062 course dynamo library: bound to equipment, white/yellow a
 test('DV09-031 navigation buttons link pictures, the Overview and the alarm list', () => fixture(() => {
   const id = pictures().addElement('LAB', { type: 'button', x: 20, y: 20, content: 'Overview', target: 'Ovw_ref.grf' })
   assert.ok(id)
-  assert.deepEqual(resolvePictureTarget(element(id).target, pictures().pictures), { kind: 'display', display: 'overview' })
+  assert.deepEqual(resolvePictureTarget(element(id).target, pictures().pictures), { kind: 'display', display: 'process' })
   assert.deepEqual(resolvePictureTarget('alarmList', pictures().pictures), { kind: 'display', display: 'alarms' })
   pictures().createPicture('TANK101B')
   assert.deepEqual(resolvePictureTarget('tank101b', pictures().pictures), { kind: 'picture', name: 'TANK101B' })

@@ -70,7 +70,6 @@ export function TopBar(): JSX.Element {
   const speed = useStore((s) => s.speed)
   const setRunning = useStore((s) => s.setRunning)
   const setSpeed = useStore((s) => s.setSpeed)
-  const newProject = useStore((s) => s.newProject)
   const display = useUi((s) => s.display)
   const navigate = useUi((s) => s.navigate)
   const back = useUi((s) => s.back)
@@ -120,15 +119,9 @@ export function TopBar(): JSX.Element {
     }
   }, [searchOpen])
 
-  const startNewProject = (kind: 'pharma' | 'blank' | 'course7016'): void => {
-    const label = kind === 'blank' ? 'a new blank project' : kind === 'course7016' ? 'the Course 7016 DV_School training database (ED_CENTER_BATCH)' : 'the GMP Pharma Factory baseline'
-    if (!window.confirm(`Discard the current project and load ${label}? This cannot be undone.`)) return
-    if (kind === 'course7016') {
-      if (!useLibrary.getState().installCourseProject()) return
-    } else {
-      newProject(kind)
-      useLibrary.getState().resetLibrary()
-    }
+  const startNewProject = (): void => {
+    if (!window.confirm('Discard the current project and load the Course 7016 DV_School training database (ED_CENTER_BATCH)? This cannot be undone.')) return
+    if (!useLibrary.getState().installCourseProject()) return
     resetToOverview()
   }
 
@@ -156,7 +149,7 @@ export function TopBar(): JSX.Element {
         <RibbonButton icon="reset" label="Reset graphic view (does not reset process)" disabled={!current?.operator} onClick={resetProcessView} />
         <RibbonButton icon="alarm" label="Alarm List" onClick={() => navigate('alarms')} />
         <RibbonButton icon="explorer" label="DeltaV Explorer" onClick={() => navigate('explorer')} />
-        <RibbonButton icon="batch" label="Batch Operator" onClick={() => navigate('batch')} />
+        <RibbonButton icon="batch" label="BatchHelp" onClick={() => navigate('batchhelp')} />
         <RibbonButton icon="trend" label="Historian Trends" onClick={() => navigate('trend')} />
         <RibbonButton icon="builder" label="Display Builder" onClick={() => navigate('builder')} />
         <RibbonButton icon="user" label="User Manager" onClick={() => navigate('users')} />
@@ -175,19 +168,17 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="operator-ribbon action-ribbon" role="toolbar" aria-label="Display actions">
         <RibbonButton icon="eye" label="Show navigation sidebar" pressed={navigationOpen} onClick={toggleNavigation} />
-        <RibbonButton icon="display" label="Plant Overview" onClick={() => navigate('overview')} />
+        <RibbonButton icon="display" label="Process" onClick={() => navigate('process')} />
         <RibbonButton icon="info" label="Event Journal" onClick={() => navigate('journal')} />
         <RibbonButton icon="sfc" label="SFC Charts" onClick={() => navigate('sfc')} />
-        <RibbonButton icon="help" label="DV-09 Workshops" onClick={() => navigate('workshops')} />
+        <RibbonButton icon="help" label="Course 7016 Workshops" onClick={() => navigate('workshops')} />
         <RibbonButton icon="forward" label="Next display in history" disabled={histIndex >= histLen - 1} onClick={forward} />
         <RibbonButton icon="alarm" label="Alarm List" onClick={() => navigate('alarms')} />
         <span className="ribbon-separator" />
       <DropdownMenu
         label="File"
         items={[
-          { label: '＋ New Blank Project', onClick: () => startNewProject('blank') },
-          { label: '🎓 New Course 7016 Project (DV_School)', onClick: () => startNewProject('course7016') },
-          { label: '🏭 New GMP Pharma Factory', onClick: () => startNewProject('pharma') }
+          { label: '🎓 New Course 7016 Project (DV_School)', onClick: startNewProject }
         ]}
       />
       <DropdownMenu
@@ -197,12 +188,11 @@ export function TopBar(): JSX.Element {
           { label: '🖧 Physical Network', onClick: () => navigate('hardware') },
           { label: '⬓ Control Studio', onClick: () => navigate('studio') },
           { label: '⇵ SFC Charts', onClick: () => navigate('sfc') },
-          { label: '⚙ Batch Operator', onClick: () => navigate('batch') },
           { label: '▤ Display Builder', onClick: () => navigate('builder') },
           { label: '🔑 User Manager', onClick: () => navigate('users') },
           { label: '⚙ System Preferences', onClick: () => navigate('system') },
           { label: '▣ DeltaV Applications', onClick: () => navigate('applications') },
-          { label: '🎓 DV-09 Workshops', onClick: () => navigate('workshops') }
+          { label: '🎓 Course 7016 Workshops', onClick: () => navigate('workshops') }
         ]}
       />
         <div className="spacer" />
@@ -217,8 +207,8 @@ export function TopBar(): JSX.Element {
       <div className="nav-arrows">
         <RibbonButton icon="back" label="Back" disabled={histIndex <= 0} onClick={back} />
         <RibbonButton icon="forward" label="Forward" disabled={histIndex >= histLen - 1} onClick={forward} />
-        <RibbonButton icon="up" label="Up to Plant Overview" disabled={display === 'overview'} onClick={() => navigate('overview')} />
-        <RibbonButton icon="home" label="Home display" onClick={() => navigate('overview')} />
+        <RibbonButton icon="up" label="Up to Process" disabled={display === 'process'} onClick={() => navigate('process')} />
+        <RibbonButton icon="home" label="Home display" onClick={() => navigate('process')} />
       </div>
       <select className="picture-selector" aria-label="Current display" value={display}
         onChange={event => {

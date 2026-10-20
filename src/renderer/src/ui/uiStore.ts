@@ -4,22 +4,11 @@ import { useStore } from '../engine/store'
 import { resolvePictureTarget, usePictures } from '../engine/pictureStore'
 
 export type DisplayId =
-  | 'overview'
-  | 'plant-map'
-  | 'photo-overview'
-  | 'photo-n3'
-  | 'photo-n1'
-  | 'photo-n1bp'
-  | 'photo-still'
-  | 'feed'
-  | 'reactor'
-  | 'product'
   | 'alarms'
   | 'trend'
   | 'journal'
   | 'explorer'
   | 'studio'
-  | 'batch'
   | 'sfc'
   | 'builder'
   | 'workshops'
@@ -27,13 +16,8 @@ export type DisplayId =
   | 'system'
   | 'applications'
   | 'hardware'
-  | 'wfi'
-  | 'autoclave'
-  | 'lyo'
-  | 'cip'
-  | 'tcu'
-  | 'pwaste'
   | 'process'
+  | 'batchhelp'
 
 export interface OpenFaceplate {
   tag: string
@@ -64,6 +48,11 @@ interface UiState {
   studioInstance: string | null
   openClassStudio: (className: string, instance?: string) => void
   closeClassStudio: () => void
+  /** Course 7016 Ch 4: Phase Class open in Control Studio (optionally drilled into a composite). */
+  studioPhase: string | null
+  studioComposite: string | null
+  openPhaseStudio: (phaseClass: string, composite?: string) => void
+  closePhaseStudio: () => void
   sfcName: string | null
   /** FBD canvas node positions, keyed by module tag (Control Studio drag-and-drop layout). */
   studioLayout: Record<string, { x: number; y: number }>
@@ -114,8 +103,8 @@ export const useUi = create<UiState>((set, get) => ({
   toggleNavigation: () => set(s => ({ navigationOpen: !s.navigationOpen })),
   processViewRevision: 0,
   resetProcessView: () => set(s => ({ processViewRevision: s.processViewRevision + 1 })),
-  display: 'overview',
-  history: ['overview'],
+  display: 'process',
+  history: ['process'],
   histIndex: 0,
   pictureHistory: [null],
   builderPicture: null,
@@ -131,10 +120,20 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => {
       const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
       const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
-      return { studioClass: className, studioInstance: instance ?? null, selectedTag: instance ?? s.selectedTag,
+      return { studioClass: className, studioInstance: instance ?? null, studioPhase: null, selectedTag: instance ?? s.selectedTag,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
   closeClassStudio: () => set({ studioClass: null, studioInstance: null }),
+  studioPhase: null,
+  studioComposite: null,
+  openPhaseStudio: (phaseClass, composite) =>
+    set((s) => {
+      const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
+      const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
+      return { studioPhase: phaseClass, studioComposite: composite ?? null, studioClass: null, studioInstance: null,
+        display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
+    }),
+  closePhaseStudio: () => set({ studioPhase: null, studioComposite: null }),
   sfcName: null,
   studioLayout: {},
   setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),
@@ -209,6 +208,7 @@ export const useUi = create<UiState>((set, get) => ({
       const classInstance = module?.type === 'AI' ? module.classInstance : undefined
       return {
         studioTag: classInstance ? s.studioTag : tag,
+        studioPhase: null,
         studioClass: classInstance ?? null,
         studioInstance: classInstance ? tag : null,
         selectedTag: tag,
@@ -240,9 +240,11 @@ export const useUi = create<UiState>((set, get) => ({
       studioTag: null,
       studioClass: null,
       studioInstance: null,
+      studioPhase: null,
+      studioComposite: null,
       sfcName: null,
-      display: 'overview',
-      history: ['overview'],
+      display: 'process',
+      history: ['process'],
       histIndex: 0,
       pictureHistory: [null], builderPicture: null, builderRun: false
     }),

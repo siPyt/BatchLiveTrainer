@@ -8,28 +8,14 @@ interface NavNode {
 }
 
 const DISPLAYS: NavNode[] = [
-  { id: 'overview', label: 'Plant Overview', ico: '▣' },
-  { id: 'plant-map', label: 'Original Spatial Map', ico: '▣' },
-  { id: 'photo-overview', label: 'Photographed WFI Plant', ico: '▣' },
-  { id: 'feed', label: 'Feed System', ico: '◉' },
-  { id: 'reactor', label: 'Reactor', ico: '⬡' },
-  { id: 'product', label: 'Product / Header', ico: '◈' },
-  { id: 'pwaste', label: 'Process Waste Neut.', ico: '♻' }
-]
-
-const PHARMA: NavNode[] = [
-  { id: 'wfi', label: 'WFI Generation', ico: '💧' },
-  { id: 'autoclave', label: 'Autoclaves (x2)', ico: '♨' },
-  { id: 'lyo', label: 'Lyophilizers (x2)', ico: '❄' },
-  { id: 'cip', label: 'CIP Skids (x3)', ico: '🧼' },
-  { id: 'tcu', label: 'TCUs (x3)', ico: '🌡' }
+  { id: 'process', label: 'Process (ED_CENTER_BATCH)', ico: '▣' },
+  { id: 'batchhelp', label: 'BatchHelp', ico: '◈' }
 ]
 
 const TOOLS: NavNode[] = [
   { id: 'trend', label: 'Trends', ico: '📈' },
   { id: 'alarms', label: 'Alarm List', ico: '🔔' },
-  { id: 'journal', label: 'Event Journal', ico: '📜' },
-  { id: 'batch', label: 'Batch Operator', ico: '⚙' }
+  { id: 'journal', label: 'Event Journal', ico: '📜' }
 ]
 
 const ENGINEERING: NavNode[] = [
@@ -48,7 +34,7 @@ export function NavSidebar(): JSX.Element {
   const openFaceplate = useUi((s) => s.openFaceplate)
   const modules = useStore((s) => s.modules)
 
-  const favorites = ['LIC-101', 'TIC-201', 'P-101', 'PIC-301']
+  const favorites = ['LI-104', 'LI-204', 'LI-304', 'XV-101'].filter(tag => modules[tag])
 
   return (
     <div className="nav-sidebar">
@@ -58,23 +44,11 @@ export function NavSidebar(): JSX.Element {
         onClick={() => navigate('workshops')}
       >
         <span className="ico">🎓</span>
-        DV-09 Workshops
+        Course 7016 Workshops
       </div>
 
       <div className="nav-section">Displays</div>
       {DISPLAYS.map((n) => (
-        <div
-          key={n.id}
-          className={'nav-item' + (display === n.id ? ' active' : '')}
-          onClick={() => navigate(n.id)}
-        >
-          <span className="ico">{n.ico}</span>
-          {n.label}
-        </div>
-      ))}
-
-      <div className="nav-section">GMP Pharma Systems</div>
-      {PHARMA.map((n) => (
         <div
           key={n.id}
           className={'nav-item' + (display === n.id ? ' active' : '')}

@@ -94,7 +94,7 @@ export function DisplayBuilder(): JSX.Element {
   const add = (type: PicElement['type']): void => {
     if (!pic) return
     const base = { x: 40, y: 60 }
-    if (type === 'button') { setSelEl(addElement(selected, { type, ...base, content: 'Overview', target: 'Ovw_ref.grf' })); return }
+    if (type === 'button') { setSelEl(addElement(selected, { type, ...base, content: 'Process', target: 'Process.grf' })); return }
     const tag = type === 'pump' ? Object.values(modules).find(module => module.type === 'MOTOR')?.tag :
       type === 'valve' ? Object.values(modules).find(module => module.type === 'PID' || module.type === 'VALVE')?.tag :
         modules['LIC-101'] ? 'LIC-101' : Object.values(modules).find(m => m.type === 'AI')?.tag ?? Object.keys(modules)[0]
@@ -252,12 +252,12 @@ function PictureProperties({ picture, width, onClose }: { picture: string; width
         Remove Default Title ({titleCount} objects)</button>}
       <div className="bld-props-head"><b>Previous / Next Picture</b></div>
       <label className="bld-f">Previous Picture Name
-        <input value={previous} onChange={e => setPrevious(e.target.value)} placeholder="Ovw_ref.grf" />
+        <input value={previous} onChange={e => setPrevious(e.target.value)} placeholder="Process.grf" />
       </label>
       <label className="bld-f">Next Picture Name
         <input value={next} onChange={e => setNext(e.target.value)} placeholder="alarmList.grf" />
       </label>
-      <p>Use a created picture name, Ovw_ref.grf (Overview) or alarmList.grf (Alarm List). Blank removes a link.</p>
+      <p>Use a created picture name, Process.grf (Process) or alarmList.grf (Alarm List). Blank removes a link.</p>
       {error && <div className="exp-newmod-err" role="alert">{error}</div>}
       <div className="exp-newmod-actions">
         <button className="tbtn sm" onClick={() => {
@@ -581,10 +581,10 @@ function PropsPanel({ picture, id, width }: { picture: string; id: string; width
             <input aria-label="Button caption" value={el.content ?? ''} onChange={(e) => updateElement(picture, id, { content: e.target.value })} />
           </label>
           <label className="bld-f">Target picture
-            <input aria-label="Button target" value={el.target ?? ''} placeholder="Ovw_ref.grf"
+            <input aria-label="Button target" value={el.target ?? ''} placeholder="Process.grf"
               onChange={(e) => updateElement(picture, id, { target: e.target.value })} />
           </label>
-          <p>Opens a created picture, Ovw_ref.grf (Overview) or alarmList.grf (Alarm List) in Run.</p>
+          <p>Opens a created picture, Process.grf (Process) or alarmList.grf (Alarm List) in Run.</p>
         </>
       ) : (
         <>

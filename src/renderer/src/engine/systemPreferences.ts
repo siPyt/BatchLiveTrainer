@@ -10,10 +10,12 @@ import { registerServerGate, useSecurity } from './security'
 // real DeltaV database.
 // ---------------------------------------------------------------------------
 
-export type SystemFeature = 'fieldbus' | 'signaturePolicies'
-export const SYSTEM_FEATURES: SystemFeature[] = ['fieldbus', 'signaturePolicies']
+export type SystemFeature = 'batch' | 'advancedUnitManagement' | 'fieldbus' | 'signaturePolicies'
+export const SYSTEM_FEATURES: SystemFeature[] = ['batch', 'advancedUnitManagement', 'fieldbus', 'signaturePolicies']
 
 export const FEATURE_LABEL: Record<SystemFeature, string> = {
+  batch: 'Batch (Batch Executive, Batch Operator Interface, Recipe Studio, Recipe Simulator)',
+  advancedUnitManagement: 'Advanced Unit Management (class-based units and phases with aliases)',
   fieldbus: 'FOUNDATION fieldbus (H1 cards, device library and device alarms)',
   signaturePolicies: 'Electronic Signature policies'
 }
@@ -44,7 +46,7 @@ export interface SystemState {
 const STORAGE_KEY = 'batchlive.system.v1'
 
 function noFeatures(): Record<SystemFeature, boolean> {
-  return { fieldbus: false, signaturePolicies: false }
+  return { batch: false, advancedUnitManagement: false, fieldbus: false, signaturePolicies: false }
 }
 
 function load(): Pick<SystemState, 'features' | 'pending' | 'acknowledged'> {
@@ -99,8 +101,17 @@ export const useSystem = create<SystemState>((set, get) => ({
     const open = openClientsError(s.clients, 'change System Preferences')
     if (open) return open
     const pending = { ...s.pending }
-    if (s.features[feature] === enabled) delete pending[feature]
-    else pending[feature] = enabled
+    const apply = (f: SystemFeature, on: boolean): void => {
+      if (!!s.features[f] === on) delete pending[f]
+      else pending[f] = on
+    }
+    apply(feature, enabled)
+    // Course 7016 p3-7: selecting Enable Batch automatically selects Advanced Unit Management;
+    // Advanced Unit Management cannot be cleared while Batch stays selected.
+    if (feature === 'batch' && enabled) apply('advancedUnitManagement', true)
+    if (feature === 'advancedUnitManagement' && !enabled && (pending.batch ?? s.features.batch)) {
+      return 'Advanced Unit Management is required while Enable Batch is selected'
+    }
     const next = { features: s.features, pending, acknowledged: false }
     persist(next)
     set({ pending, acknowledged: false })
@@ -142,7 +153,7 @@ export const useSystem = create<SystemState>((set, get) => ({
 
 /** True when the feature is active in the running system (a pending selection does not count). */
 export function featureEnabled(feature: SystemFeature): boolean {
-  return useSystem.getState().features[feature]
+  return !!useSystem.getState().features[feature]
 }
 
 export function featureDisabledError(feature: SystemFeature): string {

@@ -13,17 +13,16 @@ import './engine/licensing'
 import { AccessDeniedToast } from './components/AccessDeniedToast'
 import { AlarmAudio } from './components/AlarmAudio'
 import { FaceplateHost } from './faceplates/FaceplateHost'
-import { OverviewDisplay, SpatialProcessDisplay } from './displays/OverviewDisplay'
-import { PhotoPlantDisplay } from './displays/PhotoPlantDisplay'
-import { AreaDisplay } from './displays/AreaDisplay'
 import { AlarmSummary } from './displays/AlarmSummary'
 import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
 import { ClassStudio } from './displays/ClassStudio'
+import { PhaseStudio } from './displays/PhaseStudio'
+import { BatchDialogHost } from './components/BatchDialogs'
+import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
 import { ProcessDisplay } from './displays/ProcessDisplay'
-import { BatchDisplay } from './displays/BatchDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
 import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
@@ -38,6 +37,7 @@ export function App(): JSX.Element {
   const navigationOpen = useUi((s) => s.navigationOpen)
   const processViewRevision = useUi((s) => s.processViewRevision)
   const studioClass = useUi((s) => s.studioClass)
+  const studioPhase = useUi((s) => s.studioPhase)
   const last = useRef<number>(performance.now())
 
   // Fixed-rate simulation loop (~10 Hz) decoupled from render.
@@ -81,29 +81,13 @@ export function App(): JSX.Element {
       <div className="app-body">
         {navigationOpen && <NavSidebar />}
         <div className="main-area">
-          {display === 'overview' && <OverviewDisplay key={processViewRevision} />}
-          {display === 'plant-map' && <SpatialProcessDisplay key={processViewRevision} />}
-          {display === 'photo-overview' && <PhotoPlantDisplay view="overview" />}
-          {display === 'photo-n3' && <PhotoPlantDisplay view="n3" />}
-          {display === 'photo-n1' && <PhotoPlantDisplay view="n1" />}
-          {display === 'photo-n1bp' && <PhotoPlantDisplay view="n1bp" />}
-          {display === 'photo-still' && <PhotoPlantDisplay view="still" />}
-          {display === 'feed' && <AreaDisplay key={`feed-${processViewRevision}`} area="FEED" />}
-          {display === 'reactor' && <AreaDisplay key={`reactor-${processViewRevision}`} area="REACTOR" />}
-          {display === 'product' && <AreaDisplay key={`product-${processViewRevision}`} area="PRODUCT" />}
-          {display === 'wfi' && <AreaDisplay key={`wfi-${processViewRevision}`} area="WFI" />}
-          {display === 'autoclave' && <AreaDisplay key={`autoclave-${processViewRevision}`} area="AUTOCLAVE" />}
-          {display === 'lyo' && <AreaDisplay key={`lyo-${processViewRevision}`} area="LYO" />}
-          {display === 'cip' && <AreaDisplay key={`cip-${processViewRevision}`} area="CIP" />}
-          {display === 'tcu' && <AreaDisplay key={`tcu-${processViewRevision}`} area="TCU" />}
-          {display === 'pwaste' && <AreaDisplay key={`pwaste-${processViewRevision}`} area="PWASTE" />}
           {display === 'alarms' && <AlarmSummary />}
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
-          {display === 'studio' && (studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
-          {display === 'process' && <ProcessDisplay />}
-          {display === 'batch' && <BatchDisplay />}
+          {display === 'studio' && (studioPhase ? <PhaseStudio key={studioPhase} /> : studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
+          {display === 'process' && <ProcessDisplay key={processViewRevision} />}
+          {display === 'batchhelp' && <BatchHelpDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
@@ -116,6 +100,8 @@ export function App(): JSX.Element {
       <AlarmBanner />
       <StatusBar />
       <FaceplateHost />
+      <BatchWindows />
+      <BatchDialogHost />
       <AccessDeniedToast />
       <FlexLockOverlay />
       <SignatureDialog />

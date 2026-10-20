@@ -12,6 +12,9 @@ import {
 } from '../engine/classLibrary'
 import { controllerIsDown, type Controller } from '../engine/hardware'
 import { fmt } from '../utils/format'
+import { useBatch, unitDownloadState } from '../engine/batchStore'
+import { useBatchUi } from '../ui/batchUi'
+import { BatchClassTree, BatchDetail, BatchIcon, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
@@ -31,6 +34,7 @@ export type LibrarySelection =
   | { kind: 'ctlnet' }
   | { kind: 'controller'; tag: string }
   | { kind: 'sim'; tag: string }
+  | { kind: 'batch'; sel: BatchSel }
 
 type Menu = { x: number; y: number; items: MenuItem[]; label: string }
 type MenuItem = { label: string; onClick?: () => void; disabled?: string; separator?: boolean; danger?: boolean }
@@ -166,6 +170,9 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
   const drafts = useLibrary(s => s.drafts)
   const lib = useLibrary
   const openClassStudio = useUi(s => s.openClassStudio)
+  const { aum } = useBatchEnabled()
+  const batchSel = selection?.kind === 'batch' ? selection.sel : null
+  const pickBatch = (s: BatchSel): void => onSelect({ kind: 'batch', sel: s })
   const [open, setOpen] = useState<Record<string, boolean>>({ Library: true, 'Advanced Definitions': true, cmClasses: true })
   const [renaming, setRenaming] = useState<{ kind: 'category' | 'class'; name: string } | null>(null)
   const [menu, setMenu] = useMenu()
@@ -305,6 +312,11 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
           ] }) }}>
           {roots.map(c => renderCategory(c, depth + 3))}
         </Row>
+        {aum && <>
+          <BatchClassTree cls="pcell" depth={depth + 2} sel={batchSel} onSelect={pickBatch} />
+          <BatchClassTree cls="unit" depth={depth + 2} sel={batchSel} onSelect={pickBatch} />
+          <BatchClassTree cls="phase" depth={depth + 2} sel={batchSel} onSelect={pickBatch} />
+        </>}
       </Row>
     </Row>
     {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
@@ -321,6 +333,8 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
 }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)
   const lib = useLibrary()
+  const batch = useBatch()
+  const { batch: batchOn } = useBatchEnabled()
   const [open, setOpen] = useState<Record<string, boolean>>({ network: true, ctlnet: true })
   const [menu, setMenu] = useMenu()
   const [downloading, setDownloading] = useState<string | null>(null)
@@ -329,7 +343,14 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
     const r = useLibrary.getState().assignArea(area, controller)
     if (alertResult(r)) { onSelect({ kind: 'controller', tag: controller }); setOpen(o => ({ ...o, [controller]: true })) }
   }
-  const pendingFor = (tag: string): boolean => Object.entries(lib.assignments).some(([t, c]) => c === tag && lib.instances[t] && downloadState(lib, t) !== 'current')
+  const assignBatch = (controller: string) => (type: string, name: string): void => {
+    const r = type === DRAG_PCELL ? useBatch.getState().assignCell(name, controller) : null
+    if (type === DRAG_UNIT) { useBatchUi.getState().openDialog({ t: 'assignNode', unit: name, contained: true, controller }); return }
+    if (r && alertResult(r)) { onSelect({ kind: 'controller', tag: controller }); setOpen(o => ({ ...o, [controller]: true })) }
+  }
+  const unitsOn = (tag: string): string[] => Object.entries(batch.unitAssignments).filter(([, c]) => c === tag).map(([u]) => u).sort()
+  const pendingFor = (tag: string): boolean => Object.entries(lib.assignments).some(([t, c]) => c === tag && lib.instances[t] && downloadState(lib, t) !== 'current') ||
+    unitsOn(tag).some(u => unitDownloadState(batch, u) !== 'current')
   const all = Object.values(controllers)
   const node = (c: Controller, d: number): JSX.Element => {
     const count = Object.values(lib.assignments).filter(x => x === c.tag).length
@@ -339,7 +360,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
       label={<span>{c.tag}</span>} sub={`${c.description} · ${controllerIsDown(c) ? 'not communicating' : 'commissioned'} · ${count} assigned module(s)`}
       dataAttr={{ 'data-controller': c.tag }}
       onClick={() => onSelect({ kind: 'controller', tag: c.tag })}
-      drop={{ accepts: [DRAG_AREA], onDrop: assignArea(c.tag) }}
+      drop={{ accepts: [DRAG_AREA, DRAG_PCELL, DRAG_UNIT], onDrop: (type, v) => (type === DRAG_AREA ? assignArea(c.tag)(type, v) : assignBatch(c.tag)(type, v)) }}
       onContextMenu={e => { onSelect({ kind: 'controller', tag: c.tag }); setMenu({ x: e.clientX, y: e.clientY, label: c.tag, items: [
         { label: 'Explore', onClick: () => onSelect({ kind: 'controller', tag: c.tag }) },
         { label: 'Download ▸ Controller...', onClick: () => setDownloading(c.tag), disabled: c.commissioned ? undefined : 'Commission the controller first' },
@@ -350,6 +371,10 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
       ] }) }}>
       <Row depth={d + 1} icon={<DvIcon kind="folder" />} label={<span>Assigned Modules</span>} sub={`${count} module(s)`}
         onClick={() => onSelect({ kind: 'controller', tag: c.tag })} />
+      {unitsOn(c.tag).map(u => <Row key={u} depth={d + 1} icon={<BatchIcon kind="unit" />} label={<span>{u}</span>} sub="Assigned unit module"
+        dataAttr={{ 'data-controller-unit': u }}
+        pending={unitDownloadState(batch, u) !== 'current' ? <span className="tv-pending" title="Download required">▲</span> : undefined}
+        onClick={() => onSelect({ kind: 'batch', sel: { t: 'unit', name: u } })} />)}
     </Row>
   }
   return <div data-library="network">
@@ -363,8 +388,13 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
       <Row depth={depth + 1} open={!!open.ctlnet} onToggle={() => toggle('ctlnet')} selected={selection?.kind === 'ctlnet'}
         icon={<DvIcon kind="ctlnet" />} label={<span>Control Network</span>} onClick={() => onSelect({ kind: 'ctlnet' })}>
         {onWorkstation && <Row depth={depth + 2} selected={workstationSelected} icon={<DvIcon kind="workstation" />}
+          open={batchOn ? open.proplus !== false : undefined} onToggle={batchOn ? () => setOpen(o => ({ ...o, proplus: o.proplus === false })) : undefined}
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}
-          dataAttr={{ 'data-workstation': 'PROPLUS' }} />}
+          dataAttr={{ 'data-workstation': 'PROPLUS' }}>
+          {batchOn && ['Batch Executive', 'Batch Historian'].map(name => <Row key={name} depth={depth + 3} icon={<BatchIcon kind="subsystem" />} label={<span>{name}</span>}
+            sub="Subsystem" dataAttr={{ 'data-subsystem': name }} selected={selection?.kind === 'batch' && selection.sel.t === 'subsystem' && selection.sel.name === name}
+            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name } })} />)}
+        </Row>}
         {all.filter(c => c.commissioned).map(c => node(c, depth + 2))}
       </Row>
     </Row>
@@ -431,6 +461,8 @@ export function ContentsList({ rows, empty, extraColumn }: { rows: ContentsRow[]
 export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelection; onSelect: (s: LibrarySelection) => void }): JSX.Element {
   const lib = useLibrary()
   const main = useStore()
+  const batch = useBatch()
+  const { aum } = useBatchEnabled()
   const openClassStudio = useUi(s => s.openClassStudio)
   const [downloading, setDownloading] = useState<string | null>(null)
   const pane = (body: ReactNode, actions?: ReactNode, notes?: ReactNode): JSX.Element => <div className="dvx-contents">
@@ -438,6 +470,8 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
   const tplType = (n: TemplateNode): string => n.kind === 'folder' ? 'Folder' : n.kind === 'module-template' ? 'Module Template' : n.kind === 'composite-template' ? 'Composite Template' : 'Function Block Template'
 
   switch (selection.kind) {
+    case 'batch':
+      return <BatchDetail sel={selection.sel} onSelect={s => onSelect({ kind: 'batch', sel: s })} />
     case 'library':
       return pane(<ContentsList rows={[
         ...LIBRARY_TEMPLATES.map(n => ({ key: n.name, icon: <LibIcon kind="classes" />, name: n.name, type: 'Templates', onOpen: () => onSelect({ kind: 'folder', path: [n.name] }) })),
@@ -461,7 +495,9 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
     case 'advanced':
       return pane(<ContentsList rows={[
         { key: 'em', icon: <LibIcon kind="classes" />, name: 'Equipment Module Classes', type: 'Equipment Module Classes', onOpen: () => onSelect({ kind: 'emClasses' }) },
-        { key: 'cm', icon: <LibIcon kind="classes" />, name: 'Control Module Classes', type: 'Control Module Classes', onOpen: () => onSelect({ kind: 'cmClasses' }) }
+        { key: 'cm', icon: <LibIcon kind="classes" />, name: 'Control Module Classes', type: 'Control Module Classes', onOpen: () => onSelect({ kind: 'cmClasses' }) },
+        ...(aum ? (['pcell', 'unit', 'phase'] as const).map(cls => ({ key: cls, icon: <BatchIcon kind={cls === 'pcell' ? 'pcellClass' : cls === 'unit' ? 'unitClass' : 'phaseClass'} />,
+          name: ROOT_LABEL[cls], type: ROOT_LABEL[cls], onOpen: () => onSelect({ kind: 'batch', sel: { t: 'root', cls } }) })) : [])
       ]} />)
     case 'emClasses':
       return pane(<ContentsList rows={[]} empty="No Equipment Module Classes (introduced after Chapter 1)." />)
@@ -505,9 +541,12 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
       const c = main.hardware.controllers[selection.tag]
       if (!c) return <div className="exp-empty">Controller not found.</div>
       const tags = Object.entries(lib.assignments).filter(([, x]) => x === c.tag).map(([t]) => t).sort()
-      return pane(<ContentsList rows={tags.map(t => ({ key: t, icon: <ModuleIcon kind="control" size={16} />, name: t, data: { 'data-assigned': t },
-        type: lib.instances[t] ? `Control Module (${lib.instances[t].className})` : lib.sims[t] ? 'Control Module (simulation)' : 'Control Module' }))}
-        extraColumn={{ title: 'Download', value: r => lib.instances[r.key] ? STATE_LABEL[downloadState(lib, r.key)] : 'Downloaded' }}
+      const unitTags = Object.entries(batch.unitAssignments).filter(([, x]) => x === c.tag).map(([u]) => u).sort()
+      return pane(<ContentsList rows={[...unitTags.map(u => ({ key: `unit:${u}`, icon: <BatchIcon kind="unit" />, name: u, data: { 'data-assigned-unit': u },
+          type: `Unit Module (${batch.units[u]?.unitClass ?? ''})`, onOpen: () => onSelect({ kind: 'batch', sel: { t: 'unit', name: u } }) })),
+        ...tags.map(t => ({ key: t, icon: <ModuleIcon kind="control" size={16} />, name: t, data: { 'data-assigned': t },
+        type: lib.instances[t] ? `Control Module (${lib.instances[t].className})` : lib.sims[t] ? 'Control Module (simulation)' : 'Control Module' }))]}
+        extraColumn={{ title: 'Download', value: r => r.key.startsWith('unit:') ? STATE_LABEL[unitDownloadState(batch, r.key.slice(5))] : lib.instances[r.key] ? STATE_LABEL[downloadState(lib, r.key)] : 'Downloaded' }}
         empty={`No modules assigned. Drag a Plant Area (for example ED_CENTER_BATCH) onto ${c.tag}.`} />,
       <button className="tbtn sm" onClick={() => setDownloading(c.tag)}>Download Controller...</button>,
       <>{lib.lastDownload && <div className="exp-props-alarms">

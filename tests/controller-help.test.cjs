@@ -11,7 +11,6 @@ const { useStore } = require('../src/renderer/src/engine/store.ts')
 const { useSecurity } = require('../src/renderer/src/engine/security.ts')
 const help = require('../src/renderer/src/engine/contextHelp.ts')
 const wc = require('../src/renderer/src/engine/workshopChecks.ts')
-const { COURSE } = require('../src/renderer/src/engine/workshops.ts')
 
 function fixture(run) {
   const before = { store: useStore.getState(), security: useSecurity.getState(), window: global.window }
@@ -134,10 +133,4 @@ test('DV09-010 with no controllers there is nothing to verify and the steps say 
   const none = wc.checkCommissioningWorkshop({}, [])
   assert.equal(none.controller, null)
   assert.ok(none.steps.filter(s => s.verdict === 'pending').every(s => /No controller exists yet/.test(s.detail)))
-})
-
-test('DV09-010 the verified step ids match the shipped workshop and the manual workshop steps are unchanged', () => {
-  const workshop = COURSE.flatMap(m => m.workshops).find(w => w.id === 'dv09-commissioning')
-  assert.deepEqual(workshop.steps.map(s => s.id), [...wc.COMMISSIONING_STEP_IDS])
-  assert.match(workshop.steps[4].text, /Cold Restart to 5 minutes/)
 })

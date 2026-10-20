@@ -1,9 +1,12 @@
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useLibrary } from '../engine/libraryStore'
+import { useBatch } from '../engine/batchStore'
+import { STATE_LABEL } from '../engine/batchConfig'
+import { useBatchUi } from '../ui/batchUi'
 import { BLENDER_CAPACITY, COLOR_TANK_CAPACITY, type CourseProcess } from '../engine/classLibrary'
 import {
-  ClassicAgitatorDrive, ClassicBackground, ClassicFlag, ClassicLabel, ClassicPipe, ClassicPump, ClassicSanitaryValve,
+  ClassicAgitatorDrive, ClassicBackground, ClassicFlag, ClassicLabel, ClassicNavButton, ClassicPipe, ClassicPump, ClassicSanitaryValve,
   ClassicTank, ClassicTitle, PALE_TEXT
 } from '../components/ClassicGraphics'
 import { fmt } from '../utils/format'
@@ -56,6 +59,24 @@ function Running({ tag, children }: { tag: string; children: (running: boolean) 
 
 const pct = (value: number, capacity: number): number => (value / capacity) * 100
 
+/** Unit module that owns color tank n (contains its LI/XV modules); clicking the tank opens its unit faceplate (p4-34). */
+function UnitLink({ n, cx }: { n: number; cx: number }): JSX.Element | null {
+  const unit = useBatch(s => s.contained[`LI-${n}04`] ?? s.contained[`XV-${n}01`] ?? null)
+  const deployed = useBatch(s => (unit ? !!s.deployedUnits[unit] : false))
+  const status = useBatch(s => {
+    if (!unit) return ''
+    const loaded = Object.values(s.active).filter(a => a.unit === unit)
+    return loaded.map(a => `${a.phase} ${STATE_LABEL[a.rt.state]}`).join(', ')
+  })
+  if (!unit) return null
+  return <g data-unit-link={unit} style={{ cursor: 'pointer' }} onClick={() => useBatchUi.getState().openUnit(unit)}>
+    <title>{deployed ? `${unit} — open the unit faceplate` : `${unit} has not been downloaded yet`}</title>
+    <rect x={cx - 44} y={91} width={88} height={128} fill="transparent" stroke="transparent" />
+    <text x={cx} y={232} textAnchor="middle" fill={PALE_TEXT} fontSize={8.5} fontWeight={700}>{unit}</text>
+    {status && <text x={cx} y={243} textAnchor="middle" fill="#1f5fa8" fontSize={8} fontWeight={700}>{status}</text>}
+  </g>
+}
+
 export function ProcessDisplay(): JSX.Element {
   const process = useLibrary(s => s.process)
   if (!process) return <div className="graphic-empty" role="status">
@@ -68,6 +89,7 @@ export function ProcessDisplay(): JSX.Element {
         role="img" aria-label="ED_CENTER_BATCH process">
         <ClassicBackground w={W} h={H} />
         <ClassicTitle x={W / 2} y={22} text="ED_CENTER_BATCH" />
+        <ClassicNavButton x={14} y={10} w={84} h={24} text="Batch Help" onClick={() => useUi.getState().navigate('batchhelp')} />
 
         {/* ===== color tanks 100 / 200 / 300 with supply (XV-n01) and outlet (XV-n02) valves ===== */}
         {COLOR_CX.map((cx, i) => {
@@ -80,6 +102,7 @@ export function ProcessDisplay(): JSX.Element {
             <LevelReadout tag={`LI-${n}04`} x={cx + 50} y={120} />
             <ClassicPipe d={`M${cx},215 V300`} width={PIPE} />
             <Valve tag={`XV-${n}02`} x={cx} y={258} orientation="vertical" labelPosition="right" />
+            <UnitLink n={n} cx={cx} />
           </g>
         })}
         <ClassicPipe d={`M${COLOR_CX[0]},300 H${COLOR_CX[2]}`} width={PIPE} />

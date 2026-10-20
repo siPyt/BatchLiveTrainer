@@ -3,9 +3,12 @@ import { useUi, type DisplayId } from '../ui/uiStore'
 import { useProgress } from '../engine/progressStore'
 import { COURSE, type Workshop } from '../engine/workshops'
 import { useStore } from '../engine/store'
-import { checkCommissioningWorkshop, COMMISSIONING_STEP_IDS, type StepCheck } from '../engine/workshopChecks'
+import type { StepCheck } from '../engine/workshopChecks'
 import { checkCourse7016Ch1 } from '../engine/course7016Checks'
+import { checkCourse7016Ch3, checkCourse7016Ch4, checkCourse7016HoldRestart, checkCourse7016Optional, checkCourse7016Verify } from '../engine/course7016Ch4Checks'
 import { useLibrary, makeReader } from '../engine/libraryStore'
+import { useBatch } from '../engine/batchStore'
+import { useSystem } from '../engine/systemPreferences'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -40,7 +43,7 @@ export function WorkshopsDisplay(): JSX.Element {
             <div className="ws-bar-fill" style={{ width: overall + '%' }} />
           </div>
           <div className="ws-overall-sub">
-            {doneSteps} / {totalSteps} steps checked manually. Not verified DV-09 coverage.
+            {doneSteps} / {totalSteps} steps ticked. Steps marked Verified are checked live against the simulator.
           </div>
         </div>
         {COURSE.map((m) => (
@@ -84,14 +87,19 @@ function WorkshopPanel({
   const done = useProgress((s) => s.done)
   const toggle = useProgress((s) => s.toggle)
   const reset = useProgress((s) => s.reset)
-  const controllers = useStore((s) => s.hardware.controllers)
   const eventLog = useStore((s) => s.eventLog)
   const modules = useStore((s) => s.modules)
   const library = useLibrary()
-  const course7016 = w.id.startsWith('7016-') && w.id !== '7016-ch1-definitions' ? checkCourse7016Ch1(library, modules, makeReader(library)) : null
-  const checked = w.id === 'dv09-commissioning' ? checkCommissioningWorkshop(controllers, eventLog) : null
-  const verdictFor = (id: string): StepCheck | undefined => course7016 ? course7016.find((s) => s.id === id) :
-    (checked && (COMMISSIONING_STEP_IDS as readonly string[]).includes(id) ? checked.steps.find((s) => s.id === id) : undefined)
+  const batch = useBatch()
+  const system = useSystem()
+  const checks: StepCheck[] | null =
+    w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :
+    w.id === '7016-ch3-sysprefs' ? checkCourse7016Ch3(system) :
+    w.id === '7016-ch4-fill' ? checkCourse7016Ch4(batch, eventLog) :
+    w.id === '7016-ch4-hold-restart' ? checkCourse7016HoldRestart(batch) :
+    w.id === '7016-ch4-verify' ? checkCourse7016Verify(eventLog) :
+    w.id === '7016-ch4-optional' ? checkCourse7016Optional(batch, eventLog) : null
+  const verdictFor = (id: string): StepCheck | undefined => checks?.find((s) => s.id === id)
 
   return (
     <div className="ws-panel">
@@ -103,9 +111,9 @@ function WorkshopPanel({
       </div>
       <p className="ws-objective">{w.objective}</p>
       {w.note && <div className="ws-note">{w.note}</div>}
-      {(checked || course7016) && (
+      {checks && (
         <div className="ws-note" role="status">
-          Steps below are checked against the simulator{checked?.controller ? ' for controller ' + checked.controller : ''}: Verified comes from real state{checked ? ' and the event journal; Manual steps cannot be observed' : ' (the DV_School library, ED_CENTER_BATCH modules and the controller download)'}.
+          Steps below are checked against the simulator: Verified comes from real state (the DV_School library and batch configuration, the controller download and the Event Journal).
         </div>
       )}
       <ol className="ws-steps">

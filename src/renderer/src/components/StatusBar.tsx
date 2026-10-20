@@ -27,7 +27,7 @@ export function StatusBar(): JSX.Element {
       </span>
       <span className="seg">Node: PRIMARY · Comm: GOOD</span>
       <span className="spacer" />
-      <span className="seg">BatchLive v{version}</span>
+      <span className="seg">BatchLiveTrainer v{version}</span>
     </div>
   )
 }
