@@ -1,5 +1,5 @@
-appId: com.batchlive.app
-productName: BatchLive
+appId: com.batchlivetrainer.app
+productName: BatchLiveTrainer
 directories:
   buildResources: build
   output: dist-installer
@@ -25,7 +25,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: BatchLive
+  shortcutName: BatchLiveTrainer
 mac:
   target:
     - dmg

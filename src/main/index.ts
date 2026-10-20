@@ -14,7 +14,7 @@ function createWindow(): void {
     minHeight: 720,
     show: false,
     backgroundColor: '#c8ccd2',
-    title: 'BatchLive',
+    title: 'BatchLiveTrainer',
     autoHideMenuBar: true,
     icon: join(__dirname, `../../build/${iconFile}`),
     webPreferences: {
@@ -69,7 +69,7 @@ function buildMenu(): void {
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.batchlive.app')
+    app.setAppUserModelId('com.batchlivetrainer.app')
   }
   buildMenu()
   createWindow()

@@ -1,8 +1,9 @@
 {
-    "name":  "batchlive",
+    "name":  "batchlivetrainer",
+    "productName":  "BatchLiveTrainer",
     "version":  "1.0.0",
-    "description":  "BatchLive (BL) - an offline operator HMI sandbox that recreates the look and feel of an Emerson DeltaV Live station (process graphics, faceplates, alarms, trends) with a live process simulation engine.",
-    "author":  "BatchLive",
+    "description":  "BatchLiveTrainer - the BatchLive DeltaV simulator set up for working Emerson DeltaV course workshops (Course 7016, DeltaV Batch) step by step.",
+    "author":  "BatchLiveTrainer",
     "license":  "MIT",
     "main":  "./out/main/index.js",
     "scripts":  {

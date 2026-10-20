@@ -47,7 +47,7 @@ test('three ribbon bands expose every display and preserve the excluded branding
   }
   assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 30)
   for (const display of DISPLAY_NAVIGATION) assert.ok(html.includes(`value="${display.id}"`), display.id)
-  assert.match(html, /class="brand-name">BatchLive<\/span>/)
+  assert.match(html, /class="brand-name">BatchLiveTrainer<\/span>/)
   assert.match(html, /class="brand-credit">Charles R\. Freeman, software engineer<\/span>/)
 })
 

@@ -165,8 +165,8 @@ export function TopBar(): JSX.Element {
         <div className="spacer" />
       <div className="brand">
         <span className="logo">BL</span>
-        <span className="brand-text" title="BatchLive - Charles R. Freeman, software engineer">
-          <span className="brand-name">BatchLive</span>
+        <span className="brand-text" title="BatchLiveTrainer - Charles R. Freeman, software engineer">
+          <span className="brand-name">BatchLiveTrainer</span>
           <span className="brand-credit">Charles R. Freeman, software engineer</span>
         </span>
       </div>

@@ -1,8 +1,8 @@
-# BatchLive (BL)
+# BatchLiveTrainer
 
-An offline **operator HMI sandbox** that recreates the look and feel of an Emerson **DeltaV Live** station — process graphics, control-module faceplates, an alarm banner/summary, live trends, and a running process-simulation engine — so you can safely experiment, train, and prototype operator workflows.
+A training edition of BatchLive for working the Emerson DeltaV course workshops (Course 7016, DeltaV Batch) step by step. It shares the BatchLive simulator — process graphics, control-module faceplates, an alarm banner/summary, live trends, and a running process-simulation engine — and adds the course configuration tools and workshop checks. [BatchLive](https://github.com/siPyt/BatchLive) itself stays the site digital twin.
 
-> BatchLive is an independent educational simulator. It is **not** affiliated with or endorsed by Emerson, and ships no DeltaV software.
+> BatchLiveTrainer is an independent educational simulator. It is **not** affiliated with or endorsed by Emerson, and ships no DeltaV software.
 
 ![BatchLive icon](build/icon.png)
 
@@ -47,7 +47,7 @@ npm run build      # compile main/preload/renderer bundles
 npm run dist:win   # produce a Windows installer in dist-installer/
 ```
 
-The installer (`dist-installer/BatchLive-1.0.0-setup.exe`) creates desktop and
+The installer (`dist-installer/BatchLiveTrainer-1.0.0-setup.exe`) creates desktop and
 Start-menu shortcuts.
 
 ## Control strategy training
