@@ -51,7 +51,7 @@ function fixture(fn) {
 function ch5State() {
   const e = E(), b = B(), l = L()
   return { emCategories: e.categories, emClasses: e.classes, emDrafts: e.drafts, emInstances: e.instances, emDeployed: e.deployed,
-    batchCategories: b.categories, unitClasses: b.unitClasses, units: b.units, contained: b.contained, assignments: l.assignments, modules: M().modules, transfers: l.transfers, sims: l.sims }
+    batchCategories: b.categories, unitClasses: b.unitClasses, units: b.units, contained: b.contained, assignments: l.assignments, modules: M().modules, transfers: l.transfers, sims: l.sims, runSince: ch5.blendersDownloadedAt(e.deployed) }
 }
 const pending = (checks) => checks.filter(c => c.verdict !== 'verified').map(c => `${c.id}: ${c.detail}`)
 
@@ -245,7 +245,7 @@ test('7016 ch5 workshops: every step id has a live check and ids are unique', ()
   assert.equal(new Set(ids).size, ids.length)
   const all = COURSE.flatMap(m => m.workshops.flatMap(w => w.steps.map(s => s.id)))
   assert.equal(new Set(all).size, all.length, 'step ids unique across the course')
-  const empty = { emCategories: {}, emClasses: {}, emDrafts: {}, emInstances: {}, emDeployed: {}, batchCategories: {}, unitClasses: {}, units: {}, contained: {}, assignments: {}, modules: {}, transfers: {}, sims: {} }
+  const empty = { emCategories: {}, emClasses: {}, emDrafts: {}, emInstances: {}, emDeployed: {}, batchCategories: {}, unitClasses: {}, units: {}, contained: {}, assignments: {}, modules: {}, transfers: {}, sims: {}, runSince: null }
   const checked = [ch5.checkCourse7016BlenderColor(empty), ch5.checkCourse7016BlenderOutlet(empty), ch5.checkCourse7016BlendersUnit(empty),
     ch5.checkCourse7016RunProcess(empty), ch5.checkCourse7016VerifyEms([]), ch5.checkCourse7016Ch5Optional(empty, [])].flat().map(c => c.id)
   assert.deepEqual(checked.sort(), [...ids].sort())
@@ -365,7 +365,8 @@ test('7016 ch2/ch5 Verify you can run the process: base transfer at 90 GPM, colo
   run(30)
   const drain = L().transfers['BL500>PRODUCT'].episodes.at(-1)
   assert.ok(drain.amount > 124 && drain.amount < 150, `drain ${drain.amount}`)
-  const runChecks = ch5.checkCourse7016RunProcess(ch5State())
+  assert.equal(ch5.checkCourse7016RunProcess(ch5State())[0].verdict, 'pending', 'Chapter 2 style runs before the BLENDERS download do not count')
+  const runChecks = ch5.checkCourse7016RunProcess({ ...ch5State(), runSince: 0 })
   assert.deepEqual(pending(runChecks.filter(c => ['7016-5r-1', '7016-5r-2', '7016-5r-3', '7016-5r-4', '7016-5r-5'].includes(c.id))), [])
   assert.equal(runChecks.find(c => c.id === '7016-5r-6').verdict, 'pending')
 }))

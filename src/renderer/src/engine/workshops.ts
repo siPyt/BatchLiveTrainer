@@ -77,19 +77,63 @@ export const COURSE: WModule[] = [
     ]
   },
   {
+    module: '7016 · Ch 2 Defining the DeltaV Batch Process',
+    workshops: [
+      {
+        id: '7016-ch2-process',
+        title: 'Defining the Batch Process — reading, pp 2-4 to 2-12',
+        objective: 'Know the classroom system (ProfessionalPLUS + one controller, DV_School, Process and BatchHelp pictures, simulated I/O), the two plant areas and the parameter paths the phases and equipment modules use.',
+        note: 'Reference pages; tick each item after locating it in BatchLiveTrainer. Every path example on pp 2-8 to 2-11 is accepted by the Control Studio expression editor and executes against the simulated modules: \'//LI-104/AI1/PV.CV\' >= 250, \'//XV-101/CAS_SP.CV\' := \'vlvnc-sp:OPEN\', \'//XV-101/MODE.TARGET\' := CAS, \'//XV-502/CAS_SP.CV\' := \'vlvnc-2stage-sp:DRIBBLE\', \'//MTR-505/CAS_SP.CV\' := \'mtr2-sp:START\', \'//MTR-505/DC1/MODE.TARGET\' := CAS, \'//MTR-505/DC1/PV_D.CV\' = \'mtr2-pv:RUNNING\'.',
+        steps: [
+          { id: '7016-2r-1', text: 'System Architecture (p2-4): ProfessionalPLUS workstation and controller CTLR1 (commissioned and downloaded); database DV_School; pictures Process and BatchHelp; all control modules use simulated I/O. Explorer → Physical Network → Control Network shows PROPLUS and CTLR1.', goto: 'explorer' },
+          { id: '7016-2r-2', text: 'Plant Areas (p2-5): FEED_TANK_AREA holds BASE 400 (LI-401, MTR-403, FIC-404); ED_CENTER_BATCH holds Color 100/200/300 (XV-n01, XV-n02, LI-n04), Blender 500/600 (XV-n01..n04, AGIT-n03, MTR-n05, LI-n04). Compare with the Process picture.', goto: 'process' },
+          { id: '7016-2r-3', text: 'Level indication (p2-8): level indicators use the AI1 block — \'//LI-104/AI1/PV.CV\' >= 250, or through the alias \'//#TANK_LEVEL#\' >= \'^/R_FILL_LEVEL.CV\' (TANK_LEVEL resolves to the full parameter path).' },
+          { id: '7016-2r-4', text: 'Normally closed block valves (p2-9): DC1 block, module level CAS_SP, MODE and PV with named sets vlvnc-sp / vlvnc-pv (Explorer → System Configuration → Setup → Named Sets).' },
+          { id: '7016-2r-5', text: '2 stage block valves (p2-10): XV-502 and XV-602 use vlvnc-2stage-sp (CLOSE, DRIBBLE, BULK) and vlvnc-2stage-pv (CLOSED, DRIBBLE, BULK, TRAVEL).' },
+          { id: '7016-2r-6', text: 'Motors (p2-11, 2-12): module level CAS_SP (mtr2-sp START/STOP), DC1/MODE and DC1/PV_D (mtr2-pv RUNNING/STOPPED). In CAS the DC1 block follows CAS_SP; return it to AUTO at the end of the phase logic. Motor and block valve aliases resolve to the module name only.' }
+        ]
+      },
+      {
+        id: '7016-ch2-manual',
+        title: 'Workshop – Manual Operation',
+        objective: 'Run the ED_CENTER_BATCH process by hand from DeltaV Operate\'s PROCESS picture, then repeat it and compare how accurately you reproduced the first run (Course 7016 p2-6).',
+        note: 'Click a valve, motor, LI or FIC-404 on the Process picture to open its faceplate. Fill: open XV-101 and close it at 60 gal on LI-104. Base transfer: on the FIC-404 faceplate select AUTO, then enter SP 90 (the setpoint is editable in AUTO), open XV-501, start MTR-403, stop at +100 gal on LI-504 (or −100 on LI-401). Dump: open XV-102 with XV-502 in Bulk (two stage valve). Agitate: start AGIT-503 for 60 s. Drain: open XV-503 (Product) or XV-504 (Waste) and start MTR-505. Valves take 2 s to travel and the pump a few seconds to stop, so close a little early. Each step below shows the measured amount; Step 6 compares your two runs.',
+        steps: [
+          { id: '7016-2m-1', text: 'Step 1. Fill COLOR 100 to 60 gallons.', goto: 'process' },
+          { id: '7016-2m-2', text: 'Step 2. Transfer 100 gallons from BASE 400 to BLENDER 500 at a flow rate of 90 GPM.' },
+          { id: '7016-2m-3', text: 'Step 3. Dump 50 gallons from COLOR 100 to BLENDER 500.' },
+          { id: '7016-2m-4', text: 'Step 4. Start and run AGIT-503 for 1 minute.' },
+          { id: '7016-2m-5', text: 'Step 5. Drain 125 gallons from BLENDER 500 to Product or Waste.' },
+          { id: '7016-2m-6', text: 'Step 6. Repeat the entire process and check how accurately you reproduced the results from your first attempt.' }
+        ]
+      }
+    ]
+  },
+  {
     module: '7016 · Ch 3 System Preferences (prerequisite for Ch 4)',
     workshops: [
+      {
+        id: '7016-ch3-licensing',
+        title: 'Batch Licensing & System Preferences — reading, pp 3-4 to 3-7',
+        objective: 'Know the controller and workstation licensing needed for batch and what Enable Batch / Enable Advanced Unit Management reveal.',
+        note: 'Reference pages; tick each item after locating it in BatchLiveTrainer.',
+        steps: [
+          { id: '7016-3l-1', text: 'System-wide licenses (p3-4): controller DSTs for DI, DO, AI and AO; Advanced Unit Management DSTs = the DSTs assigned to class based units; Basic / Advanced / Professional Batch application licenses are assigned to the ProfessionalPLUS and checked before a download. Explorer → Physical Network → Control Network → PROPLUS shows the Licensing Properties.', goto: 'explorer' },
+          { id: '7016-3l-2', text: 'Batch licensing levels (p3-5): Basic = Batch Executive; Advanced adds Batch Historian; Professional adds Campaign Manager and Soft-Phase Server (same node as the Batch Executive). Batch Operator Interface licenses are node specific.' },
+          { id: '7016-3l-3', text: 'Enabling/Hiding functionality (p3-6, 3-7): System Preferences (DeltaV → Engineering → System Preferences; here Utilities → System Preferences). Enable Batch enables the Batch Executive, BOI, Recipe Studio and Recipe Simulator and selects Advanced Unit Management. Disabling hides the configuration but keeps it in the database; the database services must be stopped and restarted.', goto: 'system' }
+        ]
+      },
       {
         id: '7016-ch3-sysprefs',
         title: 'Workshop – System Preferences (Enable Batch)',
         objective: 'Enable batch functionality and restart the DeltaV database services so the batch objects appear in DeltaV Explorer (Course 7016 pp 3-8, 3-9).',
         note: 'Enable Batch also selects Advanced Unit Management. The change stays pending until the database server is shut down and reconnected. The Chapter 2 named sets (vlvnc-sp, vlvnc-pv, vlvnc-2stage-sp/pv, mtr2-sp/pv) are already part of the DV_School database.',
         steps: [
-          { id: '7016-3-1', text: 'Access the DeltaV System Preferences dialog box (Utilities → System Preferences).', goto: 'system' },
-          { id: '7016-3-2', text: 'Check the Enable Batch entry and click OK to continue.' },
-          { id: '7016-3-3', text: 'Access the DeltaV Database Administrator (Database server section). All database clients must be closed.' },
-          { id: '7016-3-4', text: 'Select File → Shutdown Server. Wait until the status reads Database Server is Shutdown.' },
-          { id: '7016-3-5', text: 'Select File → Connect to Server.' },
+          { id: '7016-3-1', text: 'Access the DeltaV System Preferences dialog box (Utilities → System Preferences; in DeltaV: DeltaV → Engineering → System Preferences).', goto: 'system' },
+          { id: '7016-3-2', text: 'Check the Enable Batch entry (Enable Advanced Unit Management is selected with it) and click OK to continue.' },
+          { id: '7016-3-3', text: 'Access the DeltaV Database Administrator (the window below the System Preferences dialog). All database clients must be closed — close DeltaV Explorer and the other listed clients.' },
+          { id: '7016-3-4', text: 'Select File → Shutdown Server. Wait until the status bar in the bottom right corner reads Database Server is Shutdown.' },
+          { id: '7016-3-5', text: 'Select File → Connect to Server (the status bar returns to Database Server is Running).' },
           { id: '7016-3-6', text: 'Launch DeltaV Explorer and note the new items: Process Cell Classes, Unit Classes and Phase Classes under Advanced Definitions; Recipes under System Configuration; Batch Executive and Batch Historian subsystems under the ProfessionalPLUS workstation.', goto: 'explorer' }
         ]
       }
@@ -255,7 +299,7 @@ export const COURSE: WModule[] = [
         id: '7016-ch5-run-process',
         title: 'Workshop – Verify you can run the process',
         objective: 'Operate the ED_CENTER_BATCH plant from the PROCESS picture: fills, base transfer under FIC-404, color dumps, agitation and drains (Course 7016 pp 5-38 / 5-39).',
-        note: 'Click a valve, motor or FIC-404 on the Process picture to open its faceplate. Base transfer: FIC-404 SP 90 GPM and AUTO, open XV-501 (or XV-601), start MTR-403. Color dump: open XV-n02 on the color tank and put the blender color valve (XV-502 / XV-602, two stage) in Bulk. Drain: open XV-n03 (Product) or XV-n04 (Waste) and start the outlet pump. Valves take 2 s to travel, so stop a little early. Each transfer is measured and shown below.',
+        note: 'Click a valve, motor or FIC-404 on the Process picture to open its faceplate. Base transfer: on the FIC-404 faceplate select AUTO, then enter SP 90 GPM; open XV-501 (or XV-601), start MTR-403. Color dump: open XV-n02 on the color tank and put the blender color valve (XV-502 / XV-602, two stage) in Bulk. Drain: open XV-n03 (Product) or XV-n04 (Waste) and start the outlet pump. Valves take 2 s to travel, so stop a little early. Each transfer is measured and shown below.',
         steps: [
           { id: '7016-5r-1', text: 'Step 1. Fill COLOR 100 to 60 gallons.', goto: 'process' },
           { id: '7016-5r-2', text: 'Step 2. Transfer 100 gallons from BASE 400 to BLENDER 500 at a flow rate of 90 GPM.' },
@@ -295,7 +339,7 @@ export const COURSE: WModule[] = [
         id: '7016-ch5-optional',
         title: 'Optional Exercises – descriptions, outlet pump interlocks',
         objective: 'Add descriptions to each blender unit module and its control modules; add interlocks and permissives to MTR-505 and MTR-605 so the outlet pumps cannot run against closed block valves (Course 7016 pp 5-52 / 5-53).',
-        note: 'Descriptions: right-click the unit module → Properties (General) and right-click each module under it → Properties. Interlocks: right-click MTR-505 → Open with Control Studio, then Interlock / Permissive conditions on the device (for example permissive "XV-503 or XV-504 open", interlock when both are closed). Download, then try starting MTR-505 with both valves closed.',
+        note: 'Descriptions: right-click the unit module → Properties (General) and right-click each module under it → Properties. Interlocks: right-click MTR-505 → Open with Control Studio. The pump may run when XV-503 OR XV-504 is open, so drag an OR block from Logical Blocks (for example MTR-505-PERM), set its IN1 = XV-503 and IN2 = XV-504, choose it as MTR-505\'s PERMISSIVE_SOURCE and check the Permissive device option (DEVICE_OPTS; also on the faceplate under Device Options). Single-valve rules can use the Interlock / Permissive condition lists instead. Then try starting MTR-505 from the Process picture with both valves closed (it must refuse), open XV-503 or XV-504 and start it again. Repeat for MTR-605 with XV-603 / XV-604.',
         steps: [
           { id: '7016-5x-1', text: 'Using DeltaV Explorer, add descriptions for each blender unit module and its control modules.', goto: 'explorer' },
           { id: '7016-5x-2', text: 'Using Control Studio, add interlocks and permissives as needed for MTR-505 and MTR-605.' }

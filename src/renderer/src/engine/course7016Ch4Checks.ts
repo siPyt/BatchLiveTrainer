@@ -38,11 +38,13 @@ const has = (text: string, fragment: string): boolean => normExpr(text).includes
 
 export function checkCourse7016Ch3(s: Ch3State): StepCheck[] {
   const chosen = s.pending.batch ?? s.features.batch
+  // Batch only becomes active through a server restart, so an active, no longer pending Batch proves Steps 3-4 (also after the app restarts).
+  const restarted = s.restarts > 0 || s.serverState === 'STOPPED' || (s.features.batch && s.pending.batch === undefined)
   return [
     v('7016-3-1', chosen || s.features.batch, 'System Preferences opened and Batch selected', 'Open System Preferences (Utilities ▸ System Preferences)'),
     v('7016-3-2', chosen, s.features.batch ? 'Enable Batch is active' : 'Enable Batch is checked (pending a server restart)', 'Check Enable Batch and click OK'),
-    v('7016-3-3', s.restarts > 0 || s.serverState === 'STOPPED', 'Database Administrator used', 'Use the Database Administrator section of System Preferences'),
-    v('7016-3-4', s.restarts > 0 || s.serverState === 'STOPPED', 'The database server was shut down', 'File ▸ Shutdown Server'),
+    v('7016-3-3', restarted, 'Database Administrator used', 'Use the Database Administrator section of System Preferences'),
+    v('7016-3-4', restarted, 'The database server was shut down', 'File ▸ Shutdown Server'),
     v('7016-3-5', s.features.batch && s.serverState === 'RUNNING', 'Server reconnected; Batch is active', s.serverState === 'STOPPED' ? 'File ▸ Connect to Server' : 'Restart the server after enabling Batch'),
     v('7016-3-6', s.features.batch && s.features.advancedUnitManagement, 'Explorer shows Process Cell/Unit/Phase Classes, Recipes and the Batch Executive/Historian subsystems',
       'Enable Batch and restart the server, then look in DeltaV Explorer')

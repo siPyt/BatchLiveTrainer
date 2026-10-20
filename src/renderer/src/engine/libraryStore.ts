@@ -14,6 +14,8 @@ import {
   type AiRuntime, type ClassCategory, type ClassInstance, type ControlModuleClass, type CourseProcess,
   type ModuleDefinition, type ParamValue, type ReferenceReader, type ScaleValue, type SimModule
 } from './classLibrary'
+import { COURSE_VALVE_TRAVEL } from './classLibrary'
+import { EXTERNAL_PV_TAGS } from './simulate'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 function ok<T>(value: T): Result<T> { return { ok: true, value } }
@@ -29,8 +31,7 @@ function renameKey<T>(r: Record<string, T>, from: string, to: string): Record<st
 
 export const COURSE_AREA = 'ED_CENTER_BATCH'
 export const COURSE_CONTROLLER = 'CTLR1'
-/** DV_School block valves confirm their position in 2 s (the travel the Chapter 4 overshoot exercise compensates for). */
-export const COURSE_VALVE_TRAVEL = 2
+export { COURSE_VALVE_TRAVEL }
 
 /** Extension points used by the batch configuration (Chapter 4) without a circular import. */
 export const libraryHooks = {
@@ -43,13 +44,14 @@ export const libraryHooks = {
 }
 
 /** One path of the course process (BASE>BL500, TK100>BL500, BL500>PRODUCT, AGIT-503 RUN, TK100 FILL ...). */
-export interface TransferEpisode { amount: number; seconds: number; avgSp: number; endLevel: number }
+/** at = simulation time (useStore time) the episode ended; workshops use it to tell Chapter 2 runs from Chapter 5 runs. */
+export interface TransferEpisode { amount: number; seconds: number; avgSp: number; endLevel: number; at: number }
 export interface TransferLog { active: number; seconds: number; spSum: number; total: number; episodes: TransferEpisode[] }
 
 const LEVEL_OF: Record<string, keyof CourseProcess> = { 'TK100 FILL': 'tk100', 'TK200 FILL': 'tk200', 'TK300 FILL': 'tk300' }
 
 /** Accumulate flows into episodes: an episode ends on the first step its path stops moving material. */
-export function logTransfers(prev: Record<string, TransferLog>, flows: Record<string, number>, dt: number, p: CourseProcess, baseSp: number): Record<string, TransferLog> {
+export function logTransfers(prev: Record<string, TransferLog>, flows: Record<string, number>, dt: number, p: CourseProcess, baseSp: number, now = 0): Record<string, TransferLog> {
   let next = prev
   for (const key of new Set([...Object.keys(prev), ...Object.keys(flows)])) {
     const cur = prev[key] ?? { active: 0, seconds: 0, spSum: 0, total: 0, episodes: [] }
@@ -58,7 +60,7 @@ export function logTransfers(prev: Record<string, TransferLog>, flows: Record<st
     if (moved > 0) upd = { ...cur, active: cur.active + moved, seconds: cur.seconds + dt, spSum: cur.spSum + (key.startsWith('BASE>') ? baseSp * dt : 0), total: cur.total + moved }
     else if (cur.active > 0) {
       const level = LEVEL_OF[key]
-      const ep: TransferEpisode = { amount: cur.active, seconds: cur.seconds, avgSp: cur.seconds ? cur.spSum / cur.seconds : 0, endLevel: level ? p[level] : 0 }
+      const ep: TransferEpisode = { amount: cur.active, seconds: cur.seconds, avgSp: cur.seconds ? cur.spSum / cur.seconds : 0, endLevel: level ? p[level] : 0, at: now }
       upd = { ...cur, active: 0, seconds: 0, spSum: 0, episodes: [...cur.episodes, ep].slice(-12) }
     }
     if (upd !== cur || !prev[key]) next = { ...next, [key]: upd }
@@ -255,6 +257,7 @@ function baseLevel(): AnyModule {
 }
 
 function baseFlowLoop(): AnyModule {
+  EXTERNAL_PV_TAGS.add('FIC-404')
   const m = makeModule({ tag: 'FIC-404', type: 'PID', description: 'Base 400 transfer flow', area: 'FEED_TANK_AREA', unit: 'GPM', pvMin: 0, pvMax: BASE_MAX_FLOW })
   // The transfer loop idles at 0 GPM between transfers, so its low flow alarms are disabled.
   return m.type === 'PID' ? { ...m, mode: 'MAN', actualMode: 'MAN', sp: 0, out: 0, pv: 0, alarms: m.alarms.map(a => /LO/.test(a.type) ? { ...a, enabled: false } : a) } as AnyModule : m
@@ -633,7 +636,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
         baseOut: fic?.type === 'PID' ? fic.out : 0
       }, dt)
       process = result.process
-      const transfers = logTransfers(s.transfers, result.flows, dt, process, fic?.type === 'PID' ? fic.sp : 0)
+      const transfers = logTransfers(s.transfers, result.flows, dt, process, fic?.type === 'PID' ? fic.sp : 0, main.time)
       set({ process, transfers })
       // FIC-404 measures the base transfer flow; LI-401 indicates the BASE 400 level.
       const flow = process.baseFlow

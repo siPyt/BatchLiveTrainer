@@ -10,7 +10,8 @@ import { useLibrary, makeReader } from '../engine/libraryStore'
 import { useBatch } from '../engine/batchStore'
 import { useSystem } from '../engine/systemPreferences'
 import { useEm } from '../engine/emStore'
-import { checkCourse7016BlenderColor, checkCourse7016BlenderOutlet, checkCourse7016BlendersUnit, checkCourse7016Ch5Optional, checkCourse7016RunProcess, checkCourse7016VerifyEms, type Ch5State } from '../engine/course7016Ch5Checks'
+import { checkCourse7016BlenderColor, checkCourse7016BlenderOutlet, checkCourse7016BlendersUnit, checkCourse7016Ch5Optional, checkCourse7016RunProcess, checkCourse7016VerifyEms, blendersDownloadedAt, type Ch5State } from '../engine/course7016Ch5Checks'
+import { checkCourse7016ManualOp } from '../engine/course7016Ch2Checks'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -98,10 +99,11 @@ function WorkshopPanel({
   const ch5: Ch5State = {
     emCategories: em.categories, emClasses: em.classes, emDrafts: em.drafts, emInstances: em.instances, emDeployed: em.deployed,
     batchCategories: batch.categories, unitClasses: batch.unitClasses, units: batch.units, contained: batch.contained,
-    assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims
+    assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims, runSince: blendersDownloadedAt(em.deployed)
   }
   const checks: StepCheck[] | null =
     w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :
+    w.id === '7016-ch2-manual' ? checkCourse7016ManualOp(library.transfers) :
     w.id === '7016-ch3-sysprefs' ? checkCourse7016Ch3(system) :
     w.id === '7016-ch4-fill' ? checkCourse7016Ch4(batch, eventLog) :
     w.id === '7016-ch4-hold-restart' ? checkCourse7016HoldRestart(batch) :

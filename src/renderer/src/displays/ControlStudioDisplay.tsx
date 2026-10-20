@@ -133,9 +133,10 @@ export function ControlStudioDisplay(): JSX.Element {
             {bottomTab === 'alarms' && <AlarmView module={m} />}
           </div>
         </div>
-        {showPalette && !isDevice && <PaneResizer axis="x" sign={-1} value={paletteWidth} min={140} max={420}
+        {/* Devices get the palette too: interlock/permissive logic (OR, AND, CND ...) is added from it (Course 7016 p5-53). */}
+        {showPalette && <PaneResizer axis="x" sign={-1} value={paletteWidth} min={140} max={420}
           onChange={setPaletteWidth} label="Resize palette panel" />}
-        {showPalette && !isDevice && <PaletteView area={m.area} width={paletteWidth} />}
+        {showPalette && <PaletteView area={m.area} width={paletteWidth} />}
       </div>
       <div className="studio-statusbar">
         <span>Assigned to: {assigned ?? 'Not assigned'}</span>

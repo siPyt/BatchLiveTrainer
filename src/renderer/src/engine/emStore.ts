@@ -7,6 +7,7 @@ import { isNameValid, NAME_RULE, defaultSfc, type PhaseSfc, type SeqPos } from '
 import { evalCondition, runProgram, EvalError, MODE_WORDS, type CheckEnv, type Value } from './phaseExpr'
 import { isValidDeltaVTag } from './naming'
 import type { AnyModule } from './types'
+import { COURSE_VALVE_TRAVEL } from './classLibrary'
 
 // Course 7016 Chapter 5 (Module Classes): Equipment Module Classes (command-driven and
 // state-driven), the Control Module Classes they embed (2STAGE_VALVE, NC_VALVE, AGIT_MTR,
@@ -654,7 +655,8 @@ export function deployEm(tag: string, controller: string): string[] {
 export function makeDeviceModule(tag: string, className: string, area: string, description?: string): AnyModule {
   const dev = CM_DEVICE_CLASSES[className]
   const m = makeModule({ tag, type: dev.kind, description: description ?? dev.description, area })
-  if (m.type === 'VALVE' && dev.twoStage) return { ...m, twoStage: true, bulk: false }
+  // Same physical DV_School valves as the stand-alone modules they replace: 2 s travel.
+  if (m.type === 'VALVE') return { ...m, confirmTimeSec: COURSE_VALVE_TRAVEL, ...(dev.twoStage ? { twoStage: true, bulk: false } : {}) }
   return m
 }
 

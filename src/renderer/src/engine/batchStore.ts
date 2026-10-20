@@ -114,6 +114,8 @@ interface BatchState {
   unassignModule: (tag: string) => Result<string>
   setModuleDescription: (tag: string, description: string) => Result<string>
   setTwoStage: (tag: string, position: 'CLOSE' | 'DRIBBLE' | 'BULK') => Result<string>
+  /** Faceplate MODE target of a course valve/motor (DC block): AUTO/MAN return it to the operator, CAS hands it to the phase or equipment module. */
+  setDeviceMode: (tag: string, mode: 'AUTO' | 'MAN' | 'CAS') => Result<string>
 
   step: (dt: number) => void
 }
@@ -1269,6 +1271,18 @@ export const useBatch = create<BatchState>((set, get) => ({
     useStore.setState(st => ({ modules: { ...st.modules, [tag]: { ...m, commandedOpen: position !== 'CLOSE', bulk: position === 'BULK' } } }))
     log(tag, `Operator command: ${position}`, 'BATCH')
     return ok(position)
+  },
+  setDeviceMode: (tag, mode) => {
+    const m = useStore.getState().modules[tag]
+    if (m?.type !== 'VALVE' && m?.type !== 'MOTOR') return fail(`${tag} is not a valve or motor`)
+    const cur = get().dc[tag] ?? { mode: 'AUTO', casSp: (m.type === 'VALVE' ? m.commandedOpen : m.commanded) ? (m.type === 'VALVE' && m.twoStage && m.bulk ? 2 : 1) : 0 }
+    if (cur.mode === mode) return ok(mode)
+    if (!requireUnlockedLock('CONTROL', `Command target mode of ${tag} ${mode}`)) return fail('Requires the Control key')
+    // Bumpless: entering CAS keeps the current command as CAS_SP; leaving CAS keeps the device where it is.
+    const casSp = mode === 'CAS' ? ((m.type === 'VALVE' ? m.commandedOpen : m.commanded) ? (m.type === 'VALVE' && m.twoStage && m.bulk ? 2 : 1) : 0) : cur.casSp
+    set(s => ({ dc: { ...s.dc, [tag]: { mode, casSp } } }))
+    log(tag, `MODE.TARGET changed from ${cur.mode} to ${mode}`, 'BATCH')
+    return ok(mode)
   },
 
   step: dt => {

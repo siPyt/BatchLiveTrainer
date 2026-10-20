@@ -3,6 +3,8 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useSecurity } from '../engine/security'
 import { useLibrary } from '../engine/libraryStore'
+import { useSystem } from '../engine/systemPreferences'
+import { courseSnapshot, restoreCourseDatabase, saveCourseDatabase } from '../engine/courseSave'
 import { clockString, dateString } from '../utils/format'
 import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
@@ -120,9 +122,30 @@ export function TopBar(): JSX.Element {
   }, [searchOpen])
 
   const startNewProject = (): void => {
-    if (!window.confirm('Discard the current project and load the Course 7016 DV_School training database (ED_CENTER_BATCH)? This cannot be undone.')) return
+    if (!window.confirm('Discard your saved DV_School database and start Course 7016 over with a fresh copy (ED_CENTER_BATCH)? Enable Batch is reset too (Chapter 3). Export the database first if you want a backup. This cannot be undone.')) return
     if (!useLibrary.getState().installCourseProject()) return
+    useSystem.getState().resetPreferences()
+    saveCourseDatabase()
     resetToOverview()
+  }
+  const importRef = useRef<HTMLInputElement>(null)
+  const exportDatabase = (): void => {
+    const text = JSON.stringify(courseSnapshot())
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+    a.download = `DV_School-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.batchlivetrainer.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+  const importDatabase = (file: File | undefined): void => {
+    if (!file) return
+    void file.text().then(text => {
+      if (!window.confirm(`Replace the current DV_School database with ${file.name}?`)) return
+      if (!useLibrary.getState().installCourseProject()) return
+      if (!restoreCourseDatabase(text)) { window.alert(`${file.name} is not a BatchLiveTrainer database export.`); return }
+      saveCourseDatabase()
+      resetToOverview()
+    })
   }
 
   return (
@@ -178,9 +201,14 @@ export function TopBar(): JSX.Element {
       <DropdownMenu
         label="File"
         items={[
-          { label: '🎓 New Course 7016 Project (DV_School)', onClick: startNewProject }
+          { label: '🎓 New Course 7016 Project (DV_School)', onClick: startNewProject },
+          { label: '💾 Save DV_School now (also autosaved)', onClick: () => { if (!saveCourseDatabase()) window.alert('The database could not be saved (storage unavailable or full).') } },
+          { label: '⤓ Export DV_School database...', onClick: exportDatabase },
+          { label: '⤒ Import DV_School database...', onClick: () => importRef.current?.click() }
         ]}
       />
+      <input ref={importRef} type="file" accept=".json" hidden aria-label="Import DV_School database file"
+        onChange={e => { importDatabase(e.target.files?.[0]); e.target.value = '' }} />
       <DropdownMenu
         label="Utilities"
         items={[

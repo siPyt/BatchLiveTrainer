@@ -4,6 +4,8 @@ import type { UnitClass, UnitModule } from './batchConfig'
 import type { EmCategory, EmClass, EmDeployment, EmInstance } from './emStore'
 import type { TransferLog } from './libraryStore'
 import { normExpr } from './course7016Ch4Checks'
+import { FB_NEEDS_IN2 } from './fb'
+import { conditionReferences } from './fbCondition'
 
 /** Evidence-based checking of the Course 7016 Chapter 5 workshops (Equipment Module Classes, BLENDERS unit class, process and EM verification). */
 
@@ -21,6 +23,14 @@ export interface Ch5State {
   modules: Record<string, AnyModule>
   transfers: Record<string, TransferLog>
   sims: Record<string, unknown>
+  /** Simulation time of the first blender equipment module download; Verify you can run the process counts transfers after it (Chapter 2 manual runs do not count). */
+  runSince: number | null
+}
+
+/** runSince for the live checks: the first time a blender equipment module was downloaded. */
+export function blendersDownloadedAt(emDeployed: Record<string, EmDeployment>): number | null {
+  const at = Object.values(emDeployed).map(d => d.at)
+  return at.length ? Math.min(...at) : null
 }
 
 const v = (id: string, ok: boolean, good: string, bad: string): StepCheck => ({ id, verdict: ok ? 'verified' : 'pending', detail: ok ? good : bad })
@@ -199,7 +209,9 @@ export function checkCourse7016BlendersUnit(s: Ch5State): StepCheck[] {
 
 type Range = [number, number]
 function episode(s: Ch5State, key: string, pick: (e: TransferLog['episodes'][number]) => number, range: Range, extra?: (e: TransferLog['episodes'][number]) => boolean): { ok: boolean; seen: string } {
-  const eps = s.transfers[key]?.episodes ?? []
+  if (s.runSince === null) return { ok: false, seen: 'do the BLENDERS Unit Class workshop and download first' }
+  const since = s.runSince
+  const eps = (s.transfers[key]?.episodes ?? []).filter(e => (e.at ?? 0) >= since)
   const hit = eps.find(e => pick(e) >= range[0] && pick(e) <= range[1] && (!extra || extra(e)))
   const last = eps.at(-1)
   return { ok: !!hit, seen: last ? `last ${fmt(pick(last))}${extra ? ` at ${fmt(last.avgSp)} GPM` : ''}` : 'not seen yet' }
@@ -219,7 +231,7 @@ export function checkCourse7016RunProcess(s: Ch5State): StepCheck[] {
   return [
     fill('7016-5r-1', 1),
     move('7016-5r-2', 'BASE>BL500', [85, 135], '100 gal transferred from BASE 400 to BLENDER 500 at 90 GPM',
-      'FIC-404: SP 90, mode AUTO; open XV-501, start MTR-403; stop at +100 gal', true),
+      'FIC-404: AUTO, then SP 90; open XV-501, start MTR-403; stop at +100 gal', true),
     move('7016-5r-3', 'TK100>BL500', [42, 75], '50 gal dumped from COLOR 100 to BLENDER 500', 'Open XV-102 and XV-502 (Bulk); close at -50 gal'),
     v('7016-5r-4', agit.ok, 'AGIT-503 ran for at least 1 minute', `Start AGIT-503, stop it after 60 s (${agit.seen} s)`),
     move('7016-5r-5', 'BL500>PRODUCT', [105, 170], '125 gal drained from BLENDER 500 to Product', 'Open XV-503, start MTR-505; stop at -125 gal'),
@@ -228,7 +240,7 @@ export function checkCourse7016RunProcess(s: Ch5State): StepCheck[] {
     move('7016-5r-8', 'BL500>WASTE', [105, 170], '125 gal drained from BLENDER 500 to Waste', 'Open XV-504, start MTR-505; stop at -125 gal'),
     fill('7016-5r-9', 3),
     move('7016-5r-10', 'BASE>BL600', [85, 135], '100 gal transferred from BASE 400 to BLENDER 600 at 90 GPM',
-      'FIC-404: SP 90, AUTO; open XV-601, start MTR-403; stop at +100 gal', true),
+      'FIC-404: AUTO, then SP 90; open XV-601, start MTR-403; stop at +100 gal', true),
     move('7016-5r-11', 'TK300>BL600', [42, 75], '50 gal dumped from COLOR 300 to BLENDER 600', 'Open XV-302 and XV-602 (Bulk); close at -50 gal'),
     move('7016-5r-12', 'BL600>PRODUCT', [85, 140], '100 gal drained from BLENDER 600 to Product', 'Open XV-603, start MTR-605; stop at -100 gal'),
     move('7016-5r-13', 'BL600>WASTE', [20, 50], '25 gal drained from BLENDER 600 to Waste', 'Open XV-604, start MTR-605; stop at -25 gal')
@@ -271,6 +283,22 @@ export function checkCourse7016VerifyEms(log: EventLogEntry[]): StepCheck[] {
 // ---------------------------------------------------------------------------
 // Optional exercises (pp 5-52 / 5-53)
 
+/** Every module a device's interlock/permissive logic reads, following OR/AND/NOT/CND logic blocks upstream. */
+function upstream(modules: Record<string, AnyModule>, start: string[]): string[] {
+  const seen = new Set<string>()
+  const visit = (raw: string | undefined): void => {
+    const tag = raw?.split('/')[0].toUpperCase()
+    if (!tag || seen.has(tag)) return
+    seen.add(tag)
+    const m = modules[tag]
+    if (m?.type !== 'FB') return
+    for (const input of [m.in1, ...(FB_NEEDS_IN2[m.fbType] ? [m.in2] : [])]) if (input.kind === 'ref') visit(input.tag)
+    if (m.fbType === 'CND') { const r = conditionReferences(m.expr); if ('references' in r) r.references.forEach(x => visit(x.tag)) }
+  }
+  start.forEach(visit)
+  return [...seen]
+}
+
 export function checkCourse7016Ch5Optional(s: Ch5State, log: EventLogEntry[]): StepCheck[] {
   const cms = [5, 6].flatMap(n => [`XV-${n}01`, `XV-${n}02`, `XV-${n}03`, `XV-${n}04`, `AGIT-${n}03`, `MTR-${n}05`])
   const described = (t: string): boolean => log.some(e => e.tag === t && e.description.startsWith('Description changed'))
@@ -279,15 +307,16 @@ export function checkCourse7016Ch5Optional(s: Ch5State, log: EventLogEntry[]): S
   const guarded = (mtr: string, n: 5 | 6): boolean => {
     const m = s.modules[mtr]
     if (m?.type !== 'MOTOR') return false
-    const refs = [...(m.interlockConditions ?? []), ...(m.permissiveConditions ?? [])].map(c => c.source.toUpperCase())
-    if (m.interlockSource) refs.push(m.interlockSource.toUpperCase())
-    if (m.permissiveSource) refs.push(m.permissiveSource.toUpperCase())
-    return refs.some(r => r.startsWith(`XV-${n}03`) || r.startsWith(`XV-${n}04`))
+    const hits = (start: string[]): boolean => upstream(s.modules, start).some(r => r === `XV-${n}03` || r === `XV-${n}04`)
+    const interlock = hits([...(m.interlockConditions ?? []).map(c => c.source), ...(m.interlockSource ? [m.interlockSource] : [])])
+    // PERMISSIVE_D only acts when the Permissive device option (DEVICE_OPTS) is set.
+    const permissive = m.permissiveRequired && hits([...(m.permissiveConditions ?? []).map(c => c.source), ...(m.permissiveSource ? [m.permissiveSource] : [])])
+    return interlock || permissive
   }
   return [
     v('7016-5x-1', units.length === 0 && missing.length === 0, 'Descriptions added to the blender unit modules and control modules',
       `Explorer → right-click → Properties → Description: ${[...units, ...missing].join(', ')}`),
     v('7016-5x-2', guarded('MTR-505', 5) && guarded('MTR-605', 6), 'MTR-505 and MTR-605 interlocks/permissives reference their outlet block valves',
-      'Open MTR-505 / MTR-605 with Control Studio and add an interlock or permissive on XV-n03 / XV-n04')
+      'Open MTR-505 / MTR-605 with Control Studio: add an OR block (Logical Blocks) with IN1 = XV-n03 and IN2 = XV-n04, set PERMISSIVE_SOURCE to it and check the Permissive device option (or add interlock/permissive conditions on XV-n03 / XV-n04)')
   ]
 }

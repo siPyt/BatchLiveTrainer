@@ -444,6 +444,8 @@ export const DRIBBLE_FRACTION = 0.2
 export const BLENDER_DRAIN_RATE = 8
 /** FIC-404 at 100 % output with MTR-403 running (GPM). */
 export const BASE_MAX_FLOW = 150
+/** DV_School block valves confirm their position in 2 s (the travel the Chapter 4 overshoot exercise compensates for). */
+export const COURSE_VALVE_TRAVEL = 2
 
 export interface SimModule { tag: string; area: string; description: string; params: Record<string, keyof CourseProcess> }
 

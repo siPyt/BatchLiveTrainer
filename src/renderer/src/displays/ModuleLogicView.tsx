@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useStore } from '../engine/store'
+import { useBatch } from '../engine/batchStore'
 import {
   deviceForceConditions, deviceInterlockConditions, devicePermissiveConditions,
   type DeviceConditionResult
@@ -163,7 +164,9 @@ export function DeviceLogicView({ module: m, zoom = 1 }: { module: Device; zoom?
   const tripped = m.interlock
   const permitted = !m.permissiveRequired || m.permissiveOk
   const failure = m.fault || !!m.ioInputBad || !!m.ioOutputBad || m.dcState.startsWith('FAILED')
-  const mode = m.commandSource || forced ? 'CAS' : 'MAN'
+  // Same MODE as the faceplate: the phase/EM MODE.TARGET when one was written, otherwise AUTO (operator).
+  const remoteMode = useBatch(s => s.dc[m.tag]?.mode)
+  const mode = remoteMode ?? (m.commandSource || forced ? 'CAS' : 'AUTO')
   const bindingText = binding ? Object.entries(binding).map(([port, dst]) => `${port}=${dst}`).join(', ') : ''
 
   const dccX = 330

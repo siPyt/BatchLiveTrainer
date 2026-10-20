@@ -5,11 +5,15 @@ import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/d
 import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
+import { useLibrary } from '../engine/libraryStore'
 
 export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as ValveModule | undefined
   // Course devices driven by a phase or equipment module carry their DeltaV mode in the batch store (default AUTO).
   const remoteMode = useBatch(s => s.dc[tag]?.mode)
+  // DV_School devices can be driven by phases and equipment modules, so their faceplate exposes MODE.TARGET.
+  const courseDevice = useLibrary(s => !!s.process)
+  const casOwned = remoteMode === 'CAS'
   const owningEm = useEm(s => { const c = s.cmInstances[tag]; return c?.owner.kind === 'em' ? c.owner.name : undefined })
   const openValve = useStore((s) => s.openValve)
   const closeValve = useStore((s) => s.closeValve)
@@ -29,7 +33,7 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const activeLabel = deviceDescriptorLabel(m, namedSets, 'command', true).label
   const passiveLabel = deviceDescriptorLabel(m, namedSets, 'command', false).label
   const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', m.open).label
-  const openDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
+  const openDisabled = casOwned || !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
   // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
   // command automatically (commandSource set), MAN for direct operator control.
   const dvMode = remoteMode ?? (m.commandSource ? 'CAS' : 'AUTO')
@@ -37,25 +41,26 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   return (
     <div className="fp-body">
       <div className="fp-state-word" style={{ color: m.open ? 'var(--dv-run)' : 'var(--dv-text)' }}>
-        {m.twoStage ? (m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : m.stateNames ? feedbackLabel : m.open ? 'OPEN' : 'CLOSED'}
+        {m.twoStage ? (transiting ? 'TRAVEL' : m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : m.stateNames ? feedbackLabel : m.open ? 'OPEN' : 'CLOSED'}
       </div>
 
       {m.twoStage ? <div className="fp-row" data-two-stage={tag}>
         {(['CLOSE', 'DRIBBLE', 'BULK'] as const).map(p => {
           const active = p === 'CLOSE' ? !m.commandedOpen : m.commandedOpen && (p === 'BULK') === !!m.bulk
-          return <button key={p} className={'fp-btn ' + (p === 'CLOSE' ? 'stop' : 'run') + (active ? ' active' : '')} disabled={p !== 'CLOSE' && openDisabled}
+          return <button key={p} className={'fp-btn ' + (p === 'CLOSE' ? 'stop' : 'run') + (active ? ' active' : '')} disabled={casOwned || (p !== 'CLOSE' && openDisabled)} title={casOwned ? 'In CAS the phase or equipment module owns the setpoint; set Req. Mode to AUTO to operate it here' : undefined}
             onClick={() => { const r = useBatch.getState().setTwoStage(tag, p); if (!r.ok) window.alert(r.error) }}>{p === 'CLOSE' ? 'Close' : p === 'DRIBBLE' ? 'Dribble' : 'Bulk'}</button>
         })}
       </div> : <div className="fp-row">
-        <button className={'fp-btn run' + (m.commandedOpen ? ' active' : '')} disabled={openDisabled} onClick={() => openValve(tag)}>
+        <button className={'fp-btn run' + (m.commandedOpen ? ' active' : '')} disabled={openDisabled} title={casOwned ? 'In CAS the phase or equipment module owns the setpoint; set Req. Mode to AUTO to operate it here' : undefined} onClick={() => openValve(tag)}>
           {activeLabel}
         </button>
-        <button className={'fp-btn stop' + (!m.commandedOpen ? ' active' : '')} onClick={() => closeValve(tag)}>
+        <button className={'fp-btn stop' + (!m.commandedOpen ? ' active' : '')} disabled={casOwned} title={casOwned ? 'In CAS the phase or equipment module owns the setpoint; set Req. Mode to AUTO to operate it here' : undefined} onClick={() => closeValve(tag)}>
           {passiveLabel}
         </button>
       </div>}
 
-      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} />
+      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} modes={courseDevice ? ['AUTO', 'MAN', 'CAS'] : undefined}
+        onChange={mode => { const r = useBatch.getState().setDeviceMode(tag, mode as 'AUTO' | 'MAN' | 'CAS'); if (!r.ok) window.alert(r.error) }} />
       <ModelockOverrideRow />
       <DeviceStateRows
         dcState={m.dcState}

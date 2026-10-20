@@ -41,6 +41,8 @@ export interface SystemState {
   acknowledgePending: () => string | null
   shutdownServer: () => string | null
   connectServer: () => string | null
+  /** New Course 7016 Project: a fresh DV_School database has Batch and Advanced Unit Management disabled (Chapter 3 enables them). */
+  resetPreferences: () => void
 }
 
 const STORAGE_KEY = 'batchlive.system.v1'
@@ -87,6 +89,11 @@ export const useSystem = create<SystemState>((set, get) => ({
   serverState: 'RUNNING',
   restarts: 0,
   clients: [],
+  resetPreferences: () => {
+    const next = { features: noFeatures(), pending: {}, acknowledged: false }
+    persist(next)
+    set({ ...next, serverState: 'RUNNING', restarts: 0, clients: [] })
+  },
 
   registerClient: (name) => set((s) => (s.clients.includes(name) ? s : { clients: [...s.clients, name] })),
   closeClient: (name) => set((s) => ({ clients: s.clients.filter((c) => c !== name) })),

@@ -585,6 +585,9 @@ function readCondition(modules: Record<string, AnyModule>, c: DeviceCondition): 
   return { value: c.invert ? signal.value === 0 : signal.value !== 0, bad: signal.bad }
 }
 
+/** PID loops whose PV comes from another process model (the Course 7016 BASE 400 transfer feeds FIC-404 through IO_IN); the generic first-order process must not drive them too. */
+export const EXTERNAL_PV_TAGS = new Set<string>()
+
 export function deviceInterlockConditions(m: MotorModule | ValveModule, modules: Record<string, AnyModule>): DeviceConditionResult[] {
   return (m.interlockConditions ?? []).map((c, index) => {
     const { value, bad } = readCondition(modules, c)
@@ -1236,6 +1239,7 @@ export function stepPlant(
 
   // --- Generic simulation for operator-created modules -----------------
   for (const tag of Object.keys(modules)) {
+    if (EXTERNAL_PV_TAGS.has(tag)) continue
     if (prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) continue
     if (hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) continue
     if (hasProcessWaste && PWASTE_PHYSICS_TAGS.has(tag)) continue

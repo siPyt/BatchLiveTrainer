@@ -4958,4 +4958,34 @@ button {
 .em-cell-input { width: 100%; min-width: 52px; box-sizing: border-box; font: inherit; padding: 1px 3px; border: 1px solid var(--dv-border); background: #ffffff; }
 .em-state-driven { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
 .em-items th { white-space: nowrap; }
-.em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }
+.em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }.fp-mode-select { font: inherit; padding: 0 2px; cursor: pointer; }
+
+/* Course 7016 Chapter 3: System Preferences dialog and DeltaV Database Administrator (pp 3-6..3-9) */
+.sp-page { padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.sp-note { margin: 0; padding: 4px 8px; background: #fff7d6; border: 1px solid #d8c26a; max-width: 760px; }
+.sp-window { width: 760px; max-width: 100%; background: #ece9e2; border: 1px solid #6b7680; box-shadow: 0 2px 6px rgba(0,0,0,.18); font-size: 12px; color: #1b1f24; }
+.sp-titlebar { display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: linear-gradient(#2f5f9e, #1f467a); color: #fff; font-weight: 700; }
+.sp-title-icon { color: #ffd34d; }
+.sp-title-buttons { margin-left: auto; display: flex; gap: 2px; }
+.sp-title-buttons span { width: 16px; height: 14px; line-height: 13px; text-align: center; background: #d9d6ce; color: #1b1f24; border: 1px solid #fff; font-size: 11px; }
+.sp-body { display: flex; gap: 12px; padding: 10px; }
+.sp-help { flex: 0 0 44%; background: #fff; border: 1px solid #8a8f96; padding: 6px; font-size: 11px; line-height: 1.35; max-height: 260px; overflow: auto; }
+.sp-help p { margin: 0 0 8px; }
+.sp-checks { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.sp-check { display: flex; align-items: center; gap: 6px; }
+.sp-check.sp-unmodeled { color: #7a7f86; }
+.sp-pending { color: #a35a00; font-style: italic; }
+.sp-buttons { display: flex; justify-content: flex-end; gap: 8px; padding: 0 10px 10px; }
+.sp-buttons .tbtn { min-width: 72px; }
+.sp-state { border-top: 1px solid #c9c5bb; padding: 4px 10px; font-size: 11px; color: #3a4550; }
+.sp-menubar { display: flex; gap: 2px; padding: 2px 4px; border-bottom: 1px solid #c9c5bb; }
+.sp-menu { position: relative; }
+.sp-menu-btn { background: none; border: 1px solid transparent; padding: 1px 8px; font: inherit; cursor: pointer; }
+.sp-menu-btn:hover, .sp-menu-btn[aria-expanded='true'] { border-color: #6b7680; background: #f6f4ef; }
+.sp-menu-pop { position: absolute; top: 100%; left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 170px; background: #fbfaf7; border: 1px solid #6b7680; box-shadow: 2px 2px 4px rgba(0,0,0,.2); }
+.sp-menu-pop button { text-align: left; padding: 4px 18px; background: none; border: 0; font: inherit; cursor: pointer; }
+.sp-menu-pop button:hover:not(:disabled) { background: #2f5f9e; color: #fff; }
+.sp-menu-pop button:disabled { color: #9aa0a6; cursor: default; }
+.sp-db-body { flex-direction: column; gap: 6px; min-height: 90px; background: #fff; margin: 6px; border: 1px solid #8a8f96; }
+.sp-clients ul { margin: 4px 0; padding-left: 18px; }
+.sp-statusbar { display: flex; justify-content: flex-end; padding: 2px 8px; border-top: 1px solid #c9c5bb; font-size: 11px; }

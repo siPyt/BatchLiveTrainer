@@ -123,12 +123,14 @@ export function DeviceStateRows({
  * actual-mode box seen on every real faceplate reference (PID MAN,
  * speed-motor AUTO, valve CAS). For devices without a separate request/
  * actual distinction, pass the same value for both. */
-export function ModeBoxRow({ reqMode, actualMode }: { reqMode: string; actualMode: string }): JSX.Element {
+export function ModeBoxRow({ reqMode, actualMode, modes, onChange }: { reqMode: string; actualMode: string; modes?: string[]; onChange?: (mode: string) => void }): JSX.Element {
   return (
     <div className="fp-moderow2">
       <span className="fp-label">Req. Mode</span>
       <div className="fp-mode-boxes">
-        <span className="fp-mode-box sm">{reqMode}</span>
+        {modes && onChange ? <select className="fp-mode-box sm fp-mode-select" aria-label="Target mode" value={reqMode} title="MODE.TARGET: AUTO returns the device to the operator; CAS lets the phase or equipment module drive it"
+          onChange={e => onChange(e.target.value)}>{modes.map(x => <option key={x} value={x}>{x}</option>)}</select> :
+          <span className="fp-mode-box sm">{reqMode}</span>}
         <span className="fp-mode-box lg">{actualMode}</span>
       </div>
     </div>

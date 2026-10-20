@@ -26,7 +26,7 @@ const DRAG_SFC = 'application/x-bl-em-sfc'
 
 /** Status bar word for a module block's instance: two stage valves report CLOSED / DRIBBLE / BULK. */
 function childState(m: AnyModule | undefined, className: string): string {
-  if (m?.type === 'VALVE') return !m.open ? 'CLOSED' : m.twoStage ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'OPEN'
+  if (m?.type === 'VALVE') return m.dcState.startsWith('GOING') ? 'TRAVEL' : !m.open ? 'CLOSED' : m.twoStage ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'OPEN'
   if (m?.type === 'MOTOR') return m.running ? 'RUNNING' : 'STOPPED'
   return className
 }

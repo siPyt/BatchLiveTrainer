@@ -6,11 +6,15 @@ import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/d
 import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
+import { useLibrary } from '../engine/libraryStore'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
   // Course devices driven by a phase or equipment module carry their DeltaV mode in the batch store (default AUTO).
   const remoteMode = useBatch(s => s.dc[tag]?.mode)
+  // DV_School devices can be driven by phases and equipment modules, so their faceplate exposes MODE.TARGET.
+  const courseDevice = useLibrary(s => !!s.process)
+  const casOwned = remoteMode === 'CAS'
   const owningEm = useEm(s => { const c = s.cmInstances[tag]; return c?.owner.kind === 'em' ? c.owner.name : undefined })
   const startMotor = useStore((s) => s.startMotor)
   const stopMotor = useStore((s) => s.stopMotor)
@@ -30,7 +34,7 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const activeLabel = deviceDescriptorLabel(m, namedSets, 'command', true).label
   const passiveLabel = deviceDescriptorLabel(m, namedSets, 'command', false).label
   const feedbackLabel = deviceDescriptorLabel(m, namedSets, 'feedback', m.running).label
-  const startDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
+  const startDisabled = casOwned || !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
   // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
   // command automatically (commandSource set), MAN for direct operator control.
   const dvMode = remoteMode ?? (m.commandSource ? 'CAS' : 'AUTO')
@@ -42,15 +46,16 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
       </div>
 
       <div className="fp-row">
-        <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} onClick={() => startMotor(tag)}>
+        <button className={'fp-btn run' + (m.commanded ? ' active' : '')} disabled={startDisabled} title={casOwned ? 'In CAS the phase or equipment module owns the setpoint; set Req. Mode to AUTO to operate it here' : undefined} onClick={() => startMotor(tag)}>
           {activeLabel}
         </button>
-        <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} onClick={() => stopMotor(tag)}>
+        <button className={'fp-btn stop' + (!m.commanded ? ' active' : '')} disabled={casOwned} title={casOwned ? 'In CAS the phase or equipment module owns the setpoint; set Req. Mode to AUTO to operate it here' : undefined} onClick={() => stopMotor(tag)}>
           {passiveLabel}
         </button>
       </div>
 
-      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} />
+      <ModeBoxRow reqMode={dvMode} actualMode={dvMode} modes={courseDevice ? ['AUTO', 'MAN', 'CAS'] : undefined}
+        onChange={mode => { const r = useBatch.getState().setDeviceMode(tag, mode as 'AUTO' | 'MAN' | 'CAS'); if (!r.ok) window.alert(r.error) }} />
       <ModelockOverrideRow />
       <DeviceStateRows
         dcState={m.dcState}

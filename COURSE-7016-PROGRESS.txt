@@ -18,8 +18,13 @@ session and commit/push it with the work.
   Chapter 4 work; BatchLive main is untouched.
 - Renamed the app to BatchLiveTrainer: package name/productName, app ID com.batchlivetrainer.app, window title,
   top-bar brand, status bar, installer name, VS Code task. Electron stores Trainer data separately from BatchLive.
-- The Trainer starts directly in the Course 7016 DV_School database. File -> New Course 7016 Project (DV_School)
-  reloads a clean copy (it discards the current configuration).
+- The Trainer starts in the Course 7016 DV_School database and KEEPS YOUR WORK: the database (classes, modules, unit/
+  phase/EM configuration, assignments, downloads and the running plant) is autosaved to local storage every 5 s and
+  when the window closes, and restored when the app starts (engine/courseSave.ts). File menu:
+  * New Course 7016 Project (DV_School) - start the course over: fresh database, Enable Batch reset (Chapter 3).
+  * Save DV_School now - immediate save (it is also autosaved).
+  * Export / Import DV_School database - back up or move your database as a .batchlivetrainer.json file (for example
+    between the browser preview and the desktop app). Workshop check-box ticks are stored separately and kept.
 - Removed every visible BatchLive site area: Plant Overview, spatial plant map, photographed WFI plant (N3/N1/N1BP/
   still), Feed, Reactor, Product, WFI, Autoclaves, Lyophilizers, CIP, TCUs and Process Waste pictures; the GMP Pharma
   and blank-project presets; the site Batch Operator display (REACT_A recipe); the DV-09 workshops; the site
@@ -49,15 +54,36 @@ How to do it: Course 7016 Workshops -> "Workshop - LEVEL_INDICATOR" and "Creatin
 Module Class". Every step shows Verified / Not yet with what is missing.
 
 
-3. CHAPTER 2 / CHAPTER 3 PREREQUISITES
---------------------------------------
-- Chapter 2 named sets are part of the DV_School database: vlvnc-sp (CLOSE 0, OPEN 1), vlvnc-pv (CLOSED 0, OPEN 1,
-  TRAVEL 2), vlvnc-2stage-sp/pv, mtr2-sp/pv.
-- Chapter 3 System Preferences workshop: Utilities -> System Preferences -> check Enable Batch (also selects
-  Advanced Unit Management) -> OK; File -> Shutdown server, then File -> Connect to server. DeltaV Explorer then
-  shows Process Cell Classes, Unit Classes and Phase Classes under Advanced Definitions, Recipes under System
-  Configuration, and Batch Executive / Batch Historian under the ProfessionalPLUS workstation.
-  Workshop: "Workshop - System Preferences (Enable Batch)" with live checks.
+3. CHAPTER 2 - Defining the DeltaV Batch Process (pp 2-1 .. 2-14) and CHAPTER 3 - Batch Licensing & System
+   Preferences (pp 3-1 .. 3-10)
+-----------------------------------------------------------------------------------------------------------------
+Status: DONE - both chapters' workshops can be performed and are checked live.
+
+Chapter 2:
+- Reading item "Defining the Batch Process" (system architecture p2-4, plant areas p2-5 FEED_TANK_AREA /
+  ED_CENTER_BATCH, parameter paths p2-8..2-12) linked to Explorer and the Process picture.
+- Every path example on pp 2-8..2-11 validates in the expression editor and drives the simulated modules (tested):
+  '//LI-104/AI1/PV.CV' >= 250, '//XV-101/CAS_SP.CV' := 'vlvnc-sp:OPEN', '//XV-101/MODE.TARGET' := CAS,
+  '//XV-502/CAS_SP.CV' := 'vlvnc-2stage-sp:DRIBBLE', '//MTR-505/CAS_SP.CV' := 'mtr2-sp:START',
+  '//MTR-505/DC1/MODE.TARGET' := CAS, '//MTR-505/DC1/PV_D.CV' = 'mtr2-pv:RUNNING'. Named sets vlvnc-sp/pv,
+  vlvnc-2stage-sp/pv, mtr2-sp/pv are in DV_School.
+- Workshop - Manual Operation (p2-6), Steps 1-6 from the Process picture faceplates: fill COLOR 100 to 60 gal, 100 gal
+  BASE 400 -> BLENDER 500 at 90 GPM (FIC-404: select AUTO, then SP 90; open XV-501; start MTR-403), dump 50 gal
+  (XV-102 + XV-502 Bulk), AGIT-503 1 minute, drain 125 gal to Product or Waste, then repeat. Each step is measured
+  and verified; Step 6 shows your 1st -> 2nd run results side by side. Chapter 2 runs do not count for the Chapter 5
+  "Verify you can run the process" workshop (only transfers after the BLENDERS download do).
+
+Chapter 3:
+- Reading item "Batch Licensing & System Preferences" (pp 3-4..3-7: DSTs, Basic/Advanced/Professional batch, BOI
+  licenses, enabling/hiding functionality).
+- System Preferences screen redrawn as the course dialog (p3-7): help text on the left, the twelve Enable ...
+  check boxes (Batch, Advanced Unit Management, Fieldbus, Electronic Signatures are live; Profibus DP, AS-Interface,
+  DeviceNet, RS3, Provox, Asset Optimization Alarms, Remote I/O, DeltaV SIS shown greyed), OK / Cancel / Help.
+  Checking Enable Batch selects Advanced Unit Management.
+- DeltaV Database Administrator window: File -> Shutdown Server / Connect to Server, open database clients that
+  must be closed first, status bar "Database Server is Running / is Shutdown".
+- Workshop - System Preferences (Enable Batch), Steps 1-6 with live checks; the checks stay Verified after an app
+  restart once Batch is active. New Course 7016 Project turns Enable Batch off again so the workshop can be redone.
 
 
 4. CHAPTER 4 - FILL Unit Phase (pp 4-1 .. 4-64)
@@ -241,8 +267,16 @@ faceplates showed MAN instead of the CAS/AUTO mode the EM uses.
                                     states (A_ABT_ON_NEW_CMD both ways); process run (base at 90 GPM, dump, dribble,
                                     agitate, drain) with the run-process checks; Chapter 5 screens render; every
                                     workshop step has a live check and step ids are unique across the course.
+- tests/course7016-ch2.test.cjs     Chapter 2 path examples validate and execute; Manual Operation two runs verify
+                                    every step and the run comparison.
+- tests/course7016-full.test.cjs    THE WHOLE COURSE in order on one database: Chapter 1 -> 2 (two manual runs) ->
+                                    3 (Enable Batch, restart) -> 4 (FILL, Hold/Restart, Verify, Stop/Abort/overshoot)
+                                    -> 5 (EM classes, BLENDERS, run the process, verify EMs, descriptions, OR-block
+                                    permissive on MTR-505/605 that really stops the pump). Every live check Verified.
+- tests/course7016-save.test.cjs    save -> fresh start -> restore keeps the configuration and the running plant;
+                                    export/import round trip; Enable Batch reset.
 - tests/operator-ribbons.test.cjs   the Trainer shows only course displays (no site areas, presets or DV-09).
-- Full suite: 754 of 755 pass; tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual text, not in
+- Full suite: 759 of 760 pass; tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual text, not in
   this repository) and fails at load, as it did before this work. Typecheck (web and node) is clean.
 - Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
   desktop: npm run dev.
@@ -267,7 +301,23 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        areas removed (course-only UI).
 - 2026-10-20  9b9e7b8  Chapter 5 engine: equipment module classes, runtime, BLENDERS unit class, BASE 400 process.
 - 2026-10-20  9daff84  Chapter 5 UI, workshops and live checks; standard DeltaV ModuleTemplates (templates.txt).
-- 2026-10-20  (this)   Added this history log.
+- 2026-10-20  ce110c7  Added this history log.
+- 2026-10-20  (next)   Review of Chapters 1-5 so every workshop can be done by hand (see below).
+
+Review of Chapters 1-5 (2026-10-20), what changed:
+- Added Chapter 2 (reading + Workshop - Manual Operation with live checks) and the Chapter 3 licensing reading.
+- Database autosave/restore + File -> Save / Export / Import; New Project resets Enable Batch.
+- System Preferences + Database Administrator redrawn like the course slides (p3-7, p3-9).
+- Valve and motor faceplates: Req. Mode selector (AUTO / MAN / CAS). After the Chapter 4 STOP/ABORT exercise the
+  valves stay in CAS; set them back to AUTO there. Open/Close/Start/Stop are disabled while in CAS (tooltip says why).
+- Fixed: FIC-404 PV was also driven by the shared engine's generic first-order process (read ~4 GPM with no flow and
+  ~88 instead of 90 during transfers) - the BASE 400 transfer now owns it.
+- Fixed: valves created by the BLENDERS unit class now have the course's 2 s travel (were slower than the originals).
+- Fixed: two stage valves show TRAVEL while moving (Process picture, faceplate, EM Studio).
+- Control Studio on a valve/motor now shows the palette, so the Chapter 5 optional OR block can be added there; its
+  diagram shows the same MODE as the faceplate. The optional check follows OR/AND/NOT/CND logic upstream and requires
+  the Permissive device option when PERMISSIVE_SOURCE is used (DeltaV DEVICE_OPTS behaviour).
+- Chapter 5 run-process checks count only transfers made after the BLENDERS download.
 
 Kept local only (NOT in GitHub, on purpose): 958791105-7016-8.pdf and pdf_extracted/ - Emerson copyrighted course
 material and the repository is public. bl-preview.vite.config.mjs (browser preview config, in .git/info/exclude).
@@ -275,8 +325,9 @@ To rebuild pdf_extracted on another machine, extract the PDF text/images per cha
 ch5/*.png ...).
 
 WHERE WE LEFT OFF (2026-10-20):
-- Chapters 1, 3, 4 and 5 are complete, including every optional exercise; each workshop step has a live check in
-  the Course 7016 Workshops display. Full test suite 754/755 (only dv09-audit, which needs pdf_om.txt, fails).
+- Chapters 1, 2, 3, 4 and 5 are complete, including every optional exercise; each workshop step has a live check in
+  the Course 7016 Workshops display, and the whole course passes in order on one database (course7016-full test).
+  Your DV_School database is autosaved, so you can stop and continue later. Full suite 759/760 (only dv09-audit).
 - Next candidate: Chapter 6 (AGITATE unit phase - the PDF continues after p5-54 with "AGITATE Unit Phase").
   Approach used so far: read pdf_extracted/7016-chN.txt and the slide images, build the engine + tests first,
   then the screens, then the workshops/live checks, then a browser walkthrough, then update this file and push.

@@ -67,9 +67,9 @@ function FlowReadout({ tag, x, y }: { tag: string; x: number; y: number }): JSX.
 
 /** Two stage blender color valve position label (CLOSED / DRIBBLE / BULK). */
 function StageLabel({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element | null {
-  const stage = useStore(s => { const m = s.modules[tag]; return m?.type === 'VALVE' && m.twoStage ? (m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : '' })
+  const stage = useStore(s => { const m = s.modules[tag]; return m?.type === 'VALVE' && m.twoStage ? (m.dcState.startsWith('GOING') ? 'TRAVEL' : m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : '' })
   if (!stage) return null
-  return <text data-stage={tag} x={x} y={y} fill={stage === 'CLOSED' ? PALE_TEXT : '#1f7a3a'} fontSize={8} fontWeight={700}>{stage}</text>
+  return <text data-stage={tag} x={x} y={y} fill={stage === 'CLOSED' ? PALE_TEXT : stage === 'TRAVEL' ? '#a35a00' : '#1f7a3a'} fontSize={8} fontWeight={700}>{stage}</text>
 }
 
 function useOpen(tag: string): boolean {
