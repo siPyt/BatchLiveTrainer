@@ -1090,7 +1090,7 @@ export function stepPlant(
     return (second ? false : badOutTags.has(tag)) || (!!dst && analogChannelBad(prev.hardware, dst, 'AO'))
   }
   for (const module of Object.values(modules)) {
-    if (module.type === 'AI') module.pvBad = badPvTags.has(module.tag)
+    if (module.type === 'AI' && !module.classInstance) module.pvBad = badPvTags.has(module.tag)
     if ((module.type === 'MOTOR' || module.type === 'VALVE') && badCmdTags.has(module.tag)) module.fault = true
     if (module.type !== 'PID') continue
     const io = pidIo(module)
@@ -1164,7 +1164,7 @@ export function stepPlant(
     else if (module.type === 'DO' && !prev.hardware.discreteBindings?.[tag] && module.mode !== 'OOS') {
       module.state = module.commanded
     }
-    else if (module.type === 'AI' && !boundInput(tag) &&
+    else if (module.type === 'AI' && !module.classInstance && !boundInput(tag) &&
         !(prev.photoPlant && (PHOTO_TAGS.has(tag) || COUPLED_LEGACY_TAGS.has(tag))) &&
         !(hasReactorTrain && CUSTOM_PHYSICS_TAGS.has(tag)) &&
         !(hasProcessWaste && PWASTE_PHYSICS_TAGS.has(tag)) && !module.pvBad) {
@@ -1293,7 +1293,7 @@ export function stepPlant(
   }
   for (const tag of Object.keys(modules)) {
     const m = modules[tag]
-    if (m.type === 'AI' && !boundInput(tag)) m.pvBad = badPvTags.has(tag)
+    if (m.type === 'AI' && !m.classInstance && !boundInput(tag)) m.pvBad = badPvTags.has(tag)
   }
 
   // --- Alarm evaluation -------------------------------------------------

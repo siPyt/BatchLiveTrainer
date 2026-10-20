@@ -4651,3 +4651,146 @@ button {
 .feed-reactor-svg .pic-alarm-critical { stroke: #e8232c; }
 .feed-reactor-svg .pic-alarm-warning { stroke: #f2c313; }
 .feed-reactor-svg .pic-alarm-advisory { stroke: #8f56c4; }
+
+/* ------------------------------------------------------------------ */
+/* Course 7016 Chapter 1: Library tree, class-based modules, class Control Studio.
+   Uses the existing theme variables and the FBD canvas colors so nothing looks out of family. */
+.lib-node { gap: 5px; }
+.lib-node.drop-over { background: var(--dv-select); outline: 1px dashed var(--dv-accent); outline-offset: -2px; }
+.lib-root { color: var(--dv-text); }
+.lib-sysconfig { margin-top: 2px; }
+.lib-ico { display: inline-flex; align-items: center; position: relative; flex-shrink: 0; }
+.lib-ico-badge {
+  position: absolute; right: -3px; bottom: -3px; min-width: 9px; height: 9px; padding: 0 1px;
+  font-size: 7px; line-height: 9px; font-weight: 800; text-align: center;
+  background: var(--dv-panel-2); color: var(--dv-text-tag); border: 1px solid var(--dv-border);
+}
+.lib-dl-pending { color: var(--dv-accent-2); font-size: 10px; margin-left: 4px; }
+.ctx-item:disabled { color: var(--dv-text-mute); background: transparent; cursor: default; }
+.ctx-sep { height: 1px; margin: 3px 0; background: var(--dv-border); opacity: 0.6; }
+.lib-contents .lib-param-list { border: 1px solid var(--dv-border); background: #ffffff; margin-bottom: 12px; max-height: 320px; overflow: auto; }
+.lib-contents .lib-param { padding-left: 8px; }
+.lib-instance-summary { margin-top: 4px; }
+
+.lib-param-dialog { width: min(520px, 92vw); }
+.lib-dlg-grid { display: flex; gap: 14px; }
+.lib-dlg-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.lib-dlg-fields label, .lib-dlg-props label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--dv-text-dim); }
+.lib-dlg-fields input, .lib-dlg-fields select, .lib-dlg-props input, .lib-dlg-props select {
+  background: #ffffff; border: 1px solid var(--dv-border); color: var(--dv-text); padding: 3px 5px; font-size: 12px;
+}
+.lib-dlg-fields input:disabled, .lib-dlg-props input:disabled, .lib-dlg-props select:disabled { background: var(--dv-bg-3); color: var(--dv-text-mute); }
+.lib-dlg-fields label.lib-dlg-check, .lib-dlg-props label.lib-dlg-check { flex-direction: row; align-items: center; gap: 6px; color: var(--dv-text); margin-top: 4px; }
+.lib-dlg-buttons { display: flex; flex-direction: column; gap: 6px; min-width: 76px; }
+.lib-dlg-props { margin: 10px 0 0; border: 1px solid var(--dv-border); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.lib-dlg-props legend { font-size: 11px; color: var(--dv-text-dim); padding: 0 4px; }
+.lib-dlg-error { color: #c0392b; font-size: 12px; margin: 8px 0 0; }
+.lib-browse { margin-top: 8px; border: 1px solid var(--dv-border); background: #ffffff; padding: 6px; max-height: 180px; overflow: auto; }
+.lib-download-list { max-height: 200px; overflow: auto; border: 1px solid var(--dv-border); background: #ffffff; padding: 6px 8px; font-size: 12px; margin-bottom: 10px; }
+.lib-download-warnings { font-size: 12px; color: var(--dv-text-dim); padding-left: 18px; }
+
+.cs-param-ico { color: var(--dv-accent-2); font-size: 11px; }
+.cs-tabs { display: flex; gap: 2px; }
+.cs-tabs button { font-size: 11px; padding: 2px 8px; background: var(--dv-bg-3); border: 1px solid var(--dv-border); border-bottom: none; color: var(--dv-text-dim); }
+.cs-tabs button.on { background: #ffffff; color: var(--dv-text); font-weight: 600; }
+.cs-diagram-wrap { overflow: auto; background: #ffffff; min-width: 0; }
+.cs-diagram { display: block; user-select: none; }
+.cs-block { fill: #eceeef; stroke: #414141; stroke-width: 1; }
+.cs-block.sel { stroke: #005fb8; stroke-width: 2; }
+.cs-block-head { fill: #e4e6e7; stroke: #626262; cursor: grab; }
+.cs-block-name { font-size: 10px; font-weight: 600; fill: #1a1a1a; pointer-events: none; }
+.cs-pin-label { font-size: 8px; fill: #333; pointer-events: none; }
+.cs-pin-label.dim { fill: #485248; }
+.cs-pin-line { stroke: #333; stroke-width: 1; }
+.cs-pin { fill: #ffffff; stroke: #333; stroke-width: 1; cursor: crosshair; }
+.cs-pin.armed { fill: var(--dv-select); stroke: #005fb8; }
+.cs-special { fill: #eceeef; stroke: #414141; stroke-width: 1; cursor: grab; }
+.cs-special.sel { stroke: #005fb8; stroke-width: 2; }
+.cs-wire { fill: none; stroke: #005fb8; stroke-width: 2; }
+.cs-wire.sel { stroke: #e6a400; stroke-width: 3; }
+.cs-wire.drawing { stroke: #888; stroke-dasharray: 4 3; pointer-events: none; }
+.cs-wire-hit { fill: none; stroke: transparent; stroke-width: 10; cursor: pointer; }
+.lib-ctx-menu { max-height: calc(100vh - 8px); overflow-y: auto; }
+
+/* ------------------------------------------------------------------ */
+/* "Exploring DeltaV" window (course 7016 pp 1-17..1-23, site photos IMG_0629 / IMG_0631) */
+.display.explorer.dvx { flex-direction: column; background: #f0f0f0; font-family: 'Segoe UI', Tahoma, sans-serif; color: #000; min-height: 0; }
+.dvx-title { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: #ffffff; border-bottom: 1px solid #d9d9d9; font-size: 13px; }
+.dvx-menubar { display: flex; gap: 2px; padding: 1px 6px; background: #f0f0f0; font-size: 12px; position: relative; z-index: 20; }
+.dvx-menu { position: relative; }
+.dvx-menu-btn { background: transparent; border: 1px solid transparent; padding: 2px 7px; font: inherit; color: #000; }
+.dvx-menu-btn:hover, .dvx-menu-btn.open { background: #cce8ff; border-color: #99d1ff; }
+.dvx-dropdown { position: absolute; left: 0; top: 100%; min-width: 200px; }
+.dvx-toolbar { display: flex; align-items: center; gap: 2px; padding: 3px 6px; background: #f0f0f0; border-top: 1px solid #ffffff; border-bottom: 1px solid #a0a0a0; flex-wrap: wrap; }
+.dvx-address { display: flex; align-items: center; gap: 6px; width: 300px; height: 22px; padding: 0 4px; margin-right: 8px; background: #ffffff; border: 1px solid #7a7a7a; font-size: 12px; overflow: hidden; white-space: nowrap; }
+.dvx-address span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.dvx-address-arrow { color: #333; font-size: 10px; border-left: 1px solid #c8c8c8; padding-left: 4px; }
+.dvx-tool { width: 24px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; padding: 0; }
+.dvx-tool:hover:not(:disabled) { background: #e5f1fb; border-color: #0078d7; }
+.dvx-tool.pressed { background: #cce4f7; border-color: #005499; }
+.dvx-tool:disabled svg { opacity: 0.4; }
+.dvx-tsep { width: 1px; height: 18px; background: #a0a0a0; margin: 0 4px; }
+.dvx .exp-newmod { margin: 4px 6px; }
+.dvx-panes { flex: 1; display: flex; min-height: 0; }
+.dvx .explorer-tree { display: flex; flex-direction: column; padding: 0; background: #f0f0f0; border-right: none; overflow: hidden; min-width: 0; }
+.dvx .explorer-detail { display: flex; flex-direction: column; background: #f0f0f0; min-width: 0; overflow: hidden; }
+.dvx-pane-head { flex: 0 0 auto; height: 22px; display: flex; align-items: center; padding: 0 6px; font-size: 12px; background: #e3e3e3;
+  border-top: 1px solid #ffffff; border-left: 1px solid #ffffff; border-right: 1px solid #a0a0a0; border-bottom: 1px solid #a0a0a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dvx-tree { flex: 1; overflow: auto; background: #ffffff; border: 1px solid #828790; padding: 2px 0 8px; }
+.dvx-detail-body { flex: 1; overflow: auto; background: #ffffff; border: 1px solid #828790; }
+.dvx-status { display: flex; justify-content: space-between; height: 22px; align-items: center; padding: 0 8px; font-size: 12px; background: #f0f0f0; border-top: 1px solid #d9d9d9; }
+
+.tv-row { position: relative; display: flex; align-items: center; gap: 0; height: 20px; padding: 0 6px 0 calc(4px + var(--d) * 18px);
+  font-size: 12px; color: #000; white-space: nowrap; cursor: default; background: transparent; }
+.tv-row:hover { background: transparent; }
+.tv-row::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: calc(var(--d) * 18px); pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='2'%3E%3Crect x='9' y='0' width='1' height='1' fill='%23a0a0a0'/%3E%3C/svg%3E"); }
+.tv-row::after { content: ''; position: absolute; top: 50%; left: calc(13px + (var(--d) - 1) * 18px); width: 13px; border-top: 1px dotted #a0a0a0; pointer-events: none; }
+.tv-row.leaf::after { width: 28px; }
+.tv-row.d0::after { display: none; }
+.tv-box { position: relative; z-index: 1; flex: 0 0 auto; width: 9px; height: 9px; margin: 0 5px 0 4px; border: 1px solid #919191; background: #ffffff;
+  font: 10px/7px Consolas, monospace; text-align: center; color: #000; cursor: pointer; }
+.tv-row.leaf .tv-box { border-color: transparent; background: transparent; cursor: default; }
+.tv-icon { position: relative; z-index: 1; display: inline-flex; align-items: center; margin-right: 4px; background: #ffffff; }
+.tv-label { padding: 1px 3px; border: 1px dotted transparent; }
+.tv-label b { font-weight: 400; }
+.tv-row.sel .tv-label { background: #0078d7; color: #ffffff; }
+.tv-row.sel:focus .tv-label { border-color: #ffffff; }
+.tv-row.drop-over .tv-label { background: #cce8ff; color: #000; outline: 1px solid #0078d7; }
+.tv-row .exp-area-editor { height: 18px; font-size: 12px; width: 160px; }
+.tv-pending { position: relative; z-index: 1; color: #1f3fbf; font-size: 10px; margin-right: 2px; line-height: 1; }
+
+.dvx-contents { padding: 0 0 10px; }
+.dvx-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; background: #f7f7f7; border-bottom: 1px solid #e0e0e0; }
+.dvx-details { width: 100%; border-collapse: collapse; font-size: 12px; color: #000; }
+.dvx-details th { position: sticky; top: 0; text-align: left; font-weight: 400; padding: 3px 8px; background: #ffffff; border-right: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; z-index: 1; }
+.dvx-details td { padding: 1px 8px; height: 20px; white-space: nowrap; }
+.dvx-details tbody tr:hover td { background: #e5f3ff; }
+.dvx-details tr.sel td { background: #cce8ff; }
+.dvx-name { display: inline-flex; align-items: center; gap: 4px; }
+.dvx-empty { color: #6d6d6d; padding: 10px 8px !important; white-space: normal !important; }
+.dvx-override { font-weight: 600; }
+.dvx .exp-props-table td.k { width: 130px; }
+.dvx .exp-props { padding: 10px 12px; }
+.dvx .lib-instance-summary { margin: 10px 8px 0; width: calc(100% - 16px); }
+.tv-row.exp-node.sel, .tv-row.exp-node:hover { background: transparent; color: #000; }
+.tv-row.exp-node.drop-over { outline: none; background: transparent; }
+/* Class Control Studio details shared with the site Control Studio look (IMG_0620 / IMG_0643) */
+.class-studio .studio-canvas { overflow: auto; }
+.cs-block-badge { font-size: 10px; fill: #303030; pointer-events: none; }
+.cs-block-rule { stroke: #a3a6a8; stroke-width: 0.6; }
+.cs-special { fill: #dfe1e3; stroke: #6b6f73; stroke-width: 1; cursor: grab; }
+.cs-special.sel { stroke: #005fb8; stroke-width: 2; }
+.cs-special-box { fill: #f4f5f6; stroke: #8a8f94; stroke-width: 0.8; }
+.studio-tree-root.cs-sel { background: #d3e5f7; }
+.cs-params { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.cs-params .studio-alarm-scroll { flex: 1; min-height: 0; overflow: auto; }
+.cs-params-filter { display: flex; align-items: center; gap: 3px; padding: 3px 6px; font-size: 12px; color: var(--dv-text-dim); }
+.cs-filter-box { display: inline-flex; width: 12px; height: 12px; border: 1px solid #6b7680; border-radius: 2px; background: #fff; font-size: 9px; align-items: center; justify-content: center; margin-left: 1px; }
+.cs-filter-box.on { background: #1f5fbf; color: #fff; border-color: #1f5fbf; margin-left: 6px; }
+.cs-param-table td.cs-param-val { color: var(--dv-text); }
+.cs-param-table tr.cs-param-cat td { background: var(--dv-bg-3); font-weight: 700; color: var(--dv-text-dim); }
+.cs-param-table tr.cs-param-row:hover td { background: var(--dv-select); }
+.cs-enable { display: inline-flex; align-items: center; gap: 4px; }
+.studio-pal-item.disabled, .studio-pal-head.disabled { color: var(--dv-text-mute); cursor: default; }
+.studio-pal-item[draggable="true"] { cursor: grab; }

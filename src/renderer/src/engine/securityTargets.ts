@@ -134,7 +134,11 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-module-delete', 'Delete a module or SFC', 'CAN_CONFIGURE', /^Delete (module|SFC) /),
   t('function', 'fn-equipment-module', 'Create, delete and assign Equipment Modules', 'CAN_CONFIGURE',
     /^(Create|Delete) Equipment Module |^Assign .+ to Equipment Module$/),
-  t('function', 'fn-new-project', 'New Project', 'CAN_CONFIGURE', /^New Project /)
+  t('function', 'fn-new-project', 'New Project', 'CAN_CONFIGURE', /^New Project /),
+  t('function', 'fn-library-config', 'Library: categories, control module classes and class-based modules', 'CAN_CONFIGURE',
+    /^(Create|Rename|Delete|Move) (library category|control module class|class-based module) |^Save control module class |^Configure class-based module |^Assign .+ to controller /),
+  t('function', 'fn-library-download', 'Download a controller or class-based module', 'CAN_DOWNLOAD',
+    /^Download (controller|class-based module) /)
 ]
 
 export function findSecurityTarget(lock: LockType, action: string): SecurityTarget | undefined {

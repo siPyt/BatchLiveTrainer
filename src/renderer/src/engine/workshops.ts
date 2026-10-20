@@ -25,6 +25,58 @@ export interface WModule {
 
 export const COURSE: WModule[] = [
   {
+    module: '7016 · Ch 1 Batch Process Overview',
+    workshops: [
+      {
+        id: '7016-ch1-definitions',
+        title: 'Batch Definitions (S88) — reading, pp 1-3 to 1-15',
+        objective: 'Define ISA S88 batch terminology: the Physical Model (Enterprise > Site > Area > Process Cell > Unit > Equipment Module > Control Module) and the Procedural Control Model (Procedure > Unit Procedure > Operation > Phase), class-based objects, and the DeltaV Batch applications (summary p1-28).',
+        note: 'Reference material — there are no configuration steps on these pages. Tick each item when you have read it and located the matching place in BatchLive. The Control Activity and Process models are not covered in this class (p1-4). Batch Executive services, Campaign Manager, Batch Historian and Version Control are not simulated.',
+        steps: [
+          { id: '7016-0-1', text: 'S88 objectives and the four models (p1-4); Physical vs Procedural hierarchy (p1-5). Explorer → System Configuration → Setup → Equipment Hierarchy shows Area > Process Cell > Unit > Equipment Module > Control Module.', goto: 'explorer' },
+          { id: '7016-0-2', text: 'Class-based objects (p1-6): a class is a template; each instance has the same structure. Process cells, units, phases, equipment modules and control modules exist at class and instance level. In Explorer, classes live under Library → Advanced Definitions; instances under Control Strategies.' },
+          { id: '7016-0-3', text: 'Process Cell Class / Process Cell (p1-7), Unit Class / Unit Module with aliases (p1-8, UM_BL_500 and UM_BL_600), Equipment Module and Control Module classes (p1-9).' },
+          { id: '7016-0-4', text: 'Phase Class and Unit Phase — up to ten unit phases running on one unit (p1-10, 1-11); Operation, Unit Procedure and Procedure (p1-11 to 1-13). Batch Operator shows a procedure → unit procedure → operation → phase hierarchy.', goto: 'batch' },
+          { id: '7016-0-5', text: 'Batch Executive (maximum four per network) and the ProfessionalPLUS architecture (p1-13, 1-14); applications (p1-15): Control Studio, Recipe Studio and Batch Operator Interface (Batch Operator display), Batch History View (Event Journal).', goto: 'studio' }
+        ]
+      },
+      {
+        id: '7016-ch1-level-indicator',
+        title: 'Workshop – LEVEL_INDICATOR (Control Module Class)',
+        objective: 'Create the AnalogInput Control Module Class Category and the LEVEL_INDICATOR class from the ANALOG module template, then configure its common logic in Control Studio (Course 7016 pp 1-16 to 1-25).',
+        note: 'Start with File → New Course 7016 Project (DV_School). It loads plant area ED_CENTER_BATCH (TANKSIM, LEV500-SIM, LEV600-SIM, XV/MTR/AGIT/FIC modules) and controller CTLR1. Physical, procedural, control-activity and process S88 models, Batch Executive and the ProfessionalPLUS architecture (pp 1-3 to 1-15) are reference material; this workshop exercises the class-based configuration.',
+        steps: [
+          { id: '7016-1-1', text: 'In DeltaV Explorer expand DV_School → Library → Advanced Definitions. Right-click Control Module Classes → New Category and name it AnalogInput.', goto: 'explorer' },
+          { id: '7016-1-2', text: 'Expand Library → ModuleTemplates → Monitoring. Drag the ANALOG template onto Control Module Classes → AnalogInput and name the new class LEVEL_INDICATOR.' },
+          { id: '7016-1-3', text: 'Right-click LEVEL_INDICATOR → Open with Control Studio. Select AI1, right-click OUT_SCALE → Properties: 0-500 gal and check Allow instance value to be configured.' },
+          { id: '7016-1-4', text: 'Modify L_TYPE to Direct.' },
+          { id: '7016-1-5', text: 'In the Alarm View disable HI_ALM and LO_ALM.' },
+          { id: '7016-1-6', text: 'Modify SIMULATE to Enabled with value 0.' },
+          { id: '7016-1-7', text: 'Drag an Input Parameter from the Special Items palette onto the diagram. Name it LEVEL_IN, parameter type External reference. DO NOT BROWSE for the external parameter path.' },
+          { id: '7016-1-8', text: 'Connect the LEVEL_IN output to SIMULATE_IN on the AI1 function block (drag from the LEVEL_IN pin to the SIMULATE_IN pin).' },
+          { id: '7016-1-9', text: 'File → Properties (Module Properties): set the Primary control display to Process.' },
+          { id: '7016-1-10', text: 'Save your work (Ctrl+S) and close Control Studio.' }
+        ]
+      },
+      {
+        id: '7016-ch1-instances',
+        title: 'Workshop – Creating Control Modules from a Control Module Class',
+        objective: 'Create LI-104, LI-204, LI-304, LI-504 and LI-604 from LEVEL_INDICATOR, configure their instance values, assign ED_CENTER_BATCH to the controller and download (Course 7016 pp 1-26 to 1-27).',
+        note: 'Only parameters with Allow instance value to be configured (plus external references) appear in the right-hand Contents pane of a class-based module. Open a parameter\'s Properties (right-click or double-click) and uncheck Use default value from library object to give that module its own value. Verify on the Process display (the LEVEL_INDICATOR primary display): open XV-101 to fill Color 100 and watch LI-104 follow TANKSIM/TKLEV100.',
+        steps: [
+          { id: '7016-2-1', text: 'Drag the Control Module Class LEVEL_INDICATOR onto the Plant Area ED_CENTER_BATCH (System Configuration → Control Strategies). Expand the area and rename LEVEL_INDIC_1 to LI-104 (right-click → Rename, or F2).', goto: 'explorer' },
+          { id: '7016-2-2', text: 'Repeat for LI-204, LI-304, LI-504 and LI-604.' },
+          { id: '7016-2-3', text: 'Set the External parameter path for LEVEL_IN: LI-104 → TANKSIM/TKLEV100, LI-204 → TANKSIM/TKLEV200, LI-304 → TANKSIM/TKLEV300.' },
+          { id: '7016-2-4', text: 'LI-504: LEVEL_IN → LEV500-SIM/500_LEV; AI1$OUT_SCALE → 0-1000 gal (uncheck Use default value from library object).' },
+          { id: '7016-2-5', text: 'LI-604: LEVEL_IN → LEV600-SIM/600_LEV; AI1$OUT_SCALE → 0-1000 gal.' },
+          { id: '7016-2-6', text: 'Drag the plant area ED_CENTER_BATCH onto the controller CTLR1 under Physical Network.' },
+          { id: '7016-2-7', text: 'Right-click CTLR1 → Download ▸ Controller. There is no need to perform an upload.' },
+          { id: '7016-2-8', text: 'Verify your configuration: no unresolved reference warnings, and every LI shows a live level on the Process display.', goto: 'process' }
+        ]
+      }
+    ]
+  },
+  {
     module: 'DV-09 · Controller Commissioning',
     workshops: [
       {

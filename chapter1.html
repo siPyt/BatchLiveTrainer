@@ -1,0 +1,264 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chapter 1: Batch Process Overview</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #24292e;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, h3 {
+      border-bottom: 1px solid #eaecef;
+      padding-bottom: 0.3em;
+      color: #1a1f2c;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid #dfe2e5;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f6f8fa;
+    }
+    pre {
+      background-color: #f6f8fa;
+      border-radius: 6px;
+      padding: 16px;
+      overflow: auto;
+      font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 85%;
+      line-height: 1.45;
+    }
+    code {
+      background-color: rgba(27, 31, 35, 0.05);
+      border-radius: 3px;
+      padding: 0.2em 0.4em;
+      font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 85%;
+    }
+    ul, ol {
+      padding-left: 2em;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Chapter 1: Batch Process Overview</h1>
+
+  <h2>1. Core Principles &amp; the ISA-88 (S88) Standard</h2>
+  <p>The primary objectives of the ANSI/ISA-88 (S88) standard are to provide a common, consistent model for the design and operation of batch manufacturing plants and batch control systems, and to improve control and efficiency in batch manufacturing processes[cite: 4, 5].</p>
+
+  <pre>
+       PHYSICAL MODEL                     PROCEDURAL CONTROL MODEL
+       
+        Enterprise                               Procedure
+            │                                        │
+           Site                                Unit Procedure
+            │                                        │
+           Area                                  Operation
+            │                                        │
+       Process Cell                                Phase
+            │
+          Unit
+            │
+    Equipment Module
+            │
+     Control Module
+  </pre>
+
+  <h3>The Four S88 Models</h3>
+  <ul>
+    <li><strong>Physical Model:</strong> Defines a hierarchy consisting of several levels that identifies equipment used within an enterprise[cite: 5, 6].</li>
+    <li><strong>Procedural Control Model:</strong> Defines the hierarchy of actions and control that enables equipment to perform process tasks and complete a batch[cite: 5, 6].</li>
+    <li><strong>Control Activity Model:</strong> Defines the relationships between the various control activities required to perform batch processing (such as recipe management and scheduling)[cite: 5].</li>
+    <li><strong>Process Model:</strong> Defines the results and transformations of performing procedural control on the equipment in the process[cite: 5].</li>
+  </ul>
+
+  <h3>Physical vs. Procedural Hierarchies</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Level</th>
+        <th>Physical Model Entity</th>
+        <th>Procedural Control Model Entity</th>
+        <th>Scope &amp; Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Top Level</strong></td>
+        <td><strong>Process Cell</strong></td>
+        <td><strong>Procedure</strong></td>
+        <td>A <strong>Process Cell</strong> is a logical grouping of units containing all equipment required for the production of one or more batches[cite: 8]. A <strong>Procedure</strong> executes a sequence of unit procedures using one or more units to produce a product batch, representing the procedural hierarchy's highest level[cite: 13, 14].</td>
+      </tr>
+      <tr>
+        <td><strong>Mid-High Level</strong></td>
+        <td><strong>Unit</strong></td>
+        <td><strong>Unit Procedure</strong></td>
+        <td>A <strong>Unit</strong> represents a logical grouping of similar equipment (e.g., blenders, reactors, storage tanks) capable of running independently[cite: 9]. A <strong>Unit Procedure</strong> is a collection of operations, transitions, and parameters that executes a sequence of operations to perform a certain function on a specific unit[cite: 12].</td>
+      </tr>
+      <tr>
+        <td><strong>Mid Level</strong></td>
+        <td><strong>Equipment Module (EM)</strong></td>
+        <td><strong>Operation</strong></td>
+        <td>An <strong>Equipment Module</strong> provides supervisory control for a collection of control modules, typically coordinating them via states or commands[cite: 10]. An <strong>Operation</strong> executes a sequence of unit phases, transitions, and parameters to perform a certain function on a specific unit[cite: 12].</td>
+      </tr>
+      <tr>
+        <td><strong>Lowest Level</strong></td>
+        <td><strong>Control Module (CM)</strong></td>
+        <td><strong>Phase (Unit Phase)</strong></td>
+        <td>A <strong>Control Module</strong> links algorithms, conditions, alarms, and displays together and is the lowest-level grouping of equipment that carries out basic control[cite: 10]. A <strong>Phase (Unit Phase)</strong> contains user-defined parameters and logic to accomplish a specific process-oriented task (such as Fill, Dump, Agitate, or Drain)[cite: 12]. Up to 10 unit phases may run simultaneously on the same unit module[cite: 12].</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. DeltaV Batch Architecture &amp; Software Tools</h2>
+  <p>DeltaV distributes batch control across software applications running at the supervisory workstation layer and controller runtime services executing on hardware nodes[cite: 14, 15].</p>
+
+  <pre>
+   ┌────────────────────────────────────────────────────────┐
+   │             SUPERVISORY WORKSTATION LAYER              │
+   │                                                        │
+   │  ┌─────────────────────────┐  ┌─────────────────────┐  │
+   │  │ Batch Operator Interface │  │   Recipe Studio     │  │
+   │  └───────────┬─────────────┘  └──────────┬──────────┘  │
+   │              │                           │             │
+   │              ▼                           ▼             │
+   │  ┌──────────────────────────────────────────────────┐  │
+   │  │        Batch Executive (Windows Service)         │  │
+   │  │   • Manages &amp; sequences: Procedures,             │  │
+   │  │     Unit Procedures, &amp; Operations                │  │
+   │  │   • Up to 4 Batch Executives per DeltaV network  │  │
+   │  └───────────┬───────────────────────────┬──────────┘  │
+   │              │                           │             │
+   │              ▼                           ▼             │
+   │  ┌───────────────────────┐   ┌──────────────────────┐  │
+   │  │    Batch Historian    │   │   Campaign Manager   │  │
+   │  │  • Archives batch     │   │  • Manages multi-    │  │
+   │  │    events to SQL      │   │    batch campaigns   │  │
+   │  └───────────────────────┘   └──────────────────────┘  │
+   └──────────────┼─────────────────────────────────────────┘
+                  │ Control Data
+                  ▼
+   ┌────────────────────────────────────────────────────────┐
+   │                 CONTROLLER LAYER                       │
+   │                                                        │
+   │  • Executes Unit Phases (up to 10 concurrently/unit)   │
+   │  • Executes Equipment Modules &amp; Control Modules        │
+   │  • Interfaces with Field I/O &amp; Sensor Instrumentation  │
+   └────────────────────────────────────────────────────────┘
+  </pre>
+
+  <h3>Core Applications</h3>
+  <ul>
+    <li><strong>Batch Executive:</strong> An application running as a Windows XP service that executes recipes[cite: 14]. Operators interact with the Batch Executive via the Batch Operator Interface and DeltaV Operate[cite: 14]. DeltaV supports up to four Batch Executives on a single network[cite: 14].</li>
+    <li><strong>Batch Operator Interface (BOI):</strong> The graphical interface used by operators to interface with the Batch Executive for loading and running batches and recipes[cite: 16].</li>
+    <li><strong>Control Studio:</strong> Used to create and edit control modules and phase logic[cite: 16].</li>
+    <li><strong>Recipe Studio:</strong> Used to create and edit operations, unit procedures, and procedures[cite: 16].</li>
+    <li><strong>Campaign Manager:</strong> Used to run multiple iterations of a batch; it must run on the same node as the Batch Executive[cite: 16].</li>
+    <li><strong>Batch Historian &amp; Batch History View:</strong> The Batch Historian collects Batch Event Journal files from the Batch Executive and Event Chronicle records, storing them in an SQL database[cite: 16]. Batch History View is used to view this historical batch data[cite: 16].</li>
+    <li><strong>Version Control:</strong> Runs on the ProfessionalPLUS workstation and utilizes an SQL database to record and track configuration changes[cite: 16].</li>
+  </ul>
+
+  <h2>3. Class-Based Architecture &amp; Aliasing</h2>
+  <p>DeltaV enables the creation of reusable logic templates that can be incorporated across multiple instances to reduce configuration effort[cite: 7].</p>
+  <p><strong>Class Template (Library) &rarr; Instantiate &rarr; Instance (Plant Area / Controller)</strong>[cite: 7, 22]</p>
+  <ul>
+    <li><strong>Class:</strong> A template from which objects are created under <code>Library &rarr; Advanced Definitions</code>[cite: 7, 18]. Common properties apply to all instances[cite: 7].</li>
+    <li><strong>Instance:</strong> An individual object created from a class, possessing identical structure and properties to other instances of that class[cite: 7].</li>
+    <li><strong>Allow instance value to be configured:</strong> Checking this property box in the class properties dialog allows an instance to override the default library value[cite: 21]. The system cannot upload the parameter unless this box is checked[cite: 21]. If unchecked later, instances overriding the class value revert back to the class default[cite: 21].</li>
+    <li><strong>Aliases:</strong> Created at the Unit Class level to represent individual equipment items associated with a set of units, and resolved to specific module paths at the Unit Module level[cite: 9, 79].</li>
+  </ul>
+
+  <h2>4. Chapter 1 Step-by-Step Workshop Guide</h2>
+  <p>This hands-on workshop guides you through creating a reusable Analog Input Control Module Class (<code>LEVEL_INDICATOR</code>), instantiating it across five tank level transmitters, configuring instance overrides, and downloading to the controller[cite: 25, 27, 28].</p>
+
+  <h3>Step 1: Create a Control Module Class Category</h3>
+  <ol>
+    <li>Open <strong>DeltaV Explorer</strong>[cite: 18].</li>
+    <li>Navigate the directory tree: <code>DV_School &rarr; Library &rarr; Advanced Definitions</code>[cite: 18, 25].</li>
+    <li>Right-click on <strong>Control Module Classes</strong> and select <strong>New Category</strong>[cite: 18, 25].</li>
+    <li>Name the category <code>AnalogInput</code>[cite: 18, 25].</li>
+  </ol>
+
+  <h3>Step 2: Create the <code>LEVEL_INDICATOR</code> Control Module Class</h3>
+  <ol>
+    <li>In DeltaV Explorer, expand <code>DV_School &rarr; Library &rarr; Module Templates &rarr; Monitoring</code>[cite: 19, 25].</li>
+    <li>Locate the template named <strong>ANALOG</strong>[cite: 19, 25].</li>
+    <li>Drag and drop the <strong>ANALOG</strong> template into the new Control Module Class category: <code>DV_School &rarr; Library &rarr; Advanced Definitions &rarr; Control Module Classes &rarr; AnalogInput</code>[cite: 19, 25].</li>
+    <li>Rename the new class to <code>LEVEL_INDICATOR</code>[cite: 19, 25].</li>
+  </ol>
+
+  <h3>Step 3: Configure Module Class Logic in Control Studio</h3>
+  <ol>
+    <li>Right-click <code>LEVEL_INDICATOR</code> and select <strong>Open with Control Studio</strong>[cite: 20].</li>
+    <li>Select the <code>AI1</code> function block and modify the parameters[cite: 26]:
+      <ul>
+        <li><strong>OUT_SCALE:</strong> Set scale from <code>0</code> to <code>500 gal</code>, and check <strong>Allow instance value to be configured</strong>[cite: 21, 26].</li>
+        <li><strong>L_TYPE:</strong> Set to <code>Direct</code>[cite: 26].</li>
+        <li><strong>HI_LIM:</strong> Disable the HI ALM[cite: 26].</li>
+        <li><strong>LO_LIM:</strong> Disable the LO ALM[cite: 26].</li>
+        <li><strong>SIMULATE:</strong> Set to <code>Enabled</code>, with value <code>0</code>[cite: 26].</li>
+      </ul>
+    </li>
+    <li>From the <strong>Special Items</strong> palette, drag and drop an <strong>Input Parameter</strong> onto the diagram[cite: 26].</li>
+    <li>Name the parameter <code>LEVEL_IN</code>, set parameter type to <strong>External Reference</strong>, and leave the path unconfigured (<strong>DO NOT BROWSE</strong> for the external parameter path at this stage)[cite: 26].</li>
+    <li>Wire the output of the <code>LEVEL_IN</code> parameter block to the <code>SIMULATE_IN</code> terminal of the <code>AI1</code> function block[cite: 26].</li>
+    <li>Open Module Properties and set the <strong>Primary Display</strong> to <code>Process</code>[cite: 26].</li>
+    <li>Save your work and exit Control Studio[cite: 26].</li>
+  </ol>
+
+  <h3>Step 4: Create Control Modules from the Class</h3>
+  <ol>
+    <li>Drag and drop the Control Module Class <code>LEVEL_INDICATOR</code> to the Plant Area <code>ED_CENTER_BATCH</code> (under <code>System Configuration &rarr; Control Strategies</code>)[cite: 22, 27].</li>
+    <li>Expand <code>ED_CENTER_BATCH</code> and rename the new module from <code>LEVEL_INDIC_1</code> to <code>LI-104</code>[cite: 27].</li>
+    <li>Drag and drop <code>LEVEL_INDICATOR</code> into <code>ED_CENTER_BATCH</code> and rename to <code>LI-204</code>[cite: 27].</li>
+    <li>Drag and drop <code>LEVEL_INDICATOR</code> into <code>ED_CENTER_BATCH</code> and rename to <code>LI-304</code>[cite: 27].</li>
+    <li>Drag and drop <code>LEVEL_INDICATOR</code> into <code>ED_CENTER_BATCH</code> and rename to <code>LI-504</code>[cite: 27].</li>
+    <li>Drag and drop <code>LEVEL_INDICATOR</code> into <code>ED_CENTER_BATCH</code> and rename to <code>LI-604</code>[cite: 27].</li>
+  </ol>
+
+  <h3>Step 5: Configure Instance Parameters &amp; Simulator References</h3>
+  <ol>
+    <li>Select <code>LI-104</code>, open <code>LEVEL_IN</code> properties, and set the external parameter path to <code>TANKSIM/TKLEV100</code>[cite: 27].</li>
+    <li>Select <code>LI-204</code>, open <code>LEVEL_IN</code> properties, and set the external parameter path to <code>TANKSIM/TKLEV200</code>[cite: 27].</li>
+    <li>Select <code>LI-304</code>, open <code>LEVEL_IN</code> properties, and set the external parameter path to <code>TANKSIM/TKLEV300</code>[cite: 28].</li>
+    <li>Select <code>LI-504</code>:
+      <ul>
+        <li>Set the external parameter path for <code>LEVEL_IN</code> to <code>LEV500-SIM/500_LEV</code>[cite: 28].</li>
+        <li>Open properties for <code>AI1$OUT_SCALE</code>, uncheck <strong>Use default value from library object</strong>, and change the 100% scale to <code>1000</code> (configuring <code>0-1000 gal</code>)[cite: 24, 28].</li>
+      </ul>
+    </li>
+    <li>Select <code>LI-604</code>:
+      <ul>
+        <li>Set the external parameter path for <code>LEVEL_IN</code> to <code>LEV600-SIM/600_LEV</code>[cite: 28].</li>
+        <li>Open properties for <code>AI1$OUT_SCALE</code>, uncheck <strong>Use default value from library object</strong>, and change the 100% scale to <code>1000</code> (configuring <code>0-1000 gal</code>)[cite: 24, 28].</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3>Step 6: Assign, Download, and Verify</h3>
+  <ol>
+    <li>Drag and drop the plant area <code>ED_CENTER_BATCH</code> onto your controller node[cite: 28].</li>
+    <li>Download your Controller (there is no need to perform an upload)[cite: 28].</li>
+    <li>Verify that the configuration executes correctly without unresolved reference errors[cite: 28].</li>
+  </ol>
+
+</body>
+</html>
+
+```

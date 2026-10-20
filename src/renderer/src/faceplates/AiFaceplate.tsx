@@ -40,7 +40,7 @@ export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
       <div className="fp-row">
         <span className="fp-label">Status</span>
         <span style={{ color: m.pvBad ? 'var(--dv-bad)' : alm ? 'var(--dv-critical)' : 'var(--dv-ok)', fontWeight: 700 }}>
-          {m.pvBad ? 'BAD (I/O)' : alm ? alm.label + ' ALARM' : 'NORMAL'}
+          {m.pvBad ? (m.classInstance && m.statusText ? m.statusText : 'BAD (I/O)') : alm ? alm.label + ' ALARM' : 'NORMAL'}
         </span>
       </div>
 
@@ -48,7 +48,7 @@ export function AiFaceplate({ tag }: { tag: string }): JSX.Element | null {
         <span className="fp-label">Alarm limits</span>
         {m.alarms.map((a) => (
           <div className="fp-row" key={a.type} style={{ marginTop: 3 }}>
-            <span style={{ color: 'var(--dv-text-dim)' }}>{a.label}</span>
+            <span style={{ color: 'var(--dv-text-dim)' }}>{a.label}{a.enabled ? '' : ' (disabled)'}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>
               {a.limit !== undefined ? fmt(a.limit, m.decimals) : '—'} {m.unit}
             </span>

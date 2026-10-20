@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useSecurity } from '../engine/security'
+import { useLibrary } from '../engine/libraryStore'
 import { clockString, dateString } from '../utils/format'
 import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
@@ -119,10 +120,15 @@ export function TopBar(): JSX.Element {
     }
   }, [searchOpen])
 
-  const startNewProject = (kind: 'pharma' | 'blank'): void => {
-    const label = kind === 'blank' ? 'a new blank project' : 'the GMP Pharma Factory baseline'
+  const startNewProject = (kind: 'pharma' | 'blank' | 'course7016'): void => {
+    const label = kind === 'blank' ? 'a new blank project' : kind === 'course7016' ? 'the Course 7016 DV_School training database (ED_CENTER_BATCH)' : 'the GMP Pharma Factory baseline'
     if (!window.confirm(`Discard the current project and load ${label}? This cannot be undone.`)) return
-    newProject(kind)
+    if (kind === 'course7016') {
+      if (!useLibrary.getState().installCourseProject()) return
+    } else {
+      newProject(kind)
+      useLibrary.getState().resetLibrary()
+    }
     resetToOverview()
   }
 
@@ -180,6 +186,7 @@ export function TopBar(): JSX.Element {
         label="File"
         items={[
           { label: '＋ New Blank Project', onClick: () => startNewProject('blank') },
+          { label: '🎓 New Course 7016 Project (DV_School)', onClick: () => startNewProject('course7016') },
           { label: '🏭 New GMP Pharma Factory', onClick: () => startNewProject('pharma') }
         ]}
       />

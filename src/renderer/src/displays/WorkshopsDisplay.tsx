@@ -4,6 +4,8 @@ import { useProgress } from '../engine/progressStore'
 import { COURSE, type Workshop } from '../engine/workshops'
 import { useStore } from '../engine/store'
 import { checkCommissioningWorkshop, COMMISSIONING_STEP_IDS, type StepCheck } from '../engine/workshopChecks'
+import { checkCourse7016Ch1 } from '../engine/course7016Checks'
+import { useLibrary, makeReader } from '../engine/libraryStore'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -84,8 +86,12 @@ function WorkshopPanel({
   const reset = useProgress((s) => s.reset)
   const controllers = useStore((s) => s.hardware.controllers)
   const eventLog = useStore((s) => s.eventLog)
+  const modules = useStore((s) => s.modules)
+  const library = useLibrary()
+  const course7016 = w.id.startsWith('7016-') && w.id !== '7016-ch1-definitions' ? checkCourse7016Ch1(library, modules, makeReader(library)) : null
   const checked = w.id === 'dv09-commissioning' ? checkCommissioningWorkshop(controllers, eventLog) : null
-  const verdictFor = (id: string): StepCheck | undefined => (checked && (COMMISSIONING_STEP_IDS as readonly string[]).includes(id) ? checked.steps.find((s) => s.id === id) : undefined)
+  const verdictFor = (id: string): StepCheck | undefined => course7016 ? course7016.find((s) => s.id === id) :
+    (checked && (COMMISSIONING_STEP_IDS as readonly string[]).includes(id) ? checked.steps.find((s) => s.id === id) : undefined)
 
   return (
     <div className="ws-panel">
@@ -97,9 +103,9 @@ function WorkshopPanel({
       </div>
       <p className="ws-objective">{w.objective}</p>
       {w.note && <div className="ws-note">{w.note}</div>}
-      {checked && (
+      {(checked || course7016) && (
         <div className="ws-note" role="status">
-          Steps below are checked against the simulator{checked.controller ? ' for controller ' + checked.controller : ''}: Verified comes from real state and the event journal; Manual steps cannot be observed.
+          Steps below are checked against the simulator{checked?.controller ? ' for controller ' + checked.controller : ''}: Verified comes from real state{checked ? ' and the event journal; Manual steps cannot be observed' : ' (the DV_School library, ED_CENTER_BATCH modules and the controller download)'}.
         </div>
       )}
       <ol className="ws-steps">

@@ -1437,7 +1437,7 @@ interface BtnProps {
   onClick?: () => void; unavailable?: string
 }
 
-function Btn({ glyph, label, size = 'large', active, onClick, unavailable }: BtnProps): JSX.Element {
+export function Btn({ glyph, label, size = 'large', active, onClick, unavailable }: BtnProps): JSX.Element {
   return (
     <button type="button" className={`rb-btn rb-${size}` + (active ? ' active' : '')} onClick={onClick} disabled={!!unavailable}
       title={unavailable ?? label} aria-label={label} aria-pressed={active === undefined ? undefined : active}>
@@ -1447,7 +1447,7 @@ function Btn({ glyph, label, size = 'large', active, onClick, unavailable }: Btn
   )
 }
 
-function Group({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+export function Group({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
     <div className="rb-group">
       <div className="rb-group-body">{children}</div>
@@ -1456,7 +1456,7 @@ function Group({ label, children }: { label: string; children: ReactNode }): JSX
   )
 }
 
-function Stack({ children }: { children: ReactNode }): JSX.Element {
+export function Stack({ children }: { children: ReactNode }): JSX.Element {
   return <div className="rb-stack">{children}</div>
 }
 
@@ -1587,7 +1587,7 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }
           </Group>
           <Group label="Class">
             <Stack>
-              <Btn glyph="configure" label="Configure" size="small" unavailable="Module classes and library templates are not implemented" />
+              <Btn glyph="configure" label="Configure" size="small" unavailable="This module is not class-based; class-based modules open their Control Module Class from here" />
               <Btn glyph="namedSet" label="Named Set" size="small" onClick={() => navigate('explorer')} />
             </Stack>
           </Group>

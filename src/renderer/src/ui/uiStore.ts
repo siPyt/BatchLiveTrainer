@@ -33,6 +33,7 @@ export type DisplayId =
   | 'cip'
   | 'tcu'
   | 'pwaste'
+  | 'process'
 
 export interface OpenFaceplate {
   tag: string
@@ -58,6 +59,11 @@ interface UiState {
   closePidDetail: () => void
   selectedTag: string | null
   studioTag: string | null
+  /** Course 7016: Control Module Class open in Control Studio (with an optional class-based instance). */
+  studioClass: string | null
+  studioInstance: string | null
+  openClassStudio: (className: string, instance?: string) => void
+  closeClassStudio: () => void
   sfcName: string | null
   /** FBD canvas node positions, keyed by module tag (Control Studio drag-and-drop layout). */
   studioLayout: Record<string, { x: number; y: number }>
@@ -119,6 +125,16 @@ export const useUi = create<UiState>((set, get) => ({
   closePidDetail: () => set({ pidDetailTag: null }),
   selectedTag: null,
   studioTag: null,
+  studioClass: null,
+  studioInstance: null,
+  openClassStudio: (className, instance) =>
+    set((s) => {
+      const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
+      const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
+      return { studioClass: className, studioInstance: instance ?? null, selectedTag: instance ?? s.selectedTag,
+        display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
+    }),
+  closeClassStudio: () => set({ studioClass: null, studioInstance: null }),
   sfcName: null,
   studioLayout: {},
   setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),
@@ -189,8 +205,12 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => {
       const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
       const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
+      const module = useStore.getState().modules[tag]
+      const classInstance = module?.type === 'AI' ? module.classInstance : undefined
       return {
-        studioTag: tag,
+        studioTag: classInstance ? s.studioTag : tag,
+        studioClass: classInstance ?? null,
+        studioInstance: classInstance ? tag : null,
         selectedTag: tag,
         display: 'studio',
         history,
@@ -218,6 +238,8 @@ export const useUi = create<UiState>((set, get) => ({
       pidDetailTag: null,
       selectedTag: null,
       studioTag: null,
+      studioClass: null,
+      studioInstance: null,
       sfcName: null,
       display: 'overview',
       history: ['overview'],

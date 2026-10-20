@@ -21,6 +21,8 @@ import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
+import { ClassStudio } from './displays/ClassStudio'
+import { ProcessDisplay } from './displays/ProcessDisplay'
 import { BatchDisplay } from './displays/BatchDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
@@ -35,6 +37,7 @@ export function App(): JSX.Element {
   const display = useUi((s) => s.display)
   const navigationOpen = useUi((s) => s.navigationOpen)
   const processViewRevision = useUi((s) => s.processViewRevision)
+  const studioClass = useUi((s) => s.studioClass)
   const last = useRef<number>(performance.now())
 
   // Fixed-rate simulation loop (~10 Hz) decoupled from render.
@@ -98,7 +101,8 @@ export function App(): JSX.Element {
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
-          {display === 'studio' && <ControlStudioDisplay />}
+          {display === 'studio' && (studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
+          {display === 'process' && <ProcessDisplay />}
           {display === 'batch' && <BatchDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}

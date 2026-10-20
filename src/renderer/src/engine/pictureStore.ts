@@ -73,13 +73,14 @@ export interface Picture {
   nextPicture?: string
 }
 
-export type PictureTarget = { kind: 'display'; display: 'overview' | 'alarms' } | { kind: 'picture'; name: string }
+export type PictureTarget = { kind: 'display'; display: 'overview' | 'alarms' | 'process' } | { kind: 'picture'; name: string }
 
 export function resolvePictureTarget(name: string, pictures: Record<string, Picture>): PictureTarget | null {
   const full = name.trim().toUpperCase()
   const key = full.replace(/\.GRF$/, '')
   if (key === 'OVW_REF') return { kind: 'display', display: 'overview' }
   if (key === 'ALARMLIST') return { kind: 'display', display: 'alarms' }
+  if (key === 'PROCESS') return { kind: 'display', display: 'process' }
   const picture = pictures[full] ?? pictures[key]
   return picture ? { kind: 'picture', name: picture.name } : null
 }

@@ -29,6 +29,11 @@ import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useSystem } from '../engine/systemPreferences'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
 import { SimulatorDialog } from '../components/SimulatorDialog'
+import { useLibrary, downloadState } from '../engine/libraryStore'
+import {
+  LibraryTree, PhysicalNetworkTree, LibraryDetail, InstanceContents, ContextMenu, ControllerDownloadDialog,
+  instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, type LibrarySelection, type ContentsRow
+} from '../components/LibraryExplorer'
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -126,6 +131,32 @@ export function ExplorerDisplay(): JSX.Element {
   const [menu, setMenu] = useState<
     { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
   >(null)
+  const [libSel, setLibSel] = useState<LibrarySelection | null>(null)
+  /** Selected container in the DeltaV tree (root, System Configuration, Setup, Control Strategies, AREA:x, CELL:x, UNIT:x, EM:x...). */
+  const [node, setNode] = useState<string | null>(null)
+  const [renamingModule, setRenamingModule] = useState<{ tag: string; value: string } | null>(null)
+  const [instMenu, setInstMenu] = useState<{ x: number; y: number; tag: string } | null>(null)
+  const [moduleDownload, setModuleDownload] = useState<{ tag: string; controller: string } | null>(null)
+  const libraryInstances = useLibrary(s => s.instances)
+  const libraryAssignments = useLibrary(s => s.assignments)
+  const libraryDeployed = useLibrary(s => s.deployed)
+  const libraryClasses = useLibrary(s => s.classes)
+  const sims = useLibrary(s => s.sims)
+
+  useEffect(() => {
+    if (!instMenu) return
+    const close = (): void => setInstMenu(null)
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [instMenu])
+
+  const finishModuleRename = (): void => {
+    if (!renamingModule) return
+    const r = useLibrary.getState().renameInstance(renamingModule.tag, renamingModule.value)
+    if (!alertResult(r)) return
+    setRenamingModule(null)
+    select(r.value)
+  }
 
   useEffect(() => {
     if (!menu) return
@@ -160,274 +191,320 @@ export function ExplorerDisplay(): JSX.Element {
     }
   }
 
-  const renderModuleRow = (m: AnyModule, nested: boolean): JSX.Element => {
-    const alm = moduleAlarm(m.tag, alarms)
-    const st = statusText(m)
-    return (
-      <div
-        key={m.tag}
-        className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === m.tag ? ' sel' : '')}
-        onClick={() => { setSetupView('modules'); select(m.tag) }}
-        onDoubleClick={() => openStudio(m.tag)}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setSetupView('modules')
-          select(m.tag)
-          setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
-        }}
-      >
-        <span className="exp-caret" />
-        <ModuleIcon kind="control" />
-        <span className="exp-badge">{TYPE_BADGE[m.type]}</span>
-        <b className="exp-tag">{m.tag}</b>
-        <span className="exp-desc">{m.description}</span>
-        <DownloadStatusIndicator tag={m.tag} controls />
-        <span className="exp-status" style={{ color: st.color }}>
-          {st.text}
-        </span>
-        {alm && <span className={'exp-alm ' + alm.priority.toLowerCase()}>●</span>}
-      </div>
-    )
+  const containerSelected = (key: string): boolean => node === key && !libSel
+  const pickNode = (key: string): void => { setNode(key); setLibSel(null); setSetupView('modules'); select(null) }
+  const pickSetup = (view: typeof setupView, after?: () => void): void => { setNode(null); setLibSel(null); setSetupView(view); after?.() }
+  const moduleSelected = (tag: string): boolean => !node && !libSel && setupView === 'modules' && selectedTag === tag
+
+  const renderModuleRow = (m: AnyModule, depth: number): JSX.Element => {
+    const classInstance = m.type === 'AI' && libraryInstances[m.tag] ? m.classInstance : undefined
+    const st = classInstance && m.type === 'AI' && m.pvBad ? { text: m.statusText ?? 'Bad' } : statusText(m)
+    const dlState = classInstance ? downloadState({ instances: libraryInstances, classes: libraryClasses, assignments: libraryAssignments, deployed: libraryDeployed }, m.tag) : null
+    return <TreeRow key={m.tag} depth={depth} selected={moduleSelected(m.tag)}
+      icon={<ModuleIcon kind="control" size={16} />}
+      pending={classInstance ? (dlState !== 'current' ? <span className="tv-pending" title={dlState === 'pending' ? 'Configuration changed — download required' : 'Not downloaded'}>▲</span> : undefined) :
+        <DownloadStatusIndicator tag={m.tag} compact />}
+      label={renamingModule?.tag === m.tag ? <input aria-label="Module name" className="exp-area-editor" autoFocus value={renamingModule.value}
+        onFocus={e => e.target.select()} onClick={e => e.stopPropagation()}
+        onChange={e => setRenamingModule({ tag: m.tag, value: e.target.value })}
+        onBlur={finishModuleRename}
+        onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finishModuleRename() } else if (e.key === 'Escape') setRenamingModule(null) }} /> :
+        <span>{m.tag}</span>}
+      sub={`${classInstance ? `${classInstance} · ` : ''}${m.description} — ${st.text}`}
+      dataAttr={{ 'data-module': m.tag }}
+      onClick={() => { setNode(null); setLibSel(null); setSetupView('modules'); select(m.tag) }}
+      onDoubleClick={() => openStudio(m.tag)}
+      onKeyDown={classInstance ? e => { if (e.key === 'F2') setRenamingModule({ tag: m.tag, value: m.tag }) } : undefined}
+      onContextMenu={(e) => {
+        setNode(null); setLibSel(null); setSetupView('modules'); select(m.tag)
+        if (classInstance) setInstMenu({ x: e.clientX, y: e.clientY, tag: m.tag })
+        else setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
+      }} />
   }
 
-  const renderSfcRow = (sfc: SfcDef, nested = false): JSX.Element => <div key={sfc.name}
-    className={'exp-node exp-mod' + (nested ? ' nested' : '') + (selectedTag === sfc.name ? ' sel' : '')}
-    data-sfc-module={sfc.name} data-equipment-module={sfc.equipmentModule}
-    onClick={() => { setSetupView('modules'); select(sfc.name) }}
+  const renderSfcRow = (sfc: SfcDef, depth: number): JSX.Element => <TreeRow key={sfc.name} depth={depth} selected={moduleSelected(sfc.name)}
+    icon={<ModuleIcon kind="control" size={16} />} pending={<DownloadStatusIndicator tag={sfc.name} compact />}
+    label={<span>{sfc.name}</span>} sub={`Sequential Function Chart · ${sfc.description} — ${sfc.status}`}
+    dataAttr={{ 'data-sfc-module': sfc.name, 'data-equipment-module': sfc.equipmentModule }}
+    onClick={() => { setNode(null); setLibSel(null); setSetupView('modules'); select(sfc.name) }}
     onDoubleClick={() => openSfc(sfc.name)}
     onContextMenu={event => {
-      event.preventDefault(); setSetupView('modules'); select(sfc.name)
+      setNode(null); setLibSel(null); setSetupView('modules'); select(sfc.name)
       setMenu({ x: event.clientX, y: event.clientY, kind: 'sfc', target: sfc.name })
-    }}>
-    <span className="exp-caret" /><ModuleIcon kind="control" />
-    <span className="exp-badge">SFC</span><b className="exp-tag">{sfc.name}</b>
-    <span className="exp-desc">{sfc.description}</span>
-    <DownloadStatusIndicator tag={sfc.name} controls />
-    <span className="exp-status">{sfc.status}</span>
-  </div>
+    }} />
+
+  const databaseName = Object.keys(sims).length ? 'DV_School' : 'DeltaV_System'
+  const areaContents = (area: string): { mods: AnyModule[]; ems: EquipmentModule[]; areaSfcs: SfcDef[]; unassigned: AnyModule[]; unassignedSfcs: SfcDef[] } => {
+    const mods = list.filter((m) => m.area === area)
+    const ems = Object.values(equipment).filter((em) => em.area === area)
+    const areaSfcs = Object.values(sfcs).map(sfc => ({ ...sfc, ...sfcConfiguredMetadata(sfc, sfcLifecycles[sfc.name]) })).filter(sfc => sfc.area === area)
+    return { mods, ems, areaSfcs,
+      unassigned: mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule]),
+      unassignedSfcs: areaSfcs.filter(sfc => !sfc.equipmentModule || !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area) }
+  }
+
+  const NODE_LABEL: Record<string, string> = {
+    root: databaseName, sysconfig: 'System Configuration', recipes: 'Recipes', setup: 'Setup', strategies: 'Control Strategies', unassignedio: 'Unassigned I/O References'
+  }
+  const SETUP_LABEL: Partial<Record<typeof setupView, string>> = {
+    namedSets: selectedNamedSet ?? 'Named Sets', alarmTypes: selectedAlarmType ?? 'Alarm Types', conditionAlarms: selectedConditionAlarm ?? 'Condition Alarms',
+    licensing: 'PROPLUS', securityParameter: 'Parameter Security', securityField: 'Field Security', securityFunction: 'Function Security',
+    signatures: 'Electronic Signatures', export: 'Export / Import', hierarchy: 'Equipment Hierarchy', alarmPriorities: 'Alarm Priorities'
+  }
+  const libLabel = (s: LibrarySelection): string => s.kind === 'library' ? 'Library' : s.kind === 'folder' ? s.path[s.path.length - 1] :
+    s.kind === 'template' || s.kind === 'category' || s.kind === 'class' ? s.name : s.kind === 'advanced' ? 'Advanced Definitions' :
+      s.kind === 'emClasses' ? 'Equipment Module Classes' : s.kind === 'cmClasses' ? 'Control Module Classes' : s.kind === 'network' ? 'Physical Network' :
+        s.kind === 'decom' ? 'Decommissioned Nodes' : s.kind === 'ctlnet' ? 'Control Network' : s.tag
+  const contentsName = libSel ? libLabel(libSel) : node ? (NODE_LABEL[node] ?? node.replace(/^[A-Z]+:/, '')) :
+    setupView !== 'modules' ? SETUP_LABEL[setupView] ?? '' : selectedTag ?? databaseName
+
+  const containerRows = (key: string): ContentsRow[] => {
+    const row = (k: string, icon: JSX.Element, name: string, type: string, onOpen: () => void, extra: Partial<ContentsRow> = {}): ContentsRow => ({ key: k, icon, name, type, onOpen, ...extra })
+    const moduleRow = (m: AnyModule): ContentsRow => row(m.tag, <ModuleIcon kind="control" size={16} />, m.tag,
+      m.type === 'AI' && m.classInstance ? `Control Module (${m.classInstance})` : 'Control Module',
+      () => { setNode(null); setSetupView('modules'); select(m.tag) }, { data: { 'data-contents-module': m.tag } })
+    if (key === 'root') return [
+      row('lib', <DvIcon kind="library" />, 'Library', 'Database', () => setLibSel({ kind: 'library' })),
+      row('sys', <DvIcon kind="sysconfig" />, 'System Configuration', 'System Configuration', () => pickNode('sysconfig'))]
+    if (key === 'sysconfig') return [
+      row('rec', <DvIcon kind="recipes" />, 'Recipes', 'Recipes', () => pickNode('recipes')),
+      row('setup', <DvIcon kind="setup" />, 'Setup', 'Setup', () => pickNode('setup')),
+      row('cs', <DvIcon kind="strategies" />, 'Control Strategies', 'Control Strategies', () => pickNode('strategies')),
+      row('pn', <DvIcon kind="network" />, 'Physical Network', 'Physical Network', () => setLibSel({ kind: 'network' }))]
+    if (key === 'setup') return [['namedSets', 'Named Sets'], ['alarmTypes', 'Alarm Types'], ['conditionAlarms', 'Condition Alarms'], ['securityParameter', 'Parameter Security'],
+      ['securityField', 'Field Security'], ['securityFunction', 'Function Security'], ['alarmPriorities', 'Alarm Priorities'], ['hierarchy', 'Equipment Hierarchy'], ['export', 'Export / Import']]
+      .map(([view, label]) => row(view, <DvIcon kind="item" />, label, 'Setup', () => pickSetup(view as typeof setupView)))
+    if (key === 'strategies') return [
+      row('uio', <DvIcon kind="unassignedio" />, 'Unassigned I/O References', 'Unassigned I/O References', () => pickNode('unassignedio')),
+      ...areas.map(a => row(a, <DvIcon kind="area" />, a, 'Plant Area', () => { setOpen(o => ({ ...o, [a]: true })); pickNode(`AREA:${a}`) }, { data: { 'data-contents-area': a } }))]
+    if (key.startsWith('AREA:')) {
+      const area = key.slice(5)
+      const c = areaContents(area)
+      return [
+        ...Object.values(processCells).filter(cell => cell.area === area).map(cell => row(cell.name, <ModuleIcon kind="cell" size={16} />, cell.name, 'Process Cell', () => pickNode(`CELL:${cell.name}`))),
+        ...c.ems.filter(em => !em.unit || !units[em.unit]).map(em => row(em.tag, <ModuleIcon kind="equipment" size={16} />, em.tag, 'Equipment Module', () => pickNode(`EM:${em.tag}`))),
+        ...c.unassigned.map(moduleRow),
+        ...c.unassignedSfcs.map(sfc => row(sfc.name, <ModuleIcon kind="control" size={16} />, sfc.name, 'Control Module (SFC)', () => { setNode(null); select(sfc.name) })),
+        ...Object.values(sims).filter(x => x.area === area).map(x => row(x.tag, <ModuleIcon kind="control" size={16} />, x.tag, 'Control Module (simulation)', () => setLibSel({ kind: 'sim', tag: x.tag })))
+      ]
+    }
+    if (key.startsWith('CELL:')) return Object.values(units).filter(u => u.cell === key.slice(5))
+      .map(u => row(u.name, <ModuleIcon kind="equipment" size={16} />, u.name, 'Unit', () => pickNode(`UNIT:${u.name}`)))
+    if (key.startsWith('UNIT:')) return Object.values(equipment).filter(em => em.unit === key.slice(5))
+      .map(em => row(em.tag, <ModuleIcon kind="equipment" size={16} />, em.tag, 'Equipment Module', () => pickNode(`EM:${em.tag}`)))
+    if (key.startsWith('EM:')) return list.filter(m => m.equipmentModule === key.slice(3)).map(moduleRow)
+    return []
+  }
+
+  const areaRow = (area: string, depth: number): JSX.Element => {
+    const { ems, unassigned, unassignedSfcs, mods } = areaContents(area)
+    const areaKey = `AREA:${area}`
+    const renderEm = (em: EquipmentModule, d: number): JSX.Element => {
+      const emKey = `EM:${em.tag}`
+      const emMods = mods.filter((m) => m.equipmentModule === em.tag)
+      const emSfcs = Object.values(sfcs).filter(sfc => sfc.equipmentModule === em.tag && sfc.area === area)
+      return <TreeRow key={em.tag} depth={d} open={!!open[emKey]} onToggle={() => toggle(emKey)} selected={containerSelected(emKey)}
+        icon={<ModuleIcon kind="equipment" size={16} />} label={<span>{em.tag}</span>} sub={`${em.description} · ${emMods.length + emSfcs.length} modules`}
+        dataAttr={{ 'data-equipment': em.tag }}
+        onClick={() => pickNode(emKey)}
+        onContextMenu={(e) => setMenu({ x: e.clientX, y: e.clientY, kind: 'em', target: em.tag })}>
+        {emMods.map((m) => renderModuleRow(m, d + 1))}
+        {emSfcs.map(sfc => renderSfcRow(sfc, d + 1))}
+      </TreeRow>
+    }
+    return <TreeRow key={area} depth={depth} open={!!open[area]} onToggle={() => toggle(area)} selected={containerSelected(areaKey)}
+      icon={<DvIcon kind="area" />}
+      label={editingArea?.original === area ? <input aria-label="Area name" className="exp-area-editor" autoFocus value={editingArea.value}
+        onFocus={e => e.target.select()} onClick={e => e.stopPropagation()}
+        onChange={e => setEditingArea({ original: area, value: e.target.value })}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); finishAreaRename() } else if (e.key === 'Escape') setEditingArea(null) }} /> :
+        <span title={area}>{AREA_LABEL[area] ?? area}</span>}
+      sub={`Plant Area · ${mods.length} modules`}
+      dataAttr={{ 'data-area': area }}
+      drag={{ type: DRAG_AREA, value: area }}
+      drop={{ accepts: [DRAG_CLASS], onDrop: (_type, cls) => {
+        const r = useLibrary.getState().createInstance(cls, area)
+        if (alertResult(r)) { setOpen(o => ({ ...o, [area]: true })); setNode(null); setLibSel(null); setSetupView('modules'); select(r.value) }
+      } }}
+      onClick={() => pickNode(areaKey)}
+      onContextMenu={(e) => { pickNode(areaKey); setMenu({ x: e.clientX, y: e.clientY, kind: 'area', target: area }) }}>
+      {Object.values(processCells).filter((cell) => cell.area === area).map((cell) => {
+        const cellKey = `CELL:${cell.name}`
+        return <TreeRow key={cell.name} depth={depth + 1} open={open[cellKey] !== false} onToggle={() => setOpen(o => ({ ...o, [cellKey]: o[cellKey] === false }))}
+          selected={containerSelected(cellKey)} icon={<ModuleIcon kind="cell" size={16} />} label={<span>{cell.name}</span>} sub={`Process Cell · ${cell.description}`}
+          onClick={() => pickNode(cellKey)}>
+          {Object.values(units).filter((unit) => unit.cell === cell.name).map((unit) => {
+            const unitKey = `UNIT:${unit.name}`
+            return <TreeRow key={unit.name} depth={depth + 2} open={open[unitKey] !== false} onToggle={() => setOpen(o => ({ ...o, [unitKey]: o[unitKey] === false }))}
+              selected={containerSelected(unitKey)} icon={<ModuleIcon kind="equipment" size={16} />} label={<span>{unit.name}</span>} sub={`Unit · ${unit.description}`}
+              onClick={() => pickNode(unitKey)}>
+              {ems.filter((em) => em.unit === unit.name).map((em) => renderEm(em, depth + 3))}
+            </TreeRow>
+          })}
+        </TreeRow>
+      })}
+      {ems.filter((em) => !em.unit || !units[em.unit]).map((em) => renderEm(em, depth + 1))}
+      {[
+        ...unassigned.map(m => ({ key: m.tag, el: renderModuleRow(m, depth + 1) })),
+        ...unassignedSfcs.map(sfc => ({ key: sfc.name, el: renderSfcRow(sfc, depth + 1) })),
+        ...Object.values(sims).filter(x => x.area === area).map(sim => ({ key: sim.tag, el: <TreeRow key={sim.tag} depth={depth + 1}
+          selected={libSel?.kind === 'sim' && libSel.tag === sim.tag} icon={<ModuleIcon kind="control" size={16} />} label={<span>{sim.tag}</span>}
+          dataAttr={{ 'data-sim-module': sim.tag }} sub={sim.description}
+          onClick={() => { setNode(null); select(null); setLibSel({ kind: 'sim', tag: sim.tag }) }} /> }))
+      ].sort((a, b) => a.key.localeCompare(b.key)).map(x => x.el)}
+    </TreeRow>
+  }
+
+  const setupItem = (view: typeof setupView, label: string, depth: number, extra: Partial<Parameters<typeof TreeRow>[0]> = {}): JSX.Element =>
+    <TreeRow key={view + label} depth={depth} icon={<DvIcon kind="item" />} label={<span>{label}</span>}
+      selected={!node && !libSel && setupView === view} onClick={() => pickSetup(view)} {...extra} />
+
+  const selectedArea = node?.startsWith('AREA:') ? node.slice(5) : selected?.area ?? areas[0]
+  const deleteSelected = (): void => {
+    if (selected && libraryInstances[selected.tag]) { if (window.confirm(`Delete ${selected.tag}?`)) alertResult(useLibrary.getState().deleteInstance(selected.tag)) }
+    else if (selected && !node && !libSel) { if (window.confirm(`Delete ${selected.tag}?`)) deleteModule(selected.tag) }
+    else window.alert('Select a control module to delete.')
+  }
 
   return (
-    <div className="display explorer">
-      <div className="explorer-tree" style={{ width: treeWidth, minWidth: treeWidth, flex: `0 0 ${treeWidth}px` }}>
-        <div className="exp-toolbar">
-          <button className="tbtn sm" onClick={() => setCreateArea((v) => (v ? null : areas[0]))}>
-            {createArea ? '✕ Cancel' : '＋ New Module'}
-          </button>
-          <button className="tbtn sm" onClick={newArea}>New Area</button>
-          <span className="exp-hint">right-click an Area → New ▸ Control Module / Equipment Module</span>
+    <div className="display explorer dvx">
+      <div className="dvx-title"><DvIcon kind="database" /><span>Exploring DeltaV</span></div>
+      <DvMenuBar menus={[
+        { label: 'File', items: [
+          { label: 'New Area', onClick: newArea },
+          { label: 'New Control Module...', onClick: () => { setNewModuleEm(undefined); setCreateArea(selectedArea) } },
+          { label: 'New Equipment Module...', onClick: () => setCreateEmArea(selectedArea) },
+          { label: 'Close', onClick: () => useUi.getState().navigate('overview') }] },
+        { label: 'Edit', items: [
+          { label: 'Cut', disabled: 'Not modeled' }, { label: 'Copy', disabled: 'Not modeled' }, { label: 'Paste', disabled: 'Not modeled' },
+          { label: 'Delete', onClick: deleteSelected },
+          { label: 'Rename', onClick: () => selected && libraryInstances[selected.tag] ? setRenamingModule({ tag: selected.tag, value: selected.tag }) :
+            node?.startsWith('AREA:') ? setEditingArea({ original: node.slice(5), value: node.slice(5) }) : window.alert('Right-click the item to rename it (classes, categories, areas and class-based modules).') }] },
+        { label: 'View', items: [{ label: 'Large Icons', disabled: 'Details view only' }, { label: 'Small Icons', disabled: 'Details view only' },
+          { label: 'List', disabled: 'Details view only' }, { label: '✓ Details' }] },
+        { label: 'Object', items: [
+          { label: 'Open with Control Studio', onClick: () => selected ? openStudio(selected.tag) : window.alert('Select a control module first.') },
+          { label: 'Properties', disabled: 'Right-click an item and choose Properties' }] },
+        { label: 'Applications', items: [
+          { label: 'Control Studio', onClick: () => useUi.getState().navigate('studio') },
+          { label: 'DeltaV Operate', onClick: () => useUi.getState().navigate('overview') },
+          { label: 'Batch Operator Interface', onClick: () => useUi.getState().navigate('batch') },
+          { label: 'Diagnostics', onClick: () => useUi.getState().navigate('hardware') },
+          { label: 'Process History View', onClick: () => useUi.getState().navigate('trend') }] },
+        { label: 'Tools', items: [{ label: 'User Manager', onClick: () => useUi.getState().navigate('users') },
+          { label: 'System Preferences', onClick: () => useUi.getState().navigate('system') }] },
+        { label: 'Help', items: [{ label: 'Workshops', onClick: () => useUi.getState().navigate('workshops') }] }
+      ]} />
+      <div className="dvx-toolbar">
+        <div className="dvx-address" title="Current container">
+          {libSel ? <DvIcon kind="library" /> : selected && !node ? <ModuleIcon kind="control" size={16} /> : <DvIcon kind="database" />}
+          <span>{contentsName}</span><span className="dvx-address-arrow">▾</span>
         </div>
-        {createArea && (
-          <NewModuleForm
-            initialArea={createArea}
-            initialEquipment={newModuleEm}
-            onDone={() => {
-              setCreateArea(null)
-              setNewModuleEm(undefined)
-            }}
-          />
-        )}
-        {createEmArea && (
-          <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
-        )}
-        <div className="exp-node exp-cell" onClick={() => toggle('SETUP')}>
-          <span className="exp-caret">{open.SETUP === false ? '▸' : '▾'}</span>
-          <b>Setup</b>
-        </div>
-        {open.SETUP !== false && <>
-          <div className={'exp-node exp-area' + (setupView === 'namedSets' && !selectedNamedSet ? ' sel' : '')}
-            onClick={() => { setSetupView('namedSets'); setSelectedNamedSet(null) }}
-            onContextMenu={e => {
-              e.preventDefault(); setSetupView('namedSets'); setSelectedNamedSet(null)
-              setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSets', target: 'Named Sets' })
-            }}>
-            <b>Named Sets</b>
-          </div>
-          {Object.keys(namedSets).map(name => <div key={name}
-            className={'exp-node exp-mod nested' + (setupView === 'namedSets' && selectedNamedSet === name ? ' sel' : '')}
-            onClick={() => { setSetupView('namedSets'); setSelectedNamedSet(name) }}
-            onDoubleClick={() => setNamedSetPropertiesRequest(previous => ({ name, serial: (previous?.serial ?? 0) + 1 }))}
-            onContextMenu={e => {
-              e.preventDefault(); setSetupView('namedSets'); setSelectedNamedSet(name)
-              setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSet', target: name })
-            }}>
-            <b>{name}</b>
-          </div>)}
-          <div className={'exp-node exp-area' + (setupView === 'alarmTypes' && !selectedAlarmType ? ' sel' : '')}
-            onClick={() => setSetupView('alarmTypes')}>
-            <b>Alarm Types</b>
-          </div>
-          {Object.keys(customAlarmTypes).map(name => <div key={name}
-            className={'exp-node exp-mod nested' + (setupView === 'alarmTypes' && selectedAlarmType === name ? ' sel' : '')}
-            onClick={() => { setSetupView('alarmTypes'); setSelectedAlarmType(name) }}>
-            <b>{name}</b>
-          </div>)}
-          <div className={'exp-node exp-area' + (setupView === 'conditionAlarms' && !selectedConditionAlarm ? ' sel' : '')}
-            onClick={() => setSetupView('conditionAlarms')}>
-            <b>Condition Alarms</b>
-          </div>
-          {Object.keys(conditionDelayAlarms).map(name => <div key={name}
-            className={'exp-node exp-mod nested' + (setupView === 'conditionAlarms' && selectedConditionAlarm === name ? ' sel' : '')}
-            onClick={() => { setSetupView('conditionAlarms'); setSelectedConditionAlarm(name) }}>
-            <b>{name}</b>
-          </div>)}
-          <div className="exp-node exp-area"><b>Security</b></div>
-          {([['securityParameter', 'Parameter Security'], ['securityField', 'Field Security'], ['securityFunction', 'Function Security']] as const).map(([view, label]) =>
-            <div key={view} className={'exp-node exp-mod nested' + (setupView === view ? ' sel' : '')}
-              onClick={() => setSetupView(view)}>
-              <b>{label}</b>
-            </div>)}
-          {signaturesEnabled && <div className={'exp-node exp-area' + (setupView === 'signatures' ? ' sel' : '')}
-            onClick={() => setSetupView('signatures')}>
-            <b>Electronic Signatures</b>
-          </div>}
-          <div className={'exp-node exp-area' + (setupView === 'alarmPriorities' ? ' sel' : '')}
-            onClick={() => setSetupView('alarmPriorities')}>
-            <b>Alarm Priorities</b>
-          </div>
-          <div className={'exp-node exp-area' + (setupView === 'hierarchy' ? ' sel' : '')}
-            onClick={() => setSetupView('hierarchy')}>
-            <b>Equipment Hierarchy</b>
-          </div>
-          <div className={'exp-node exp-area' + (setupView === 'export' ? ' sel' : '')}
-            onClick={() => setSetupView('export')}>
-            <b>Export / Import</b>
-          </div>
-        </>}
-        <div className="exp-node exp-cell" onClick={() => toggle('PROPLUS')}>
-          <span className="exp-caret">{open.PROPLUS === false ? '▸' : '▾'}</span><b>ProfessionalPLUS (simulated)</b>
-        </div>
-        {open.PROPLUS !== false && <button className={'exp-node exp-area' + (setupView === 'licensing' ? ' sel' : '')}
-          onClick={() => setSetupView('licensing')}>Licensing Properties</button>}
-        <div
-          className="exp-node exp-cell"
-          onContextMenu={e => {
-            e.preventDefault()
-            setMenu({ x: e.clientX, y: e.clientY, kind: 'strategies', target: 'Control Strategies' })
+        <DvToolButton label="New Area" icon="newArea" onClick={newArea} />
+        <DvToolButton label="New Control Module" icon="newModule" onClick={() => { setNewModuleEm(undefined); setCreateArea(v => (v ? null : selectedArea)) }} />
+        <DvToolButton label="New Equipment Module" icon="newEm" onClick={() => setCreateEmArea(v => (v ? null : selectedArea))} />
+        <span className="dvx-tsep" />
+        <DvToolButton label="Cut" icon="cut" disabled />
+        <DvToolButton label="Copy" icon="copy" disabled />
+        <DvToolButton label="Paste" icon="paste" disabled />
+        <span className="dvx-tsep" />
+        <DvToolButton label="Delete" icon="delete" onClick={deleteSelected} />
+        <span className="dvx-tsep" />
+        <DvToolButton label="Large Icons" icon="large" disabled />
+        <DvToolButton label="Small Icons" icon="small" disabled />
+        <DvToolButton label="List" icon="list" disabled />
+        <DvToolButton label="Details" icon="details" pressed />
+      </div>
+      {createArea && (
+        <NewModuleForm
+          initialArea={createArea}
+          initialEquipment={newModuleEm}
+          onDone={() => {
+            setCreateArea(null)
+            setNewModuleEm(undefined)
           }}
-        >
-          <b>Control Strategies</b>
+        />
+      )}
+      {createEmArea && (
+        <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
+      )}
+      <div className="dvx-panes">
+      <div className="explorer-tree" style={{ width: treeWidth, minWidth: treeWidth, flex: `0 0 ${treeWidth}px` }}
+        onMouseDownCapture={e => { if (!(e.target as HTMLElement).closest?.('[data-library]')) setLibSel(null) }}>
+        <div className="dvx-pane-head">All Containers</div>
+        <div className="dvx-tree" role="tree" aria-label="All Containers">
+        <TreeRow depth={0} open={open.ROOT !== false} onToggle={() => setOpen(o => ({ ...o, ROOT: o.ROOT === false }))} selected={containerSelected('root')}
+          icon={<DvIcon kind="database" />} label={<span>{databaseName}</span>} dataAttr={{ 'data-database-root': databaseName }} onClick={() => pickNode('root')}>
+          <LibraryTree depth={1} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }} />
+          <TreeRow depth={1} open={open.SYSCONFIG !== false} onToggle={() => setOpen(o => ({ ...o, SYSCONFIG: o.SYSCONFIG === false }))} selected={containerSelected('sysconfig')}
+            icon={<DvIcon kind="sysconfig" />} label={<span>System Configuration</span>} onClick={() => pickNode('sysconfig')}>
+            <TreeRow depth={2} selected={containerSelected('recipes')} icon={<DvIcon kind="recipes" />} label={<span>Recipes</span>}
+              sub="Recipes are built in Recipe Studio (Batch Operator display)" onClick={() => pickNode('recipes')} />
+            <TreeRow depth={2} open={open.SETUP !== false} onToggle={() => toggle('SETUP')} selected={containerSelected('setup')}
+              icon={<DvIcon kind="setup" />} label={<span>Setup</span>} onClick={() => pickNode('setup')}>
+              {setupItem('namedSets', 'Named Sets', 3, {
+                open: open.NAMEDSETS !== false, onToggle: Object.keys(namedSets).length ? () => setOpen(o => ({ ...o, NAMEDSETS: o.NAMEDSETS === false })) : undefined,
+                selected: !node && !libSel && setupView === 'namedSets' && !selectedNamedSet,
+                onClick: () => pickSetup('namedSets', () => setSelectedNamedSet(null)),
+                onContextMenu: e => { pickSetup('namedSets', () => setSelectedNamedSet(null)); setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSets', target: 'Named Sets' }) },
+                children: Object.keys(namedSets).map(name => <TreeRow key={name} depth={4} icon={<DvIcon kind="item" />} label={<span>{name}</span>}
+                  selected={!node && !libSel && setupView === 'namedSets' && selectedNamedSet === name}
+                  onClick={() => pickSetup('namedSets', () => setSelectedNamedSet(name))}
+                  onDoubleClick={() => setNamedSetPropertiesRequest(previous => ({ name, serial: (previous?.serial ?? 0) + 1 }))}
+                  onContextMenu={e => { pickSetup('namedSets', () => setSelectedNamedSet(name)); setMenu({ x: e.clientX, y: e.clientY, kind: 'namedSet', target: name }) }} />)
+              })}
+              {setupItem('alarmTypes', 'Alarm Types', 3, {
+                open: open.ALARMTYPES !== false, onToggle: Object.keys(customAlarmTypes).length ? () => setOpen(o => ({ ...o, ALARMTYPES: o.ALARMTYPES === false })) : undefined,
+                selected: !node && !libSel && setupView === 'alarmTypes' && !selectedAlarmType,
+                onClick: () => pickSetup('alarmTypes', () => setSelectedAlarmType(null)),
+                children: Object.keys(customAlarmTypes).map(name => <TreeRow key={name} depth={4} icon={<DvIcon kind="item" />} label={<span>{name}</span>}
+                  selected={!node && !libSel && setupView === 'alarmTypes' && selectedAlarmType === name}
+                  onClick={() => pickSetup('alarmTypes', () => setSelectedAlarmType(name))} />)
+              })}
+              {setupItem('conditionAlarms', 'Condition Alarms', 3, {
+                open: open.CONDALARMS !== false, onToggle: Object.keys(conditionDelayAlarms).length ? () => setOpen(o => ({ ...o, CONDALARMS: o.CONDALARMS === false })) : undefined,
+                selected: !node && !libSel && setupView === 'conditionAlarms' && !selectedConditionAlarm,
+                onClick: () => pickSetup('conditionAlarms', () => setSelectedConditionAlarm(null)),
+                children: Object.keys(conditionDelayAlarms).map(name => <TreeRow key={name} depth={4} icon={<DvIcon kind="item" />} label={<span>{name}</span>}
+                  selected={!node && !libSel && setupView === 'conditionAlarms' && selectedConditionAlarm === name}
+                  onClick={() => pickSetup('conditionAlarms', () => setSelectedConditionAlarm(name))} />)
+              })}
+              <TreeRow depth={3} open={open.SECURITY !== false} onToggle={() => setOpen(o => ({ ...o, SECURITY: o.SECURITY === false }))}
+                icon={<DvIcon kind="item" />} label={<span>Security</span>}>
+                {([['securityParameter', 'Parameter Security'], ['securityField', 'Field Security'], ['securityFunction', 'Function Security']] as const)
+                  .map(([view, label]) => setupItem(view, label, 4))}
+              </TreeRow>
+              {signaturesEnabled && setupItem('signatures', 'Electronic Signatures', 3)}
+              {setupItem('alarmPriorities', 'Alarm Priorities', 3)}
+              {setupItem('hierarchy', 'Equipment Hierarchy', 3)}
+              {setupItem('export', 'Export / Import', 3)}
+            </TreeRow>
+            <TreeRow depth={2} open={open.STRATEGIES !== false} onToggle={() => setOpen(o => ({ ...o, STRATEGIES: o.STRATEGIES === false }))}
+              selected={containerSelected('strategies')} icon={<DvIcon kind="strategies" />} label={<span>Control Strategies</span>}
+              dataAttr={{ 'data-control-strategies': '' }}
+              onClick={() => pickNode('strategies')}
+              onContextMenu={e => { pickNode('strategies'); setMenu({ x: e.clientX, y: e.clientY, kind: 'strategies', target: 'Control Strategies' }) }}>
+              <TreeRow depth={3} selected={containerSelected('unassignedio')} icon={<DvIcon kind="unassignedio" />} label={<span>Unassigned I/O References</span>}
+                onClick={() => pickNode('unassignedio')} />
+              {areas.map(area => areaRow(area, 3))}
+            </TreeRow>
+            <PhysicalNetworkTree depth={2} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }}
+              workstationSelected={!node && !libSel && setupView === 'licensing'} onWorkstation={() => pickSetup('licensing')} />
+          </TreeRow>
+        </TreeRow>
         </div>
-        {areas.map((area) => {
-            const mods = list.filter((m) => m.area === area)
-            const ems = Object.values(equipment).filter((em) => em.area === area)
-            const areaSfcs = Object.values(sfcs).map(sfc => ({
-              ...sfc, ...sfcConfiguredMetadata(sfc, sfcLifecycles[sfc.name])
-            })).filter(sfc => sfc.area === area)
-            const unassignedSfcs = areaSfcs.filter(sfc => !sfc.equipmentModule ||
-              !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area)
-            const unassigned = mods.filter((m) => !m.equipmentModule || !equipment[m.equipmentModule])
-            const renderEm = (em: EquipmentModule): JSX.Element => {
-                      const emKey = `EM:${em.tag}`
-                      const emMods = mods.filter((m) => m.equipmentModule === em.tag)
-                      const emSfcs = areaSfcs.filter(sfc => sfc.equipmentModule === em.tag)
-                      return (
-                        <div key={em.tag}>
-                          <div
-                            className="exp-node exp-em"
-                            onClick={() => toggle(emKey)}
-                            onContextMenu={(e) => {
-                              e.preventDefault()
-                              setMenu({ x: e.clientX, y: e.clientY, kind: 'em', target: em.tag })
-                            }}
-                          >
-                            <span className="exp-caret">{open[emKey] ? '▾' : '▸'}</span>
-                            <ModuleIcon kind="equipment" />
-                            {em.tag}
-                            <span className="exp-sub">
-                              {em.description} · {emMods.length + emSfcs.length} modules
-                            </span>
-                          </div>
-                          {open[emKey] && <>
-                            {emMods.map((m) => renderModuleRow(m, true))}
-                            {emSfcs.map(sfc => renderSfcRow(sfc, true))}
-                          </>}
-                        </div>
-                      )
-            }
-            return (
-              <div key={area}>
-                <div
-                  className="exp-node exp-area"
-                  onClick={() => toggle(area)}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setMenu({ x: e.clientX, y: e.clientY, kind: 'area', target: area })
-                  }}
-                >
-                  <span className="exp-caret">{open[area] ? '▾' : '▸'}</span>
-                  <ModuleIcon kind="area" />
-                  {editingArea?.original === area ? (
-                    <input
-                      aria-label="Area name"
-                      className="exp-area-editor"
-                      autoFocus
-                      value={editingArea.value}
-                      onFocus={e => e.target.select()}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => setEditingArea({ original: area, value: e.target.value })}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          finishAreaRename()
-                        } else if (e.key === 'Escape') setEditingArea(null)
-                      }}
-                    />
-                  ) : <span className="exp-area-name" title={area}>{AREA_LABEL[area] ?? area}</span>}
-                  <span className="exp-sub">{mods.length + areaSfcs.length} modules</span>
-                </div>
-                {open[area] && (
-                  <>
-                    {Object.values(processCells).filter((cell) => cell.area === area).map((cell) => {
-                      const cellKey = `CELL:${cell.name}`
-                      return (
-                        <div key={cell.name}>
-                          <div className="exp-node exp-cell" onClick={() => toggle(cellKey)} title={cell.description}>
-                            <span className="exp-caret">{open[cellKey] === false ? '▸' : '▾'}</span>
-                            <ModuleIcon kind="cell" />
-                            <b>{cell.name}</b>
-                            <span className="exp-sub">Process Cell</span>
-                          </div>
-                          {open[cellKey] !== false && Object.values(units).filter((unit) => unit.cell === cell.name).map((unit) => {
-                            const unitKey = `UNIT:${unit.name}`
-                            const unitEms = ems.filter((em) => em.unit === unit.name)
-                            return (
-                              <div key={unit.name}>
-                                <div className="exp-node exp-em" onClick={() => toggle(unitKey)} title={unit.description}>
-                                  <span className="exp-caret">{open[unitKey] === false ? '▸' : '▾'}</span>
-                                  <ModuleIcon kind="equipment" />
-                                  <b>{unit.name}</b>
-                                  <span className="exp-sub">Unit · {unitEms.length} equipment module(s)</span>
-                                </div>
-                                {open[unitKey] !== false && unitEms.map((em) => renderEm(em))}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })}
-                    {ems.filter((em) => !em.unit || !units[em.unit]).map((em) => renderEm(em))}                    {(unassigned.length > 0 || unassignedSfcs.length > 0) && (
-                      <div>
-                        <div className="exp-node exp-em unassigned">
-                          <span className="exp-caret">▾</span>
-                          <ModuleIcon kind="unassigned" />
-                          (Unassigned)
-                          <span className="exp-sub">{unassigned.length + unassignedSfcs.length} modules</span>
-                        </div>
-                        {unassigned.map((m) => renderModuleRow(m, true))}
-                        {unassignedSfcs.map(sfc => renderSfcRow(sfc, true))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )
-          })}
       </div>
 
-      <PaneResizer axis="x" sign={1} value={treeWidth} min={300} max={960}
+      <PaneResizer axis="x" sign={1} value={treeWidth} min={260} max={960}
         onChange={setTreeWidth} label="Resize explorer tree" />
       <div className="explorer-detail">
-        {setupView === 'alarmPriorities' ? <AlarmPrioritiesPanel /> : setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
+        <div className="dvx-pane-head">Contents of '{contentsName}'</div>
+        <div className="dvx-detail-body">
+        {libSel ? <LibraryDetail selection={libSel} onSelect={setLibSel} /> :
+          node ? <div className="dvx-contents"><ContentsList rows={containerRows(node)}
+            empty={node === 'recipes' ? 'Recipes are built in Recipe Studio (Batch Operator display); none are stored here.' : node === 'unassignedio' ? 'No unassigned I/O references.' : 'Empty.'} /></div> :
+          setupView === 'modules' && selected?.type === 'AI' && libraryInstances[selected.tag] ? <InstanceContents tag={selected.tag} /> :
+        setupView === 'alarmPriorities' ? <AlarmPrioritiesPanel /> : setupView === 'hierarchy' ? <HierarchyPanel /> : setupView === 'licensing' ? <LicensingProperties /> : setupView === 'export' ? (
           <ExportImportPanel initialNamedSet={selectedNamedSet} />
         ) : setupView === 'signatures' ? (
           <SignatureSetupPanel />
@@ -453,16 +530,31 @@ export function ExplorerDisplay(): JSX.Element {
               <b>{selectedSfc.name}</b><span>Sequential Function Chart · {selectedSfc.area}</span>
               <div className="exp-props-actions">
                 <button className="tbtn sm" onClick={() => openSfc(selectedSfc.name)}>Open SFC</button>
+                <DownloadStatusIndicator tag={selectedSfc.name} controls />
               </div>
             </div>
             <SfcLifecycleControls name={selectedSfc.name} />
           </div>
         ) : !selected ? (
-          <div className="exp-empty">Select a control module to view its properties.</div>
+          <div className="dvx-contents"><ContentsList rows={containerRows('root')} /></div>
         ) : (
-          <ModuleProperties module={selected} onStudio={() => openStudio(selected.tag)} onFaceplate={() => openFaceplate(selected.tag)} />
+          <div className="dvx-contents">
+            <div className="dvx-actions"><DownloadStatusIndicator tag={selected.tag} controls /></div>
+            <ModuleProperties module={selected} onStudio={() => openStudio(selected.tag)} onFaceplate={() => openFaceplate(selected.tag)} />
+          </div>
         )}
+        </div>
       </div>
+      </div>
+      <div className="dvx-status"><span>For Help, press F1</span><span>{databaseName}</span></div>
+
+      {instMenu && libraryInstances[instMenu.tag] && <ContextMenu onClose={() => setInstMenu(null)} menu={{ x: instMenu.x, y: instMenu.y, label: instMenu.tag,
+        items: instanceMenuItems(instMenu.tag, {
+          rename: () => setRenamingModule({ tag: instMenu.tag, value: instMenu.tag }),
+          select: s => setLibSel(s),
+          download: () => setModuleDownload({ tag: instMenu.tag, controller: libraryAssignments[instMenu.tag] })
+        }) }} />}
+      {moduleDownload && <ControllerDownloadDialog controller={moduleDownload.controller} tag={moduleDownload.tag} onClose={() => setModuleDownload(null)} />}
 
       {menu && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
@@ -1107,4 +1199,56 @@ function NewEquipmentModuleForm({
       </div>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// "Exploring DeltaV" window chrome: menu bar and toolbar buttons.
+
+type DvMenuItem = { label: string; onClick?: () => void; disabled?: string }
+
+function DvMenuBar({ menus }: { menus: { label: string; items: DvMenuItem[] }[] }): JSX.Element {
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  useEffect(() => {
+    if (!openMenu) return
+    const close = (): void => setOpenMenu(null)
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [openMenu])
+  return <div className="dvx-menubar" role="menubar" onMouseDown={e => e.stopPropagation()}>
+    {menus.map(m => <div key={m.label} className="dvx-menu">
+      <button role="menuitem" className={'dvx-menu-btn' + (openMenu === m.label ? ' open' : '')}
+        onClick={() => setOpenMenu(v => (v === m.label ? null : m.label))}
+        onMouseEnter={() => setOpenMenu(v => (v ? m.label : v))}>
+        <u>{m.label[0]}</u>{m.label.slice(1)}
+      </button>
+      {openMenu === m.label && <div className="ctx-menu dvx-dropdown" role="menu" aria-label={`${m.label} menu`}>
+        {m.items.map(item => <button key={item.label} role="menuitem" className="ctx-item" disabled={!!item.disabled} title={item.disabled}
+          onClick={() => { setOpenMenu(null); item.onClick?.() }}>{item.label}</button>)}
+      </div>}
+    </div>)}
+  </div>
+}
+
+type ToolIcon = 'newArea' | 'newModule' | 'newEm' | 'cut' | 'copy' | 'paste' | 'delete' | 'large' | 'small' | 'list' | 'details'
+
+function DvToolButton({ label, icon, onClick, disabled, pressed }: { label: string; icon: ToolIcon; onClick?: () => void; disabled?: boolean; pressed?: boolean }): JSX.Element {
+  const balls = (star: string): JSX.Element => <>
+    <circle cx={8} cy={5} r={3} fill="#c0452f" /><circle cx={4.5} cy={11} r={3} fill="#5d9b39" /><circle cx={11.5} cy={11} r={3} fill="#34338c" />
+    <path d="M13,1 L14,3 L16,3.4 L14.5,4.8 L15,7 L13,6 L11,7 L11.5,4.8 L10,3.4 L12,3 Z" fill={star} stroke="#7a6a12" strokeWidth={0.5} />
+  </>
+  return <button className={'dvx-tool' + (pressed ? ' pressed' : '')} title={label} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
+    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden>
+      {icon === 'newArea' && <><path d="M1,15 V9 L4,10.5 V9 L7,10.5 V6 H9 V15 Z" fill="#8a9099" stroke="#3f444b" strokeWidth={0.6} /><path d="M13,1 L14,3 L16,3.4 L14.5,4.8 L15,7 L13,6 L11,7 L11.5,4.8 L10,3.4 L12,3 Z" fill="#f2d33a" stroke="#7a6a12" strokeWidth={0.5} /></>}
+      {icon === 'newModule' && balls('#f2d33a')}
+      {icon === 'newEm' && <><rect x={0.5} y={1.5} width={13} height={13} fill="none" stroke="#5a5f68" />{balls('#f2d33a')}</>}
+      {icon === 'cut' && <path d="M4,2 L10,12 M12,2 L6,12 M5,13 a2,2 0 1 0 0.1,0 M11,13 a2,2 0 1 0 0.1,0" stroke="#3f444b" fill="none" strokeWidth={1.2} />}
+      {icon === 'copy' && <><rect x={2} y={2} width={8} height={10} fill="#fff" stroke="#3f444b" /><rect x={6} y={5} width={8} height={10} fill="#fff" stroke="#3f444b" /></>}
+      {icon === 'paste' && <><rect x={3} y={3} width={10} height={12} fill="#c9a76a" stroke="#6c4a1f" /><rect x={6} y={1} width={4} height={3} fill="#9aa1ab" /><rect x={7} y={7} width={7} height={8} fill="#fff" stroke="#3f444b" /></>}
+      {icon === 'delete' && <path d="M3,3 L13,13 M13,3 L3,13" stroke="#1b1f24" strokeWidth={2.2} />}
+      {icon === 'large' && <><rect x={1} y={1} width={6} height={6} fill="#4f6fa8" /><rect x={9} y={1} width={6} height={6} fill="#4f6fa8" /><rect x={1} y={9} width={6} height={6} fill="#4f6fa8" /><rect x={9} y={9} width={6} height={6} fill="#4f6fa8" /></>}
+      {icon === 'small' && <>{[1, 6, 11].map(y => <g key={y}><rect x={1} y={y} width={4} height={4} fill="#4f6fa8" /><rect x={9} y={y} width={4} height={4} fill="#4f6fa8" /></g>)}</>}
+      {icon === 'list' && <>{[2, 7, 12].map(y => <g key={y}><rect x={1} y={y} width={3} height={3} fill="#4f6fa8" /><path d={`M6,${y + 1.5} H15`} stroke="#3f444b" /></g>)}</>}
+      {icon === 'details' && <><rect x={1} y={1} width={14} height={14} fill="#fff" stroke="#3f444b" /><path d="M1,5 H15 M1,9 H15 M1,13 H15 M6,1 V15" stroke="#3f444b" strokeWidth={0.8} /></>}
+    </svg>
+  </button>
 }

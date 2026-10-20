@@ -298,6 +298,10 @@ export interface AnalogIndicator extends ModuleDisplayProperties {
   alarms: AlarmLimit[]
   /** STATUS.QUALITY = BAD — PV is frozen (CHARM pulled or controller down). */
   pvBad: boolean
+  /** Course 7016: Control Module Class this module was created from; its PV is executed by the class library engine. */
+  classInstance?: string
+  /** Runtime status text reported by the executing block (class-based modules). */
+  statusText?: string
 }
 
 export interface FloatingInputParameter {

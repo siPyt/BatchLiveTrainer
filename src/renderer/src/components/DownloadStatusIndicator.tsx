@@ -6,8 +6,10 @@ const labels: Record<DownloadStatus, string> = {
   UNKNOWN: 'Status unknown', DIFFERENT: 'Download required', MATCH: 'Up to date'
 }
 
-export function DownloadStatusIndicator({ tag, controls = false }: {
+export function DownloadStatusIndicator({ tag, controls = false, compact = false }: {
   tag: string; controls?: boolean
+  /** Explorer tree: only the blue "download required" triangle, as DeltaV Explorer shows it. */
+  compact?: boolean
 }): JSX.Element {
   const hardware = useStore(state => state.hardware)
   const moduleLifecycle = useStore(state => state.moduleLifecycle)
@@ -19,6 +21,9 @@ export function DownloadStatusIndicator({ tag, controls = false }: {
     hardware, moduleLifecycle, pidLifecycle, deviceLifecycle, sfcLifecycle, downloadStatusChecks
   }, tag)
   if (result.status === 'UNSUPPORTED') return <></>
+  if (compact) return ['NO_CONFIGURATION', 'UNKNOWN', 'DIFFERENT'].includes(result.status)
+    ? <span className="tv-pending" data-download-status-tag={tag} data-download-status={result.status} title={`${labels[result.status]}: ${result.message}`}>▲</span>
+    : <></>
   return <span className="download-status-group" data-download-status-tag={tag} data-download-status={result.status}>
     <span className={`download-status ${result.status.toLowerCase()}`} title={`${result.message}. Managed module scope only.`}
       aria-label={`${tag}: ${labels[result.status]}`}>
