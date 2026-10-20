@@ -27,11 +27,38 @@ const BLOCK_W = 150
 const BLOCK_H = 86
 const PARAM_W = 120
 const PARAM_H = 24
+/** Keep diagram items inside the drawn canvas (a drop beside it, or an older off-canvas position, stays visible). */
+const clampX = (x: number, w: number): number => Math.max(14, Math.min(CANVAS_W - w - 24, x))
+const clampY = (y: number, h: number): number => Math.max(14, Math.min(CANVAS_H - h - 24, y))
 const PIN_Y = 52
 const CANVAS_W = 900
 const CANVAS_H = 460
 
 type Node = { kind: 'module' } | { kind: 'block'; name: string } | { kind: 'param'; name: string }
+
+/** DeltaV Control Studio palette groups (function block names as listed in the palette). */
+const PALETTE_GROUPS: Record<string, string[]> = {
+  'Advanced Control': ['FLC', 'NN', 'MPC', 'PRED', 'DT'],
+  'Analog Control': ['PID', 'BG', 'CTLSL', 'FFET', 'LL', 'MAN', 'RAT', 'SPLTR', 'ISEL'],
+  'Calculation/Logic': ['ACT', 'AND', 'BDE', 'BFI', 'BFO', 'CALC', 'CMP', 'CND', 'MLTX', 'NDE', 'NOT', 'OR', 'PDE', 'RS', 'SR'],
+  'I/O': ['AI', 'AO', 'DI', 'DO', 'MAI', 'MDI', 'MDO', 'PIN'],
+  'Math': ['ABS', 'ADD', 'DIV', 'INT', 'MLTY', 'SCLR', 'SUB'],
+  'Timer/Counter': ['CTR', 'DLY', 'RET', 'TP']
+}
+
+/** Small palette icons: parameter shapes for Special Items, a mini function block for blocks. */
+function PaletteGlyph({ kind, label }: { kind: string; label?: string }): JSX.Element {
+  const stroke = '#2c4f7c'
+  const shape = kind === 'Input Parameter' ? <><path d="M2 4 H14 L19 9 L14 14 H2 Z" fill="#fff" stroke={stroke} /><path d="M19 9 H22" stroke={stroke} /></>
+    : kind === 'Output Parameter' ? <><path d="M7 4 H20 V14 H7 L2 9 Z" fill="#fff" stroke={stroke} /><path d="M0 9 H2" stroke={stroke} /></>
+    : kind === 'Internal Read Parameter' ? <><rect x="2" y="4" width="18" height="10" fill="#fff" stroke={stroke} /><text x="11" y="12.5" fontSize="8" textAnchor="middle" fill={stroke}>R</text></>
+    : kind === 'Internal Write Parameter' ? <><rect x="2" y="4" width="18" height="10" fill="#fff" stroke={stroke} /><text x="11" y="12.5" fontSize="8" textAnchor="middle" fill={stroke}>W</text></>
+    : kind === 'Embedded Composite' ? <><rect x="2" y="2" width="18" height="14" fill="#fff" stroke={stroke} /><rect x="6" y="6" width="10" height="6" fill="#dfe8f3" stroke={stroke} /></>
+    : kind === 'Linked Composite' ? <><rect x="2" y="2" width="18" height="14" fill="#fff" stroke={stroke} /><path d="M7 9 h8 M12 6 l3 3 l-3 3" fill="none" stroke={stroke} /></>
+    : <><rect x="3" y="2" width="16" height="14" fill="#eef2f7" stroke={stroke} /><rect x="3" y="2" width="16" height="4" fill="#c9d6e6" stroke={stroke} />
+        <path d="M0 11 H3 M19 11 H22" stroke={stroke} /><text x="11" y="14" fontSize="5.5" textAnchor="middle" fill={stroke}>{(label ?? '').slice(0, 4)}</text></>
+  return <svg className="cs-pal-glyph" width="22" height="18" viewBox="0 0 22 18" aria-hidden="true">{shape}</svg>
+}
 type Menu = Parameters<typeof ContextMenu>[0]['menu']
 
 function pinPosition(d: ModuleDefinition, end: string, pos: (id: string) => { x: number; y: number }): { x: number; y: number } | null {
@@ -72,6 +99,7 @@ export function ClassStudio(): JSX.Element {
   const dirty = !readOnly && !!lib.drafts[className]
 
   const [tab, setTab] = useState('Home')
+  const [palOpen, setPalOpen] = useState<Record<string, boolean>>({})
   const [node, setNode] = useState<Node>({ kind: 'block', name: 'AI1' })
   const [paramTab, setParamTab] = useState<'alpha' | 'cat'>('alpha')
   const [bottomTab, setBottomTab] = useState<'parameters' | 'alarms'>('parameters')
@@ -124,9 +152,9 @@ export function ClassStudio(): JSX.Element {
   const pos = (id: string): { x: number; y: number } => {
     if (moving?.id === id) return { x: moving.x, y: moving.y }
     const b = d.blocks[id]
-    if (b) return { x: b.x, y: b.y }
+    if (b) return { x: clampX(b.x, BLOCK_W), y: clampY(b.y, 60) }
     const s = d.params[id]?.special
-    return { x: s?.x ?? 0, y: s?.y ?? 0 }
+    return { x: clampX(s?.x ?? 0, PARAM_W), y: clampY(s?.y ?? 0, PARAM_H) }
   }
   const point = (e: { clientX: number; clientY: number }): { x: number; y: number } => {
     const r = svg.current?.getBoundingClientRect()
@@ -186,7 +214,7 @@ export function ClassStudio(): JSX.Element {
     if (!e.dataTransfer.getData(DRAG_PALETTE) || readOnly) return
     e.preventDefault()
     const p = point(e)
-    addInputParameter(p.x - PARAM_W / 2, p.y - PARAM_H / 2)
+    addInputParameter(clampX(p.x - PARAM_W / 2, PARAM_W), clampY(p.y - PARAM_H / 2, PARAM_H))
   }
 
   const startMove = (id: string, e: React.MouseEvent): void => {
@@ -197,7 +225,10 @@ export function ClassStudio(): JSX.Element {
   }
   const onMouseMove = (e: React.MouseEvent): void => {
     const p = point(e)
-    if (moving) setMoving({ ...moving, x: Math.max(0, Math.round(p.x - moving.ox)), y: Math.max(0, Math.round(p.y - moving.oy)) })
+    if (moving) {
+      const w = d.blocks[moving.id] ? BLOCK_W : PARAM_W
+      setMoving({ ...moving, x: Math.round(clampX(p.x - moving.ox, w)), y: Math.round(clampY(p.y - moving.oy, d.blocks[moving.id] ? 60 : PARAM_H)) })
+    }
     if (wiring) setWiring({ ...wiring, x2: p.x, y2: p.y })
   }
   const onMouseUp = (): void => {
@@ -522,13 +553,19 @@ export function ClassStudio(): JSX.Element {
             <div className={'studio-pal-item' + (readOnly ? ' disabled' : '')} draggable={!readOnly} data-palette="Input Parameter"
               title={readOnly ? 'Class-based modules are edited through their class' : 'Drag onto the diagram'}
               onDragStart={e => { e.dataTransfer.setData(DRAG_PALETTE, 'INPUT'); e.dataTransfer.setData('text/plain', 'Input Parameter'); e.dataTransfer.effectAllowed = 'copy' }}>
-              <span className="cs-param-ico">▭</span><span>Input Parameter</span>
+              <PaletteGlyph kind="Input Parameter" /><span>Input Parameter</span>
             </div>
             {['Output Parameter', 'Internal Read Parameter', 'Internal Write Parameter', 'Embedded Composite', 'Linked Composite'].map(x =>
-              <div key={x} className="studio-pal-item disabled" title="Not used in Chapter 1; not modeled in BatchLive"><span className="cs-param-ico">▭</span><span>{x}</span></div>)}
+              <div key={x} className="studio-pal-item disabled" title="Not used in Course 7016 Chapter 1; not modeled for classes"><PaletteGlyph kind={x} /><span>{x}</span></div>)}
           </div>
-          {['Advanced Control', 'Analog Control', 'Calculation/Logic', 'I/O', 'Math', 'Timer/Counter'].map(g => <div key={g} className="studio-pal-group">
-            <div className="studio-pal-head disabled" title="Function blocks beyond the template's AI1 are not modeled for classes">{g}</div>
+          {Object.entries(PALETTE_GROUPS).map(([g, blocks]) => <div key={g} className="studio-pal-group">
+            <button type="button" className="studio-pal-head studio-pal-toggle" aria-expanded={!!palOpen[g]} onClick={() => setPalOpen(o => ({ ...o, [g]: !o[g] }))}>
+              <span className="studio-pal-caret">{palOpen[g] ? '▾' : '▸'}</span>{g}
+            </button>
+            {palOpen[g] && blocks.map(b => <div key={b} className="studio-pal-item disabled" data-palette={b}
+              title={`${b} block — not used by the LEVEL_INDICATOR class (Course 7016 Chapter 1 keeps the ANALOG template's AI1 block)`}>
+              <PaletteGlyph kind="block" label={b} /><span>{b}</span>
+            </div>)}
           </div>)}
         </div>
         <div className="studio-pane-label">Palette · drag Special Items onto the diagram</div>

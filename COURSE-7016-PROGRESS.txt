@@ -333,6 +333,11 @@ Fix (2026-10-20, Chapter 1 p1-22): a class-based module follows the SAVED class;
 "Allow instance value to be configured" on AI1 OUT_SCALE) stay in a draft until File -> Save. The instance's
 Contents pane and its Control Studio view now say so when the class has unsaved changes, with an Open button.
 
+Fix (2026-10-20, Chapter 1 p1-25 Step 4): dropping the Input Parameter beside the drawn diagram placed it off-canvas
+(it only showed in the hierarchy). Drops, moves and existing positions are now kept inside the diagram. The class
+palette now has DeltaV-style icons for the Special Items and expandable block groups (Advanced Control, Analog
+Control, Calculation/Logic, I/O, Math, Timer/Counter); the blocks are listed greyed (not used by LEVEL_INDICATOR).
+
 Kept local only (NOT in GitHub, on purpose): 958791105-7016-8.pdf and pdf_extracted/ - Emerson copyrighted course
 material and the repository is public. bl-preview.vite.config.mjs (browser preview config, in .git/info/exclude).
 To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,

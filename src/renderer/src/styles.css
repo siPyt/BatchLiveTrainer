@@ -4989,3 +4989,8 @@ button {
 .sp-db-body { flex-direction: column; gap: 6px; min-height: 90px; background: #fff; margin: 6px; border: 1px solid #8a8f96; }
 .sp-clients ul { margin: 4px 0; padding-left: 18px; }
 .sp-statusbar { display: flex; justify-content: flex-end; padding: 2px 8px; border-top: 1px solid #c9c5bb; font-size: 11px; }
+/* Control Studio (class) palette: icons and expandable block groups */
+.studio-pal-item { display: flex; align-items: center; gap: 6px; }
+.cs-pal-glyph { flex: 0 0 auto; }
+.studio-pal-toggle { display: flex; align-items: center; gap: 4px; width: 100%; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.studio-pal-caret { width: 10px; display: inline-block; }
