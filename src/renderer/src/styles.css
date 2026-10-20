@@ -4951,3 +4951,11 @@ button {
 .bh-dim { color: var(--dv-text-mute); }
 .bh-value { background: #22272e; color: #9fe39a; border: 1px solid #10141a; font-weight: 700; padding: 1px 8px; cursor: pointer; min-width: 90px; text-align: left; }
 .bh-report { font-weight: 700; color: #6a5500; }
+/* Course 7016 Chapter 5: Equipment Module Control Studio */
+.em-cmd-table td, .em-items td { vertical-align: middle; }
+.em-cmd-table tr { cursor: pointer; }
+.em-cmd-table tr.em-running td { background: #dff3e3; color: #1f5f2e; font-weight: 700; }
+.em-cell-input { width: 100%; min-width: 52px; box-sizing: border-box; font: inherit; padding: 1px 3px; border: 1px solid var(--dv-border); background: #ffffff; }
+.em-state-driven { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
+.em-items th { white-space: nowrap; }
+.em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }

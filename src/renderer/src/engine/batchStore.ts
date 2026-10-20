@@ -821,6 +821,10 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (assign[name]) { assign[to] = assign[name]; delete assign[name] }
     set({ units, unitAssignments: assign, deployedUnits: withoutKeys(s.deployedUnits, [name]),
       contained: Object.fromEntries(Object.entries(s.contained).map(([k, u]) => [k, u === name ? to : u])) })
+    useEm.setState(st => ({
+      instances: Object.fromEntries(Object.entries(st.instances).map(([k, i]) => [k, i.unit === name ? { ...i, unit: to } : i])),
+      cmInstances: Object.fromEntries(Object.entries(st.cmInstances).map(([k, c]) => [k, c.owner.kind === 'unit' && c.owner.name === name ? { ...c, owner: { ...c.owner, name: to } } : c]))
+    }))
     log(to, `Unit Module renamed from ${name}`)
     return ok(to)
   },
@@ -1224,7 +1228,8 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!requireUnlockedLock('CAN_CONFIGURE', `Delete course module ${tag}`)) return fail('Requires the Can Configure key')
     const children = isEm ? Object.values(em.instances[tag].children) : []
     const gone = isEm ? children : [tag]
-    if (gone.length) useStore.setState(st => ({ modules: withoutKeys(st.modules, gone), rev: st.rev + 1 }))
+    if (isEm) useStore.setState(st => ({ modules: withoutKeys(st.modules, gone), rev: st.rev + 1 }))
+    else { useStore.getState().deleteModule(tag); if (useStore.getState().modules[tag]) return fail(`${tag} was not deleted`) }
     useEm.setState(st => ({ instances: withoutKeys(st.instances, [tag]), cmInstances: withoutKeys(st.cmInstances, [tag, ...children]),
       deployed: withoutKeys(st.deployed, [tag]), runtime: withoutKeys(st.runtime, [tag]) }))
     useLibrary.setState(l => ({ assignments: withoutKeys(l.assignments, [tag, ...children]) }))

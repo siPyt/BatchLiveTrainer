@@ -144,32 +144,112 @@ Syntax reference (chapters_1_and_4 PDF section 4.3) is executed by tests: '/REQU
 '^/REQUEST.CV' = 3202, <>, !=, '/INLET_VLV.IGN', '//XV-102/DC1/SP_D', LOGEVENT("..." + value), etc.
 
 
-5. TESTS AND VERIFICATION
+5. CHAPTER 5 - Unit Classes, Equipment Module Classes and Control Module Classes (pp 5-1 .. 5-54)
+-------------------------------------------------------------------------------------------------
+Status: DONE - all six Chapter 5 workshops, including both optional exercises, can be performed and are checked live.
+
+Engine (src/renderer/src/engine):
+- emStore.ts: Equipment Module Class categories and classes. The New dialog offers all seven algorithm types
+  (Function Block Diagram, SFC, Command driven, State driven, Phase Algorithm, Phase with command-driven / state-
+  driven run logic); Command driven and State driven are modeled, the rest explain they are not. A command-driven
+  named set must contain the 255 (Idle) entry.
+  * Command driven: one COMMAND_0000n SFC per named-set command (value 1..n), maximum time, enabled.
+  * State driven: Items (name, write path, readback path - module level parameters only) and one States column per
+    named-set state (Cascade/Auto/Manual/OOS, CLOSE/OPEN or the valve set).
+  * Module blocks inside an EM class from the Control Module Classes 2STAGE_VALVE, NC_VALVE (NC_Valves), AGIT_MTR,
+    OUT_PMP (2StateMotor). Block name = class name cut to 11 characters + _1 (2STAGE_VALV_1, NC_VALVE_1).
+  * Runtime: A_COMMAND, A_TARGET, A_PV (Idle 255 while a command runs, then the command name), A_STATE, A_TIME,
+    A_ABT_ON_NEW_CMD (False = finish the running command first, True = abort it), block status Running/Complete/
+    Failed/Aborted, event journal entries "COMMAND_0000n Complete; A_PV = ...", state-driven readback checking.
+- batchStore.ts: unit class module blocks (Private / Shared, Allow variant), automatic aliases per block, unit
+  module instantiation (AGITATOR1, COLOR_IN_VLV1, BLNDR_OUTLET1 ...), renaming of instances everywhere (aliases,
+  assignments, unit blocks, EM children), deleting modules (refused while assigned: "Delete its assignment first"),
+  Delete Assignment, module descriptions, two stage valve Close/Dribble/Bulk, unit module rename/delete carrying
+  the EM instances and private modules along.
+- libraryStore.ts / classLibrary.ts: course process with BASE 400 (2000 gal, starts at 1500), MTR-403, FIC-404 flow
+  loop (150 GPM at 100 % OUT, idle low-flow alarms disabled), LI-401; color dumps (5 gal/s Bulk, 1/5 in Dribble),
+  blender drains 8 gal/s, agitator run time; every transfer is measured (amount, time, average SP, end level).
+- Named sets in DV_School: EM-vlvnc-2stage (Close 1, Dribble 2, Bulk 3, Auto Mode 4, Idle 255) and EM_Outlet_State
+  (Closed - CAS 1, Draining Waste - CAS 2, Releasing Product - CAS 3, Auto Mode 4, Idle 255), plus vlvnc2stage-sp/pv.
+
+Screens:
+- DeltaV Explorer: Advanced Definitions -> Equipment Module Classes (New Category, New Equipment Module Class,
+  Rename, Delete, Properties, Open with Control Studio); Control Module Classes -> 2StateMotor / NC_Valves rows
+  that can be dragged onto an EM class or a unit class. Dropping a class on a unit class opens the "Module block"
+  dialog (Class name + Browse, Ownership type, Allow variant module ...) and starts the in-place rename.
+  Unit classes list their module blocks (rename, delete, properties). Unit modules list their equipment modules
+  with their child control modules and the private control modules; the contents pane shows "XV-502 (COLOR_IN_VLV)".
+  Physical Network -> CTLR1 contents: right-click a module -> Delete Assignment.
+- Control Studio for EM classes (EmStudio.tsx): command table, drill into COMMAND_0000n SFCs with the same step /
+  action / transition / expression dialogs as the phase studio (Insert Internal Parameter inserts
+  '^/COLOR_IN_VLV/MODE.TARGET'; Insert Alias is disabled inside an EM class), Items / States grid for state-driven
+  classes, parameter list, Save. On-Line on an instance: Set A_COMMAND (named set list, Idle not selectable),
+  A_ABT_ON_NEW_CMD toggle, live block status, A_PV, child valve state (CLOSED / DRIBBLE / BULK).
+- Process picture: Base 400 tank with level, LI-401, MTR-403 pump piped into the base header, FIC-404 box
+  (PV / SP / OUT / mode), XV-502 / XV-602 stage label (CLOSED / DRIBBLE / BULK).
+- Valve faceplate for two stage valves: Close / Dribble / Bulk buttons; mode box shows the real DeltaV mode the
+  phase or EM uses (CAS / AUTO); "Equipment Module:" shows the owning EM. Motor faceplate likewise.
+
+templates.txt gaps filled:
+- Library -> ModuleTemplates now holds the standard DeltaV module templates: Analog Control, Monitoring (ANALOG,
+  DISCRETE_MON, TOTALIZER), Valves-NormallyClosed (VLVNC-10/11/12, _ILOCK), Valves-NormallyOpen, Motors-2State
+  (MTR-10/11/11_ILOCK), Motors-3State (MTR3-11/21/22), each with a description and the -XY I/O suffix explained
+  (X discrete outputs, Y discrete inputs). The course device classes name their template (NC_VALVE VLVNC-11,
+  2STAGE_VALVE VLVNC-12, AGIT_MTR / OUT_PMP MTR-11).
+
+How to do the Chapter 5 workshops (Course 7016 Workshops display, module "Ch 5"):
+- Prerequisites: Chapter 1 LI-504 / LI-604 and Chapter 4 process cell PAINT_PRODUCTION.
+- Workshop - BLENDER_COLOR: Equipment Module Classes -> New Category CommandDriven -> New Equipment Module Class
+  BLENDER_COLOR (Command driven, Browse EM-vlvnc-2stage) -> drag NC_Valves/2STAGE_VALVE onto it, rename to
+  COLOR_IN_VLV -> Open with Control Studio -> drill into each COMMAND_0000n and build CLOSE_VLV/VLV_CLOSED,
+  DRIBBLE_SP/VLV_DRIBBLE, BULK_SP/VLV_BULK, AUTO_MODE/ACTUAL_AUTO -> Save.
+- Workshop - BLENDER_OUTLET: StateDriven -> BLENDER_OUTLET (State driven, EM_Outlet_State) -> NC_VALVE twice
+  (PRODUCT_VLV, WASTE_VLV) -> Control Studio -> Items (right-click Add) -> States -> Save.
+- Workshop - BLENDERS Unit Class: CTLR1 contents -> Delete Assignment; delete the 12 blender modules; Unit Classes
+  -> BlenderUnits -> BLENDERS; drag BLENDER_COLOR, BLENDER_OUTLET, AGIT_MTR, OUT_PMP, NC_VALVE onto BLENDERS and
+  rename the blocks; New Alias TANK_LEVEL; drag BLENDERS onto PAINT_PRODUCTION twice (UM_BL_500 / UM_BL_600);
+  rename the instances; resolve TANK_LEVEL; Properties -> Primary control display Process; drag LI-504 / LI-604
+  onto the units; drag ED_CENTER_BATCH and FEED_TANK_AREA onto CTLR1; Download Controller.
+- Workshop - Verify you can run the process: everything from the Process picture faceplates; each fill, transfer,
+  dump, agitation and drain is measured and shown as Verified when it is within a sensible band (valves take 2 s to
+  travel and the pumps a few seconds to stop, so stop a little early).
+- Workshop - Verify Equipment Modules: right-click BL_500_COLOR_IN -> Open with Control Studio -> On-Line -> Set
+  A_COMMAND Dribble / Bulk / Close / Auto Mode; then BL_500_OUTLET Draining Waste / Releasing Product / Closed /
+  Auto Mode; repeat for 600. Valve faceplates show CAS / AUTO and DRIBBLE / BULK.
+- Optional Exercises: Properties -> Description on the unit modules and their control modules; MTR-505 / MTR-605
+  -> Open with Control Studio -> Interlock / Permissive conditions on XV-n03 / XV-n04.
+
+Browser walkthrough done for Chapter 5 (EM class creation, 2STAGE_VALVE drag, COMMAND_00001 step/action through
+the dialogs, state-driven grid, Delete Assignment, module block drop + rename, unit module instances, live checks
+all Verified, On-Line A_COMMAND Dribble -> COMMAND_00002 Complete / A_PV Dribble, XV-502 faceplate CAS + DRIBBLE,
+MTR-505 Control Studio interlocks). Fixed during the walkthrough: unit module rename did not reach the EM instances,
+the block rename box closed itself after the Module block dialog, EM child modules also showed at area level,
+faceplates showed MAN instead of the CAS/AUTO mode the EM uses.
+
+
+6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
 - tests/course7016-ch4.test.cjs     Chapter 3 Enable Batch; expression language; FILL workshop end to end on
                                     UM_COLOR_100; Hold & Restart; unresolved alias failure; syntax reference;
                                     workshop checkers (every FILL step Verified after a scripted run; Hold/Restart,
                                     Verify and the optional exercises including per-unit OVERSHOOT, STOP and ABORT).
+- tests/course7016-ch5.test.cjs     EM classes, BLENDERS unit class and both unit modules end to end with every
+                                    BLENDER_COLOR / BLENDER_OUTLET / BLENDERS check Verified; on-line commands and
+                                    states (A_ABT_ON_NEW_CMD both ways); process run (base at 90 GPM, dump, dribble,
+                                    agitate, drain) with the run-process checks; Chapter 5 screens render; every
+                                    workshop step has a live check and step ids are unique across the course.
 - tests/operator-ribbons.test.cjs   the Trainer shows only course displays (no site areas, presets or DV-09).
-- Full suite: 748 of 749 pass; tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual text, not in
-  this repository) and fails at load, as it did before this work.
+- Full suite: 754 of 755 pass; tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual text, not in
+  this repository) and fails at load, as it did before this work. Typecheck (web and node) is clean.
 - Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
   desktop: npm run dev.
 
 
-6. NOT SIMULATED (shown as disabled with an explanation)
+7. NOT SIMULATED (shown as disabled with an explanation)
 --------------------------------------------------------
-Batch Executive procedures, Recipe Studio and the Batch Operator Interface (not used in Chapters 1 and 4),
+Batch Executive procedures, Recipe Studio and the Batch Operator Interface (not used in Chapters 1, 4 and 5),
 FAIL_MONITOR execution, Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
-Studio, version control (Check Out), unit arbitration, batch history/reporting.
-
-
-7. NEXT: CHAPTER 5 - Module Classes (Equipment Module Classes, BLENDERS unit class)
------------------------------------------------------------------------------------
-Planned from chapters4&5.txt and the PDF: Equipment Module Class categories (CommandDriven, StateDriven);
-command-driven BLENDER_COLOR (named set EM-vlvnc-2stage with 255 Idle, child CM COLOR_IN_VLV from 2STAGE_VALVE,
-COMMAND_00001..00004 SFCs); state-driven BLENDER_OUTLET (EM_Outlet_State, PRODUCT_VLV/WASTE_VLV from NC_VALVE,
-Items and States tabs); A_COMMAND / A_TARGET / A_PV / A_ABT_ON_NEW_CMD runtime; BLENDERS unit class with
-Private/Shared module ownership and automatic aliases; UM_BL_500 / UM_BL_600 instantiation, renaming, TANK_LEVEL
-alias, download; online EM testing from Control Studio and DeltaV Operate; optional MTR-505/605 interlocks.
+Studio, version control (Check Out), unit arbitration and Modelock Override, batch history/reporting, EM algorithm
+types other than Command driven and State driven, Shared module blocks can be bound but variant substitution
+checks only the class name.

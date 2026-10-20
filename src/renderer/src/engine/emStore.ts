@@ -33,12 +33,12 @@ export const EM_ALGORITHM_NOTE: Record<EmAlgorithm, string> = {
 export const SUPPORTED_EM_ALGORITHMS: EmAlgorithm[] = ['Command driven', 'State driven']
 
 /** Control Module Classes provided in the DV_School library for Chapter 5 (pp 5-13, 5-21, 5-32). */
-export interface CmDeviceClass { name: string; category: string; kind: 'VALVE' | 'MOTOR'; twoStage: boolean; description: string; spSet: string; pvSet: string }
+export interface CmDeviceClass { name: string; category: string; kind: 'VALVE' | 'MOTOR'; twoStage: boolean; description: string; spSet: string; pvSet: string; template: string }
 export const CM_DEVICE_CLASSES: Record<string, CmDeviceClass> = {
-  '2STAGE_VALVE': { name: '2STAGE_VALVE', category: 'NC_Valves', kind: 'VALVE', twoStage: true, description: 'Two stage (dribble / bulk) normally closed valve', spSet: 'vlvnc2stage-sp', pvSet: 'vlvnc2stage-pv' },
-  NC_VALVE: { name: 'NC_VALVE', category: 'NC_Valves', kind: 'VALVE', twoStage: false, description: 'Normally closed block valve', spSet: 'vlvnc-sp', pvSet: 'vlvnc-pv' },
-  AGIT_MTR: { name: 'AGIT_MTR', category: '2StateMotor', kind: 'MOTOR', twoStage: false, description: 'Two state agitator motor', spSet: 'mtr2-sp', pvSet: 'mtr2-pv' },
-  OUT_PMP: { name: 'OUT_PMP', category: '2StateMotor', kind: 'MOTOR', twoStage: false, description: 'Two state outlet pump', spSet: 'mtr2-sp', pvSet: 'mtr2-pv' }
+  '2STAGE_VALVE': { name: '2STAGE_VALVE', category: 'NC_Valves', kind: 'VALVE', twoStage: true, description: 'Two stage (dribble / bulk) normally closed valve', spSet: 'vlvnc2stage-sp', pvSet: 'vlvnc2stage-pv', template: 'VLVNC-12 (second output drives the bulk stage)' },
+  NC_VALVE: { name: 'NC_VALVE', category: 'NC_Valves', kind: 'VALVE', twoStage: false, description: 'Normally closed block valve', spSet: 'vlvnc-sp', pvSet: 'vlvnc-pv', template: 'VLVNC-11' },
+  AGIT_MTR: { name: 'AGIT_MTR', category: '2StateMotor', kind: 'MOTOR', twoStage: false, description: 'Two state agitator motor', spSet: 'mtr2-sp', pvSet: 'mtr2-pv', template: 'MTR-11' },
+  OUT_PMP: { name: 'OUT_PMP', category: '2StateMotor', kind: 'MOTOR', twoStage: false, description: 'Two state outlet pump', spSet: 'mtr2-sp', pvSet: 'mtr2-pv', template: 'MTR-11' }
 }
 /** Module-level parameters of the device classes (course p2-9..2-11). */
 export const DEVICE_PARAMS = ['MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']

@@ -36,7 +36,14 @@ import {
 } from '../components/LibraryExplorer'
 import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, useBatchEnabled } from '../components/BatchExplorer'
 import { useBatch } from '../engine/batchStore'
+import { useEm } from '../engine/emStore'
 import { useBatchUi } from '../ui/batchUi'
+
+/** Delete a control or equipment module; assigned modules must have their controller assignment deleted first (course p5-29). */
+function deleteCourse(tag: string): void {
+  const r = useBatch.getState().deleteCourseModule(tag)
+  if (!r.ok) window.alert(r.error)
+}
 
 // DeltaV Explorer-style system hierarchy:
 // Process Cell > Area > Unit (Equipment Module) > Control Module.
@@ -104,7 +111,6 @@ export function ExplorerDisplay(): JSX.Element {
   const conditionDelayAlarms = useStore(s => s.conditionDelayAlarms)
   const addArea = useStore((s) => s.createArea)
   const renameArea = useStore((s) => s.renameArea)
-  const deleteModule = useStore((s) => s.deleteModule)
   const deleteEquipmentModule = useStore((s) => s.deleteEquipmentModule)
   const selectedTag = useUi((s) => s.selectedTag)
   const select = useUi((s) => s.select)
@@ -145,6 +151,7 @@ export function ExplorerDisplay(): JSX.Element {
   const sims = useLibrary(s => s.sims)
   const batchContained = useBatch(s => s.contained)
   const batchCellMembers = useBatch(s => s.cellMembers)
+  const emCms = useEm(s => s.cmInstances)
   const batchCells = useBatch(s => s.processCells)
   const { batch: batchOn, aum } = useBatchEnabled()
 
@@ -245,7 +252,7 @@ export function ExplorerDisplay(): JSX.Element {
     const ems = Object.values(equipment).filter((em) => em.area === area)
     const areaSfcs = Object.values(sfcs).map(sfc => ({ ...sfc, ...sfcConfiguredMetadata(sfc, sfcLifecycles[sfc.name]) })).filter(sfc => sfc.area === area)
     return { mods, ems, areaSfcs,
-      unassigned: mods.filter((m) => (!m.equipmentModule || !equipment[m.equipmentModule]) && !batchContained[m.tag] && !batchCellMembers[m.tag]),
+      unassigned: mods.filter((m) => (!m.equipmentModule || !equipment[m.equipmentModule]) && !batchContained[m.tag] && !batchCellMembers[m.tag] && emCms[m.tag]?.owner.kind !== 'em'),
       unassignedSfcs: areaSfcs.filter(sfc => !sfc.equipmentModule || !equipment[sfc.equipmentModule] || equipment[sfc.equipmentModule].area !== area) }
   }
 
@@ -383,7 +390,7 @@ export function ExplorerDisplay(): JSX.Element {
   const selectedArea = node?.startsWith('AREA:') ? node.slice(5) : selected?.area ?? areas[0]
   const deleteSelected = (): void => {
     if (selected && libraryInstances[selected.tag]) { if (window.confirm(`Delete ${selected.tag}?`)) alertResult(useLibrary.getState().deleteInstance(selected.tag)) }
-    else if (selected && !node && !libSel) { if (window.confirm(`Delete ${selected.tag}?`)) deleteModule(selected.tag) }
+    else if (selected && !node && !libSel) { if (window.confirm(`Delete ${selected.tag}?`)) deleteCourse(selected.tag) }
     else window.alert('Select a control module to delete.')
   }
 
@@ -686,7 +693,7 @@ export function ExplorerDisplay(): JSX.Element {
                 <button
                   className="ctx-item danger"
                   onClick={() => {
-                    deleteModule(menu.target)
+                    deleteCourse(menu.target)
                     select(null)
                     setMenu(null)
                   }}
@@ -714,7 +721,6 @@ function ModuleProperties({
   const setAlarmLimit = useStore((s) => s.setAlarmLimit)
   const writeAlarmField = useStore((s) => s.writeAlarmField)
   const activeAlarms = useStore((s) => s.alarms)
-  const deleteModule = useStore((s) => s.deleteModule)
   const equipment = useStore((s) => s.equipment)
   const setModuleEquipment = useStore((s) => s.setModuleEquipment)
   const select = useUi((s) => s.select)
@@ -783,7 +789,7 @@ function ModuleProperties({
             <button
               className="tbtn sm danger"
               onClick={() => {
-                deleteModule(m.tag)
+                deleteCourse(m.tag)
                 select(null)
               }}
             >

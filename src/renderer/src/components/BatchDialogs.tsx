@@ -6,6 +6,7 @@ import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
 import { useBatch, aliasesResolved, type UploadRow } from '../engine/batchStore'
 import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
+import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
 
 const NO_PARAMS: Record<string, PhaseParamDef> = {}
 const NO_LOGIC: Record<string, unknown> = {}
@@ -391,5 +392,128 @@ export function BatchDialogHost(): JSX.Element | null {
     case 'assignNode': return <AssignNodeDialog unit={d.unit} includeContained={d.contained} controller={d.controller} onClose={close} />
     case 'download': return <UnitDownloadDialog unit={d.unit} includeContained={d.contained} onClose={close} />
     case 'loadPhase': return <LoadPhaseDialog unit={d.unit} onClose={close} />
+    case 'newEmClass': return <NewEmClassDialog category={d.category} onClose={close} />
+    case 'emProps': return <EmClassPropsDialog cls={d.cls} onClose={close} />
+    case 'moduleBlock': return <ModuleBlockDialog unitClass={d.unitClass} className={d.className} onClose={close} />
+    case 'moduleDesc': return <ModuleDescDialog tag={d.tag} onClose={close} />
+    case 'bindBlock': {
+      const u = useBatch.getState().units[d.unit]
+      const blk = u && useBatch.getState().unitClasses[u.unitClass]?.modules?.[d.block]
+      const em = useEm.getState()
+      const options = blk?.kind === 'em' ? Object.values(em.instances).filter(i => blk.allowVariant || i.className === blk.className).map(i => i.tag) :
+        Object.values(useStore.getState().modules).filter(m => blk?.allowVariant || em.cmInstances[m.tag]?.className === blk?.className).map(m => m.tag)
+      return <PickDialog title={`Bind ${d.unit}/${d.block}`} prompt={`Select the module to bind to shared module block ${d.block} (${blk?.className ?? ''}):`}
+        options={options.sort()} onPick={t => asErr(useBatch.getState().bindBlock(d.unit, d.block, t))} onClose={close} />
+    }
   }
+}
+
+/** New ▸ Equipment Module Class (p5-12): Object name, Create New ▸ Algorithm type, Named Set name ▸ Browse. */
+function NewEmClassDialog({ category, onClose }: { category: string; onClose: () => void }): JSX.Element {
+  const [name, setName] = useState('')
+  const [algorithm, setAlgorithm] = useState<EmAlgorithm>('Command driven')
+  const [namedSet, setNamedSet] = useState('')
+  const [browse, setBrowse] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const sets = useStore(s => s.namedSets.configured)
+  const submit = (): void => {
+    const r = useEm.getState().newClass(category, name, algorithm, namedSet)
+    if (!r.ok) { setError(r.error); return }
+    onClose()
+    if (window.confirm(`Equipment module class ${r.value} created. Open it with Control Studio now?`)) useUi.getState().openEmStudio(r.value)
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label="New" onClose={onClose}>
+    <div className="dvd-split">
+      <div className="lib-dlg-fields">
+        <label>Object name:<input aria-label="Object name" autoFocus value={name} onChange={e => setName(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+        <label>Object type:<select aria-label="Object type" disabled value="Equipment Module Class"><option>Equipment Module Class</option></select></label>
+        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" disabled /> Start From Existing</label></legend>
+          <div className="dvd-inline"><input disabled aria-label="Existing object" /><button className="tbtn sm" disabled>Browse...</button></div>
+        </fieldset>
+        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" checked readOnly /> Create New</label></legend>
+          <label>Algorithm type:<select aria-label="Algorithm type" value={algorithm} onChange={e => setAlgorithm(e.target.value as EmAlgorithm)}>
+            {EM_ALGORITHMS.map(a => <option key={a} value={a}>{a}</option>)}</select></label>
+          <p className="exp-hint">{EM_ALGORITHM_NOTE[algorithm]}{SUPPORTED_EM_ALGORITHMS.includes(algorithm) ? '' : ' (not modeled in BatchLiveTrainer)'}</p>
+          <div className="dvd-inline">
+            <label style={{ flex: 1 }}>Named Set name:<input aria-label="Named Set name" value={namedSet} onChange={e => setNamedSet(e.target.value)} /></label>
+            <button className="tbtn sm" onClick={() => setBrowse(v => !v)}>Browse...</button>
+          </div>
+          {browse && <div className="lib-browse" role="listbox" aria-label="Browse named sets">
+            {Object.values(sets).map(s => <button key={s.name} className="ctx-item" onClick={() => { setNamedSet(s.name); setBrowse(false) }}>{s.name}{s.entries.some(x => x.value === 255) ? '' : ' (no 255 entry)'}</button>)}
+          </div>}
+        </fieldset>
+      </div>
+      <div className="lib-dlg-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+    </div>
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
+function EmClassPropsDialog({ cls, onClose }: { cls: string; onClose: () => void }): JSX.Element {
+  const c = useEm(s => s.classes[cls])
+  const [description, setDescription] = useState(c?.description ?? '')
+  const [namedSet, setNamedSet] = useState(c?.namedSet ?? '')
+  const [error, setError] = useState<string | null>(null)
+  if (!c) return <SimulatorDialog className="module-download-dialog dvd" label="Properties" onClose={onClose}><p>{cls} no longer exists.</p></SimulatorDialog>
+  return <SimulatorDialog className="module-download-dialog dvd" label={`${cls} Properties`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <Row label="Object type">Equipment Module Class</Row>
+      <Row label="Algorithm type">{c.algorithm}</Row>
+      <label>Description:<input aria-label="Description" value={description} onChange={e => setDescription(e.target.value)} /></label>
+      <label>Named set:<input aria-label="Named set" value={namedSet} onChange={e => setNamedSet(e.target.value)} /></label>
+      <p className="exp-hint">Changing the named set regenerates the {c.algorithm === 'Command driven' ? 'command blocks (existing logic is kept for matching values)' : 'state columns'}.</p>
+    </div>
+    <Buttons onOk={() => { const r = useEm.getState().setClassProps(cls, { description, namedSet }); if (r.ok) onClose(); else setError(r.error) }} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
+/** Module block (p5-26 / 5-27): Class name, Ownership type, Allow variant module to be substituted on module instances. */
+function ModuleBlockDialog({ unitClass, className, onClose }: { unitClass: string; className: string; onClose: () => void }): JSX.Element {
+  const [cls, setCls] = useState(className)
+  const [ownership, setOwnership] = useState<'Private' | 'Shared'>('Private')
+  const [variant, setVariant] = useState(true)
+  const [browse, setBrowse] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const ems = Object.keys(useEm(s => s.classes))
+  const submit = (): void => {
+    const r = useBatch.getState().addModuleBlock(unitClass, cls.trim().toUpperCase(), ownership, variant)
+    // Start the in-place rename after the dialog has unmounted and returned focus, or the editor would blur-commit at once.
+    if (r.ok) { onClose(); window.setTimeout(() => useBatchUi.getState().setRenaming({ kind: 'ucBlock', unitClass, name: r.value }), 0) } else setError(r.error)
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label="Module block" onClose={onClose}>
+    <div className="dvd-split">
+      <div className="lib-dlg-fields">
+        <div className="dvd-inline"><label style={{ flex: 1 }}>Class name:<input aria-label="Class name" autoFocus value={cls} onChange={e => setCls(e.target.value)} /></label>
+          <button className="tbtn sm" onClick={() => setBrowse(v => !v)}>Browse...</button></div>
+        {browse && <div className="lib-browse" role="listbox" aria-label="Browse module classes">
+          {[...ems, ...Object.keys(CM_DEVICE_CLASSES)].map(n => <button key={n} className="ctx-item" onClick={() => { setCls(n); setBrowse(false) }}>{n}</button>)}
+        </div>}
+        <label>Ownership type:<select aria-label="Ownership type" value={ownership} onChange={e => setOwnership(e.target.value as 'Private' | 'Shared')}>
+          <option>Private</option><option>Shared</option></select></label>
+        <label className="lib-dlg-check"><input type="checkbox" aria-label="Allow variant module to be substituted on module instances" checked={variant} onChange={e => setVariant(e.target.checked)} />
+          Allow variant module to be substituted on module instances</label>
+        <p className="exp-hint">{ownership === 'Private' ? 'Private converts this module block to a module when you create an instance of the unit class.' :
+          'Shared creates an unbound module block on each instance; bind it to a module later.'}</p>
+      </div>
+      <div className="lib-dlg-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+    </div>
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
+function ModuleDescDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
+  const m = useStore(s => s.modules[tag])
+  const inst = useEm(s => s.instances[tag])
+  const [description, setDescription] = useState(m?.description ?? inst?.description ?? '')
+  const [error, setError] = useState<string | null>(null)
+  return <SimulatorDialog className="module-download-dialog dvd" label={`${tag} Properties`} onClose={onClose}>
+    <Tabs tabs={['General']} active="General" onChange={() => {}} />
+    <div className="lib-dlg-fields dvd-panel">
+      <Row label="Object type">{inst ? `Equipment Module (${inst.className})` : `Control Module${useEm.getState().cmInstances[tag] ? ` (${useEm.getState().cmInstances[tag].className})` : ''}`}</Row>
+      <label>Description:<input aria-label="Description" autoFocus value={description} onChange={e => setDescription(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { const r = useBatch.getState().setModuleDescription(tag, description); if (r.ok) onClose(); else setError(r.error) } }} /></label>
+    </div>
+    <Buttons onOk={() => { const r = useBatch.getState().setModuleDescription(tag, description); if (r.ok) onClose(); else setError(r.error) }} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
 }

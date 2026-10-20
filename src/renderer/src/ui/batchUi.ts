@@ -15,8 +15,14 @@ export type BatchDialog =
   | { t: 'assignNode'; unit: string; contained: boolean; controller?: string }
   | { t: 'download'; unit: string; contained: boolean }
   | { t: 'loadPhase'; unit: string }
+  | { t: 'newEmClass'; category: string }
+  | { t: 'emProps'; cls: string }
+  | { t: 'moduleBlock'; unitClass: string; className: string }
+  | { t: 'moduleDesc'; tag: string }
+  | { t: 'bindBlock'; unit: string; block: string }
 
 export type Renaming = { kind: 'cat'; cls: BatchClassKind; name: string } | { kind: 'class'; cls: BatchClassKind; name: string } | { kind: 'cell'; name: string } | { kind: 'unit'; name: string }
+  | { kind: 'emCat'; name: string } | { kind: 'emClass'; name: string } | { kind: 'emBlock'; cls: string; name: string } | { kind: 'ucBlock'; unitClass: string; name: string } | { kind: 'module'; name: string }
 
 export interface BatchWindow { id: string; kind: 'unit' | 'phase'; unit: string; phase?: string; x: number; y: number; z: number }
 

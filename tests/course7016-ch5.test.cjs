@@ -17,6 +17,8 @@ const { useEm, emCheckEnv, stateName } = require('../src/renderer/src/engine/emS
 const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
 const cfg = require('../src/renderer/src/engine/batchConfig.ts')
 const expr = require('../src/renderer/src/engine/phaseExpr.ts')
+const ch5 = require('../src/renderer/src/engine/course7016Ch5Checks.ts')
+const { COURSE } = require('../src/renderer/src/engine/workshops.ts')
 
 const L = () => useLibrary.getState()
 const M = () => useStore.getState()
@@ -45,6 +47,13 @@ function fixture(fn) {
     else global.window = before.window
   }
 }
+
+function ch5State() {
+  const e = E(), b = B(), l = L()
+  return { emCategories: e.categories, emClasses: e.classes, emDrafts: e.drafts, emInstances: e.instances, emDeployed: e.deployed,
+    batchCategories: b.categories, unitClasses: b.unitClasses, units: b.units, contained: b.contained, assignments: l.assignments, modules: M().modules, transfers: l.transfers, sims: l.sims }
+}
+const pending = (checks) => checks.filter(c => c.verdict !== 'verified').map(c => `${c.id}: ${c.detail}`)
 
 function sequence(rows) {
   let sfc = cfg.insertSequence(cfg.defaultSfc(), 0, rows.length - 1)
@@ -176,7 +185,71 @@ test('7016 ch5: Equipment Module Classes, the BLENDERS unit class and UM_BL_500 
   assert.equal(B().contained['BL_500_COLOR_IN'], 'UM_BL_500')
   assert.equal(B().contained['AGIT-503'], 'UM_BL_500')
   assert.equal(L().assignments['XV-602'], 'CTLR1')
+  assert.equal(E().instances.BL_500_COLOR_IN.unit, 'UM_BL_500', 'unit module rename reaches the EM instance')
+  assert.equal(E().cmInstances['AGIT-603'].owner.name, 'UM_BL_600', 'unit module rename reaches unit-owned control modules')
+  // Live workshop checks agree with the configuration
+  assert.deepEqual(pending(ch5.checkCourse7016BlenderColor(ch5State())), [])
+  assert.deepEqual(pending(ch5.checkCourse7016BlenderOutlet(ch5State())), [])
+  assert.deepEqual(pending(ch5.checkCourse7016BlendersUnit(ch5State())), [])
 }))
+
+test('7016 ch5 screens render: EM Control Studio (class and on-line), Process picture base loop, two stage faceplate', () => fixture(() => {
+  const React = require('react')
+  const { renderToStaticMarkup } = require('react-dom/server')
+  const storeMod = require('../src/renderer/src/engine/store.ts')
+  const batchMod = require('../src/renderer/src/engine/batchStore.ts')
+  const libMod = require('../src/renderer/src/engine/libraryStore.ts')
+  const emMod = require('../src/renderer/src/engine/emStore.ts')
+  const uiMod = require('../src/renderer/src/ui/uiStore.ts')
+  const batchUiMod = require('../src/renderer/src/ui/batchUi.ts')
+  const { EmStudio } = require('../src/renderer/src/displays/EmStudio.tsx')
+  const { ProcessDisplay } = require('../src/renderer/src/displays/ProcessDisplay.tsx')
+  const { ValveFaceplate } = require('../src/renderer/src/faceplates/ValveFaceplate.tsx')
+  const render = (C, props) => {
+    const hooks = [[storeMod, 'useStore'], [batchMod, 'useBatch'], [libMod, 'useLibrary'], [emMod, 'useEm'], [uiMod, 'useUi'], [batchUiMod, 'useBatchUi']]
+      .map(([m, k]) => { const real = m[k]; return test.mock.method(m, k, sel => (sel ? sel(real.getState()) : real.getState())) })
+    try { return renderToStaticMarkup(React.createElement(C, props)) } finally { hooks.forEach(h => h.mock.restore()) }
+  }
+  levelIndicators()
+  emClasses()
+  blendersUnitClass()
+  run(2)
+  const ui = uiMod.useUi
+  const before = ui.getState()
+  try {
+    ui.getState().openEmStudio('BLENDER_COLOR')
+    const cmd = render(EmStudio)
+    for (const s of ['COMMAND_00001', 'COMMAND_00004', 'Auto Mode', 'A_COMMAND', 'A_PV', 'A_ABT_ON_NEW_CMD', 'COLOR_IN_VLV']) assert.ok(cmd.includes(s), s)
+    ui.getState().openEmStudio('BLENDER_OUTLET')
+    const st = render(EmStudio)
+    for (const s of ['PRODUCT_MODE', 'WASTE_VLV/CAS_SP.CV', 'Releasing Product - CAS', 'Draining Waste - CAS']) assert.ok(st.includes(s), s)
+    value(E().setCommand('BL_500_COLOR_IN', 'Bulk'))
+    ui.getState().openEmStudio('BLENDER_COLOR', 'BL_500_COLOR_IN')
+    const online = render(EmStudio)
+    assert.match(online, /data-em-instance="BL_500_COLOR_IN"/)
+    assert.match(online, /Running/)
+  } finally { ui.setState(before, true) }
+  const proc = render(ProcessDisplay)
+  for (const s of ['data-dynamo="FIC-404"', 'data-dynamo="LI-401"', 'MTR-403', 'Base 400', 'data-stage="XV-502"']) assert.ok(proc.includes(s), s)
+  assert.ok(!proc.includes('Not modeled'))
+  run(10)
+  const fp = render(ValveFaceplate, { tag: 'XV-502' })
+  assert.match(fp, /data-two-stage="XV-502"/)
+  for (const s of ['Close', 'Dribble', 'Bulk', 'CAS', 'BL_500_COLOR_IN']) assert.ok(fp.includes(s), s)
+}))
+
+test('7016 ch5 workshops: every step id has a live check and ids are unique', () => {
+  const ch = COURSE.find(m => m.module.includes('Ch 5'))
+  assert.ok(ch, 'Chapter 5 module')
+  const ids = ch.workshops.flatMap(w => w.steps.map(s => s.id))
+  assert.equal(new Set(ids).size, ids.length)
+  const all = COURSE.flatMap(m => m.workshops.flatMap(w => w.steps.map(s => s.id)))
+  assert.equal(new Set(all).size, all.length, 'step ids unique across the course')
+  const empty = { emCategories: {}, emClasses: {}, emDrafts: {}, emInstances: {}, emDeployed: {}, batchCategories: {}, unitClasses: {}, units: {}, contained: {}, assignments: {}, modules: {}, transfers: {}, sims: {} }
+  const checked = [ch5.checkCourse7016BlenderColor(empty), ch5.checkCourse7016BlenderOutlet(empty), ch5.checkCourse7016BlendersUnit(empty),
+    ch5.checkCourse7016RunProcess(empty), ch5.checkCourse7016VerifyEms([]), ch5.checkCourse7016Ch5Optional(empty, [])].flat().map(c => c.id)
+  assert.deepEqual(checked.sort(), [...ids].sort())
+})
 
 test('7016 ch5 Verify Equipment Modules: command-driven BL_500_COLOR_IN and state-driven BL_500_OUTLET', () => fixture(() => {
   levelIndicators()
@@ -227,6 +300,8 @@ test('7016 ch5 Verify Equipment Modules: command-driven BL_500_COLOR_IN and stat
   assert.deepEqual([B().dc['XV-503'].mode, B().dc['XV-504'].mode], ['AUTO', 'AUTO'])
   // A phase can drive the equipment module through its A_COMMAND / A_PV (later chapters).
   assert.equal(require('../src/renderer/src/engine/batchStore.ts').readModulePath('BL_500_OUTLET/A_PV.CV'), 4)
+  const verify = ch5.checkCourse7016VerifyEms(M().eventLog)
+  assert.deepEqual(pending(verify.filter(c => !['7016-5v-6', '7016-5v-11'].includes(c.id))), [])
 }))
 
 test('7016 ch2/ch5 Verify you can run the process: base transfer at 90 GPM, color dump, agitate and drain are logged', () => fixture(() => {
@@ -290,4 +365,7 @@ test('7016 ch2/ch5 Verify you can run the process: base transfer at 90 GPM, colo
   run(30)
   const drain = L().transfers['BL500>PRODUCT'].episodes.at(-1)
   assert.ok(drain.amount > 124 && drain.amount < 150, `drain ${drain.amount}`)
+  const runChecks = ch5.checkCourse7016RunProcess(ch5State())
+  assert.deepEqual(pending(runChecks.filter(c => ['7016-5r-1', '7016-5r-2', '7016-5r-3', '7016-5r-4', '7016-5r-5'].includes(c.id))), [])
+  assert.equal(runChecks.find(c => c.id === '7016-5r-6').verdict, 'pending')
 }))

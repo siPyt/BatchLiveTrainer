@@ -4,9 +4,14 @@ import { dcStateInfo, fmt } from '../utils/format'
 import { MotorInterlockRows } from './MotorInterlockRows'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
+import { useBatch } from '../engine/batchStore'
+import { useEm } from '../engine/emStore'
 
 export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as MotorModule | undefined
+  // Course devices driven by a phase or equipment module carry their DeltaV mode in the batch store (default AUTO).
+  const remoteMode = useBatch(s => s.dc[tag]?.mode)
+  const owningEm = useEm(s => { const c = s.cmInstances[tag]; return c?.owner.kind === 'em' ? c.owner.name : undefined })
   const startMotor = useStore((s) => s.startMotor)
   const stopMotor = useStore((s) => s.stopMotor)
   const toggleInterlock = useStore((s) => s.toggleInterlock)
@@ -28,7 +33,7 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const startDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.running)
   // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
   // command automatically (commandSource set), MAN for direct operator control.
-  const dvMode = m.commandSource ? 'CAS' : 'MAN'
+  const dvMode = remoteMode ?? (m.commandSource ? 'CAS' : 'AUTO')
 
   return (
     <div className="fp-body">
@@ -56,7 +61,7 @@ export function MotorFaceplate({ tag }: { tag: string }): JSX.Element | null {
         activeWord="Running"
         passiveWord="Stopped"
       />
-      <OwnedByRow equipmentModule={m.equipmentModule} />
+      <OwnedByRow equipmentModule={m.equipmentModule ?? owningEm} />
 
       <div className="fp-row" style={{ marginTop: 8, borderTop: '1px solid var(--dv-border)', paddingTop: 6 }}>
         <span className="fp-label">Engineering Detail</span>

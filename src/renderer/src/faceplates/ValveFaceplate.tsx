@@ -3,9 +3,14 @@ import type { ValveModule } from '../engine/types'
 import { dcStateInfo, fmt } from '../utils/format'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import { DeviceStateRows, ModeBoxRow, ModelockOverrideRow, OwnedByRow } from './FaceplateChrome'
+import { useBatch } from '../engine/batchStore'
+import { useEm } from '../engine/emStore'
 
 export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const m = useStore((s) => s.modules[tag]) as ValveModule | undefined
+  // Course devices driven by a phase or equipment module carry their DeltaV mode in the batch store (default AUTO).
+  const remoteMode = useBatch(s => s.dc[tag]?.mode)
+  const owningEm = useEm(s => { const c = s.cmInstances[tag]; return c?.owner.kind === 'em' ? c.owner.name : undefined })
   const openValve = useStore((s) => s.openValve)
   const closeValve = useStore((s) => s.closeValve)
   const toggleInterlock = useStore((s) => s.toggleInterlock)
@@ -27,22 +32,28 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const openDisabled = !!descriptorError || m.downloaded === false || m.interlock || m.locked || (m.permissiveRequired && !m.permissiveOk && !m.open)
   // DeltaV DCC modules show MODE as CAS when an interlock/FB tag drives the
   // command automatically (commandSource set), MAN for direct operator control.
-  const dvMode = m.commandSource ? 'CAS' : 'MAN'
+  const dvMode = remoteMode ?? (m.commandSource ? 'CAS' : 'AUTO')
 
   return (
     <div className="fp-body">
       <div className="fp-state-word" style={{ color: m.open ? 'var(--dv-run)' : 'var(--dv-text)' }}>
-        {m.stateNames ? feedbackLabel : m.open ? 'OPEN' : 'CLOSED'}
+        {m.twoStage ? (m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : m.stateNames ? feedbackLabel : m.open ? 'OPEN' : 'CLOSED'}
       </div>
 
-      <div className="fp-row">
+      {m.twoStage ? <div className="fp-row" data-two-stage={tag}>
+        {(['CLOSE', 'DRIBBLE', 'BULK'] as const).map(p => {
+          const active = p === 'CLOSE' ? !m.commandedOpen : m.commandedOpen && (p === 'BULK') === !!m.bulk
+          return <button key={p} className={'fp-btn ' + (p === 'CLOSE' ? 'stop' : 'run') + (active ? ' active' : '')} disabled={p !== 'CLOSE' && openDisabled}
+            onClick={() => { const r = useBatch.getState().setTwoStage(tag, p); if (!r.ok) window.alert(r.error) }}>{p === 'CLOSE' ? 'Close' : p === 'DRIBBLE' ? 'Dribble' : 'Bulk'}</button>
+        })}
+      </div> : <div className="fp-row">
         <button className={'fp-btn run' + (m.commandedOpen ? ' active' : '')} disabled={openDisabled} onClick={() => openValve(tag)}>
           {activeLabel}
         </button>
         <button className={'fp-btn stop' + (!m.commandedOpen ? ' active' : '')} onClick={() => closeValve(tag)}>
           {passiveLabel}
         </button>
-      </div>
+      </div>}
 
       <ModeBoxRow reqMode={dvMode} actualMode={dvMode} />
       <ModelockOverrideRow />
@@ -55,7 +66,7 @@ export function ValveFaceplate({ tag }: { tag: string }): JSX.Element | null {
         activeWord="Open"
         passiveWord="Closed"
       />
-      <OwnedByRow equipmentModule={m.equipmentModule} />
+      <OwnedByRow equipmentModule={m.equipmentModule ?? owningEm} />
 
       <div className="fp-row" style={{ marginTop: 8, borderTop: '1px solid var(--dv-border)', paddingTop: 6 }}>
         <span className="fp-label">Engineering Detail</span>

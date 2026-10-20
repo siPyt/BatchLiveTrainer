@@ -256,7 +256,8 @@ function baseLevel(): AnyModule {
 
 function baseFlowLoop(): AnyModule {
   const m = makeModule({ tag: 'FIC-404', type: 'PID', description: 'Base 400 transfer flow', area: 'FEED_TANK_AREA', unit: 'GPM', pvMin: 0, pvMax: BASE_MAX_FLOW })
-  return m.type === 'PID' ? { ...m, mode: 'MAN', actualMode: 'MAN', sp: 0, out: 0, pv: 0 } as AnyModule : m
+  // The transfer loop idles at 0 GPM between transfers, so its low flow alarms are disabled.
+  return m.type === 'PID' ? { ...m, mode: 'MAN', actualMode: 'MAN', sp: 0, out: 0, pv: 0, alarms: m.alarms.map(a => /LO/.test(a.type) ? { ...a, enabled: false } : a) } as AnyModule : m
 }
 
 /** DV_School named sets used by the batch phase logic (course 7016 pp 2-9..2-11). */

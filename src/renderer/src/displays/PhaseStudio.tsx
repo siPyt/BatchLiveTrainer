@@ -7,7 +7,7 @@ import { useBatch, moduleParamNames, phaseCheckEnv } from '../engine/batchStore'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
   deleteStep, insertSequence, isNameValid, renameError,
-  type ActionDef, type ActionQualifier, type ActionType, type CompositeName, type PhaseClass, type PhaseSfc, type PhaseState
+  type ActionDef, type ActionQualifier, type ActionType, type CheckEnv, type CompositeName, type PhaseClass, type PhaseSfc, type PhaseState, type UnitClass
 } from '../engine/batchConfig'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { ContextMenu } from '../components/LibraryExplorer'
@@ -24,6 +24,30 @@ import { Btn, Group, Stack } from './ControlStudioDisplay'
 type Menu = { x: number; y: number; label: string; items: { label: string; onClick?: () => void; danger?: boolean; disabled?: string; separator?: boolean }[] }
 type Sel = { k: 'step' | 'transition'; i: number } | null
 type ExprKind = 'action' | 'condition'
+
+/** What the expression editor can browse and how it validates: a phase class or an equipment module class. */
+export interface ExprCtx {
+  check: CheckEnv
+  internal: { key: string; text: string; note?: string; insert: string }[]
+  internalNote: string
+  aliases: { name: string; note?: string }[] | null
+  aliasNote: string
+}
+
+export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitClass>): ExprCtx {
+  const owners = Object.values(unitClasses).filter(u => u.phaseClasses.includes(pc.name))
+  const pool = owners.length ? owners : Object.values(unitClasses)
+  const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => [a.name, { name: a.name, note: a.description || u.name }] as const))).values()]
+  return {
+    check: phaseCheckEnv(pc.name, pc),
+    internal: [...Object.values(pc.params).map(p => ({ key: p.name, text: p.name, note: `${p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()}` : p.kind} · ${p.type}${p.units ? ` · ${p.units}` : ''}`, insert: `'^/${p.name}.CV'` })),
+      ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter', insert: `'^/${n}.CV'` }))],
+    internalNote: `Parameters of phase class ${pc.name}. ^/ refers one level up, from the composite to the phase.`,
+    aliases,
+    aliasNote: owners.length ? `Aliases of unit class ${owners.map(o => o.name).join(', ')} (owners of ${pc.name}). Each unit module resolves the alias to its own module.` :
+      `${pc.name} is not assigned to a unit class yet; showing every unit class alias.`
+  }
+}
 
 const DRAG_SFC = 'application/x-bl-sfc-item'
 const MAX_ITEMS = 127
@@ -55,6 +79,7 @@ export function PhaseStudio(): JSX.Element {
   const pc = draft ?? saved
   const dirty = !!draft
   const online = useOnline(name)
+  const unitClasses = useBatch(s => s.unitClasses)
   const [onlineKey, setOnlineKey] = useState<string | null>(null)
   const [tab, setTab] = useState('Home')
   const [sel, setSel] = useState<Sel>(null)
@@ -84,6 +109,7 @@ export function PhaseStudio(): JSX.Element {
   }
 
   const live = online.find(o => o.key === onlineKey) ?? null
+  const ctx = phaseExprCtx(pc, unitClasses)
   const sfc: PhaseSfc | null = composite ? pc.logic[composite] : null
   const edit = (fn: (d: PhaseClass) => string | null | void): boolean => {
     const r = useBatch.getState().editPhaseDraft(name, fn)
@@ -332,11 +358,11 @@ export function PhaseStudio(): JSX.Element {
     {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
     {seqAfter !== null && sfc && composite && <SequenceDialog itemCount={itemCount} onClose={() => setSeqAfter(null)}
       onOk={count => { if (editSfc(s => insertSequence(s, seqAfter, count))) { setSeqAfter(null); setSel({ k: 'step', i: Math.min(seqAfter + 1, sfc.steps.length) }) } }} />}
-    {stepDlg !== null && sfc && composite && sfc.steps[stepDlg] && <StepDialog key={sfc.steps[stepDlg].id} sfc={sfc} index={stepDlg} composite={composite} phaseClass={name} draft={pc}
+    {stepDlg !== null && sfc && composite && sfc.steps[stepDlg] && <StepDialog key={sfc.steps[stepDlg].id} sfc={sfc} index={stepDlg} composite={composite} ctx={ctx}
       onClose={() => setStepDlg(null)} onOk={next => { if (editSfc(s => ({ ...s, steps: s.steps.map((st, i) => i === stepDlg ? next : st) }))) setStepDlg(null) }} />}
-    {trDlg !== null && sfc && composite && sfc.transitions[trDlg] && <TransitionDialog key={sfc.transitions[trDlg].id} sfc={sfc} index={trDlg} composite={composite} phaseClass={name} draft={pc}
+    {trDlg !== null && sfc && composite && sfc.transitions[trDlg] && <TransitionDialog key={sfc.transitions[trDlg].id} sfc={sfc} index={trDlg} composite={composite} ctx={ctx}
       onClose={() => setTrDlg(null)} onOk={next => { if (editSfc(s => ({ ...s, transitions: s.transitions.map((t, i) => i === trDlg ? next : t) }))) setTrDlg(null) }} />}
-    {actionDlg && sfc && composite && sfc.steps[actionDlg.step] && <ActionDialog step={sfc.steps[actionDlg.step].name} composite={composite} phaseClass={name} draft={pc}
+    {actionDlg && sfc && composite && sfc.steps[actionDlg.step] && <ActionDialog step={sfc.steps[actionDlg.step].name} composite={composite} ctx={ctx}
       action={actionDlg.index === null ? null : sfc.steps[actionDlg.step].actions[actionDlg.index]} existing={sfc.steps[actionDlg.step].actions.map(a => a.name)}
       onClose={() => setActionDlg(null)} onOk={a => {
         const { step, index } = actionDlg
@@ -442,7 +468,7 @@ function StateDiagram({ zoom, live, onOpen }: { zoom: number; live: PhaseState |
 // ---------------------------------------------------------------------------
 // Sequential function chart for one composite state (p4-18)
 
-function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onTrOpen, onStepMenu, onTrMenu }: {
+export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onTrOpen, onStepMenu, onTrMenu }: {
   sfc: PhaseSfc; zoom: number; sel: Sel; liveStep: string | null
   onSelect: (s: Sel) => void; onStepOpen: (i: number) => void; onTrOpen: (i: number) => void
   onStepMenu: (i: number, e: React.MouseEvent) => void; onTrMenu: (i: number, e: React.MouseEvent) => void
@@ -487,7 +513,7 @@ function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onTrOpen, 
   </svg>
 }
 
-function PaletteGlyph({ item }: { item: string }): JSX.Element {
+export function PaletteGlyph({ item }: { item: string }): JSX.Element {
   const purple = item.includes('Parameter')
   return <svg width={30} height={30} viewBox="0 0 30 30" aria-hidden className="ps-pal-glyph">
     <rect x={1} y={1} width={28} height={28} rx={2} className={purple ? 'ps-pal-bg purple' : 'ps-pal-bg teal'} />
@@ -510,7 +536,7 @@ function DlgButtons({ onOk, onClose, extra }: { onOk: () => void; onClose: () =>
 }
 
 /** Add Sequence Of Steps And Transitions (p4-19). */
-function SequenceDialog({ itemCount, onOk, onClose }: { itemCount: number; onOk: (count: number) => void; onClose: () => void }): JSX.Element {
+export function SequenceDialog({ itemCount, onOk, onClose }: { itemCount: number; onOk: (count: number) => void; onClose: () => void }): JSX.Element {
   const [count, setCount] = useState('1')
   const [spacing, setSpacing] = useState('120')
   const [error, setError] = useState<string | null>(null)
@@ -536,8 +562,8 @@ function SequenceDialog({ itemCount, onOk, onClose }: { itemCount: number; onOk:
 }
 
 /** Step Properties: General (name, description) and Actions. */
-function StepDialog({ sfc, index, composite, phaseClass, draft, onOk, onClose }: {
-  sfc: PhaseSfc; index: number; composite: CompositeName; phaseClass: string; draft: PhaseClass
+export function StepDialog({ sfc, index, composite, ctx, onOk, onClose }: {
+  sfc: PhaseSfc; index: number; composite: string; ctx: ExprCtx
   onOk: (s: PhaseSfc['steps'][number]) => void; onClose: () => void
 }): JSX.Element {
   const step = sfc.steps[index]
@@ -573,15 +599,15 @@ function StepDialog({ sfc, index, composite, phaseClass, draft, onOk, onClose }:
     </div>}
     <DlgButtons onOk={submit} onClose={onClose} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
-    {action && <ActionDialog step={v.name} composite={composite} phaseClass={phaseClass} draft={draft}
+    {action && <ActionDialog step={v.name} composite={composite} ctx={ctx}
       action={action.index === null ? null : v.actions[action.index]} existing={v.actions.map(a => a.name)} onClose={() => setAction(null)}
       onOk={a => { setV({ ...v, actions: action.index === null ? [...v.actions, a] : v.actions.map((x, j) => (j === action.index ? a : x)) }); setAction(null) }} />}
   </SimulatorDialog>
 }
 
 /** Action properties with its expression (p4-20). */
-function ActionDialog({ step, composite, phaseClass, draft, action, existing, onOk, onClose }: {
-  step: string; composite: CompositeName; phaseClass: string; draft: PhaseClass; action: ActionDef | null; existing: string[]
+export function ActionDialog({ step, composite, ctx, action, existing, onOk, onClose }: {
+  step: string; composite: string; ctx: ExprCtx; action: ActionDef | null; existing: string[]
   onOk: (a: ActionDef) => void; onClose: () => void
 }): JSX.Element {
   const nextName = (): string => { for (let n = 1; ; n++) if (!existing.includes(`A${n}`)) return `A${n}` }
@@ -593,7 +619,7 @@ function ActionDialog({ step, composite, phaseClass, draft, action, existing, on
     if (!isNameValid(name)) { setError(NAME_RULE); return }
     if (name !== action?.name && existing.includes(name)) { setError(`${name} already exists in step ${step}`); return }
     if ((v.qualifier === 'D' || v.qualifier === 'L') && !(v.time >= 0)) { setError('Enter the delay/limit time in seconds'); return }
-    const problems = v.expression.trim() ? checkExpression(v.expression, 'action', phaseCheckEnv(phaseClass, draft)) : []
+    const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
     if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`)) return
     onOk({ ...v, name })
   }
@@ -613,17 +639,17 @@ function ActionDialog({ step, composite, phaseClass, draft, action, existing, on
       </div>
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
         onChange={e => setV({ ...v, expression: e.target.value })} /></label>
-      <ParserOutput text={v.expression} kind="action" phaseClass={phaseClass} draft={draft} />
+      <ParserOutput text={v.expression} kind="action" ctx={ctx} />
     </div>
     <DlgButtons onOk={submit} onClose={onClose} extra={<button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button>} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
-    {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind="action" phaseClass={phaseClass} draft={draft}
+    {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind="action" ctx={ctx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
   </SimulatorDialog>
 }
 
-function TransitionDialog({ sfc, index, composite, phaseClass, draft, onOk, onClose }: {
-  sfc: PhaseSfc; index: number; composite: CompositeName; phaseClass: string; draft: PhaseClass
+export function TransitionDialog({ sfc, index, composite, ctx, onOk, onClose }: {
+  sfc: PhaseSfc; index: number; composite: string; ctx: ExprCtx
   onOk: (t: PhaseSfc['transitions'][number]) => void; onClose: () => void
 }): JSX.Element {
   const tr = sfc.transitions[index]
@@ -634,7 +660,7 @@ function TransitionDialog({ sfc, index, composite, phaseClass, draft, onOk, onCl
     const name = v.name.trim().toUpperCase()
     const e = renameError(sfc, tr.name, name)
     if (e) { setError(e); return }
-    const problems = v.condition.trim() ? checkExpression(v.condition, 'condition', phaseCheckEnv(phaseClass, draft)) : []
+    const problems = v.condition.trim() ? checkExpression(v.condition, 'condition', ctx.check) : []
     if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the transition anyway?`)) return
     onOk({ ...v, name })
   }
@@ -646,17 +672,17 @@ function TransitionDialog({ sfc, index, composite, phaseClass, draft, onOk, onCl
       </div>
       <label>Expression:<textarea aria-label="Transition expression" className="ps-code ps-expr-text" rows={3} value={v.condition}
         onChange={e => setV({ ...v, condition: e.target.value })} /></label>
-      <ParserOutput text={v.condition} kind="condition" phaseClass={phaseClass} draft={draft} />
+      <ParserOutput text={v.condition} kind="condition" ctx={ctx} />
     </div>
     <DlgButtons onOk={submit} onClose={onClose} extra={<button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button>} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
-    {editor && <ExpressionDialog title={`${composite}/${v.name} Transition Expression`} kind="condition" phaseClass={phaseClass} draft={draft}
+    {editor && <ExpressionDialog title={`${composite}/${v.name} Transition Expression`} kind="condition" ctx={ctx}
       value={v.condition} onClose={() => setEditor(false)} onOk={condition => { setV({ ...v, condition }); setEditor(false) }} />}
   </SimulatorDialog>
 }
 
-function ParserOutput({ text, kind, phaseClass, draft }: { text: string; kind: ExprKind; phaseClass: string; draft: PhaseClass }): JSX.Element {
-  const problems = text.trim() ? checkExpression(text, kind, phaseCheckEnv(phaseClass, draft)) : []
+function ParserOutput({ text, kind, ctx }: { text: string; kind: ExprKind; ctx: ExprCtx }): JSX.Element {
+  const problems = text.trim() ? checkExpression(text, kind, ctx.check) : []
   return <div className="ps-parser" role="status" aria-label="Parser output">
     <span className="ps-parser-head">Parser output:</span>
     {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : 'Empty expression.'}</span> :
@@ -667,8 +693,8 @@ function ParserOutput({ text, kind, phaseClass, draft }: { text: string; kind: E
 const OP_BUTTONS = ['+', '-', '*', '/', '(', ')', '<', '>', '<=', '>=', '=', '!=', ':=', 'NOT', 'AND', 'OR']
 
 /** Expression editor (p4-20/4-21): operator buttons, browse buttons, Expression and Parser output. */
-function ExpressionDialog({ title, kind, phaseClass, draft, value, onOk, onClose }: {
-  title: string; kind: ExprKind; phaseClass: string; draft: PhaseClass; value: string; onOk: (v: string) => void; onClose: () => void
+function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
+  title: string; kind: ExprKind; ctx: ExprCtx; value: string; onOk: (v: string) => void; onClose: () => void
 }): JSX.Element {
   const [text, setText] = useState(value)
   const [browse, setBrowse] = useState<'internal' | 'external' | 'named' | 'alias' | null>(null)
@@ -684,7 +710,7 @@ function ExpressionDialog({ title, kind, phaseClass, draft, value, onOk, onClose
     requestAnimationFrame(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + ins.length } })
   }
   const submit = (): void => {
-    const problems = text.trim() ? checkExpression(text, kind, phaseCheckEnv(phaseClass, draft)) : []
+    const problems = text.trim() ? checkExpression(text, kind, ctx.check) : []
     if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`)) return
     onOk(text)
   }
@@ -698,19 +724,19 @@ function ExpressionDialog({ title, kind, phaseClass, draft, value, onOk, onClose
           <button type="button" className="tbtn sm" onClick={() => setBrowse('named')}>Insert Named State...</button>
           <button type="button" className="tbtn sm" onClick={() => insert('SELSTR("default", "string1", condition1)')}>SELSTR...</button>
           <button type="button" className="tbtn sm" onClick={() => insert('LOGEVENT("text");')}>LOGEVENT...</button>
-          <button type="button" className="tbtn sm" onClick={() => setBrowse('alias')}>Insert Alias...</button>
+          <button type="button" className="tbtn sm" disabled={!ctx.aliases} title={ctx.aliases ? undefined : ctx.aliasNote} onClick={() => setBrowse('alias')}>Insert Alias...</button>
         </div>
       </div>
       <div className="ps-expr-main">
         <label>Expression:<textarea ref={area} aria-label="Expression" className="ps-code ps-expr-text tall" autoFocus value={text} onChange={e => setText(e.target.value)} /></label>
-        <ParserOutput text={text} kind={kind} phaseClass={phaseClass} draft={draft} />
+        <ParserOutput text={text} kind={kind} ctx={ctx} />
       </div>
     </div>
     <DlgButtons onOk={submit} onClose={onClose} />
-    {browse === 'internal' && <InternalBrowser pc={draft} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
+    {browse === 'internal' && <InternalBrowser ctx={ctx} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'external' && <ExternalBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'named' && <NamedStateBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
-    {browse === 'alias' && <AliasBrowser phaseClass={phaseClass} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
+    {browse === 'alias' && ctx.aliases && <AliasBrowser ctx={ctx} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
   </SimulatorDialog>
 }
 
@@ -722,16 +748,13 @@ function ListPick({ label, items, value, onChange, onDouble }: { label: string; 
   </div>
 }
 
-function InternalBrowser({ pc, onPick, onClose }: { pc: PhaseClass; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
-  const items = [...Object.values(pc.params).map(p => ({ key: p.name, text: p.name, note: `${p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()}` : p.kind} · ${p.type}${p.units ? ` · ${p.units}` : ''}` })),
-    ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter' }))]
-  const [v, setV] = useState<string | null>(items[0]?.key ?? null)
-  const [field, setField] = useState('CV')
-  const pick = (k = v): void => { if (k) onPick(`'^/${k}.${field}'`) }
+function InternalBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
+  const [v, setV] = useState<string | null>(ctx.internal[0]?.key ?? null)
+  const pick = (k = v): void => { const row = ctx.internal.find(r => r.key === k); if (row) onPick(row.insert) }
   return <SimulatorDialog className="module-download-dialog dvd" label="Insert Internal Parameter" onClose={onClose}>
-    <p className="exp-hint">Parameters of phase class {pc.name}. ^/ refers one level up, from the composite to the phase.</p>
-    <ListPick label="Internal parameters" items={items} value={v} onChange={setV} onDouble={k => pick(k)} />
-    <label className="dvd-inline">Field:<select aria-label="Field" value={field} onChange={e => setField(e.target.value)}><option>CV</option><option>ST</option></select></label>
+    <p className="exp-hint">{ctx.internalNote}</p>
+    <ListPick label="Internal parameters" items={ctx.internal.map(r => ({ key: r.key, text: r.text, note: r.note }))} value={v} onChange={setV} onDouble={k => pick(k)} />
+    <p className="exp-hint ps-code">{ctx.internal.find(r => r.key === v)?.insert ?? ''}</p>
     <DlgButtons onOk={() => pick()} onClose={onClose} />
   </SimulatorDialog>
 }
@@ -776,19 +799,15 @@ function NamedStateBrowser({ onPick, onClose }: { onPick: (s: string) => void; o
 
 const ALIAS_FIELDS = ['(alias path only)', 'MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV']
 
-function AliasBrowser({ phaseClass, onPick, onClose }: { phaseClass: string; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
-  const unitClasses = useBatch(s => s.unitClasses)
-  const owners = Object.values(unitClasses).filter(u => u.phaseClasses.includes(phaseClass))
-  const pool = owners.length ? owners : Object.values(unitClasses)
-  const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => [a.name, { a, u: u.name }] as const))).values()]
-  const [alias, setAlias] = useState<string | null>(aliases[0]?.a.name ?? null)
+function AliasBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
+  const aliases = ctx.aliases ?? []
+  const [alias, setAlias] = useState<string | null>(aliases[0]?.name ?? null)
   const [field, setField] = useState<string | null>(null)
   const pick = (f = field): void => { if (alias && f) onPick(f === ALIAS_FIELDS[0] ? `'//#${alias}#'` : `'//#${alias}#/${f}'`) }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Insert Alias" onClose={onClose}>
-    <p className="exp-hint">{owners.length ? `Aliases of unit class ${owners.map(o => o.name).join(', ')} (owners of ${phaseClass}).` :
-      `${phaseClass} is not assigned to a unit class yet; showing every unit class alias.`} Each unit module resolves the alias to its own module.</p>
+    <p className="exp-hint">{ctx.aliasNote}</p>
     <div className="dvd-split ps-ext">
-      <div><div className="exp-props-subhead">Alias</div><ListPick label="Aliases" items={aliases.map(x => ({ key: x.a.name, text: x.a.name, note: x.a.description || x.u }))}
+      <div><div className="exp-props-subhead">Alias</div><ListPick label="Aliases" items={aliases.map(x => ({ key: x.name, text: x.name, note: x.note }))}
         value={alias} onChange={a => { setAlias(a); setField(null) }} /></div>
       <div><div className="exp-props-subhead">Parameter</div><ListPick label="Alias parameters" items={ALIAS_FIELDS.map(f => ({ key: f, text: f }))}
         value={field} onChange={setField} onDouble={f => pick(f)} /></div>

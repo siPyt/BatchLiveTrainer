@@ -53,6 +53,10 @@ interface UiState {
   studioComposite: string | null
   openPhaseStudio: (phaseClass: string, composite?: string) => void
   closePhaseStudio: () => void
+  /** Control Studio on an Equipment Module Class, or on-line on an equipment module instance (Chapter 5). */
+  studioEm: { className: string; instance: string | null; block: string | null } | null
+  openEmStudio: (className: string, instance?: string | null, block?: string | null) => void
+  closeEmStudio: () => void
   sfcName: string | null
   /** FBD canvas node positions, keyed by module tag (Control Studio drag-and-drop layout). */
   studioLayout: Record<string, { x: number; y: number }>
@@ -120,7 +124,7 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => {
       const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
       const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
-      return { studioClass: className, studioInstance: instance ?? null, studioPhase: null, selectedTag: instance ?? s.selectedTag,
+      return { studioClass: className, studioInstance: instance ?? null, studioPhase: null, studioEm: null, selectedTag: instance ?? s.selectedTag,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
   closeClassStudio: () => set({ studioClass: null, studioInstance: null }),
@@ -130,10 +134,19 @@ export const useUi = create<UiState>((set, get) => ({
     set((s) => {
       const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
       const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
-      return { studioPhase: phaseClass, studioComposite: composite ?? null, studioClass: null, studioInstance: null,
+      return { studioPhase: phaseClass, studioComposite: composite ?? null, studioClass: null, studioInstance: null, studioEm: null,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
   closePhaseStudio: () => set({ studioPhase: null, studioComposite: null }),
+  studioEm: null,
+  openEmStudio: (className, instance, block) =>
+    set((s) => {
+      const history = s.display === 'studio' ? s.history : s.history.slice(0, s.histIndex + 1).concat('studio')
+      const pictureHistory = s.display === 'studio' ? s.pictureHistory : s.pictureHistory.slice(0, s.histIndex + 1).concat(null)
+      return { studioEm: { className, instance: instance ?? null, block: block ?? null }, studioPhase: null, studioComposite: null, studioClass: null, studioInstance: null,
+        display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
+    }),
+  closeEmStudio: () => set({ studioEm: null }),
   sfcName: null,
   studioLayout: {},
   setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),
@@ -209,6 +222,7 @@ export const useUi = create<UiState>((set, get) => ({
       return {
         studioTag: classInstance ? s.studioTag : tag,
         studioPhase: null,
+        studioEm: null,
         studioClass: classInstance ?? null,
         studioInstance: classInstance ? tag : null,
         selectedTag: tag,
@@ -242,6 +256,7 @@ export const useUi = create<UiState>((set, get) => ({
       studioInstance: null,
       studioPhase: null,
       studioComposite: null,
+      studioEm: null,
       sfcName: null,
       display: 'process',
       history: ['process'],

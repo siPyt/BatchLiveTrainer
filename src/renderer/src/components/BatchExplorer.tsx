@@ -11,6 +11,8 @@ import {
 } from '../engine/batchConfig'
 import { TreeRow, ContextMenu, ContentsList, alertResult, type ContentsRow } from './LibraryExplorer'
 import { ModuleIcon } from './EngineeringIcons'
+import { EmDetail, ModuleInstanceRows } from './EmExplorer'
+import { useEm } from '../engine/emStore'
 import { fmt } from '../utils/format'
 
 export const DRAG_PCELL_CLASS = 'application/x-bl-pcell-class'
@@ -19,6 +21,8 @@ export const DRAG_PHASE_CLASS = 'application/x-bl-phase-class'
 export const DRAG_MODULE = 'application/x-bl-module'
 export const DRAG_PCELL = 'application/x-bl-pcell'
 export const DRAG_UNIT = 'application/x-bl-unit'
+export const DRAG_EM_CLASS = 'application/x-bl-em-class'
+export const DRAG_CM_DEVICE = 'application/x-bl-cm-device'
 const CLASS_DRAG: Record<BatchClassKind, string> = { pcell: DRAG_PCELL_CLASS, unit: DRAG_UNIT_CLASS, phase: DRAG_PHASE_CLASS }
 
 export type BatchSel =
@@ -32,6 +36,11 @@ export type BatchSel =
   | { t: 'aliases'; unit: string }
   | { t: 'external' }
   | { t: 'subsystem'; name: string }
+  | { t: 'emRoot' }
+  | { t: 'emCat'; name: string }
+  | { t: 'emClass'; name: string }
+  | { t: 'emInstance'; tag: string }
+  | { t: 'cmDevice'; name: string }
 
 export const ROOT_LABEL: Record<BatchClassKind, string> = { pcell: 'Process Cell Classes', unit: 'Unit Classes', phase: 'Phase Classes' }
 const CLASS_TYPE: Record<BatchClassKind, string> = { pcell: 'Process Cell Class', unit: 'Unit Class', phase: 'Phase Class' }
@@ -44,6 +53,9 @@ export function batchLabel(s: BatchSel): string {
     case 'uphase': return s.phase
     case 'aliases': return 'Aliases'
     case 'external': return 'External Phases'
+    case 'emRoot': return 'Equipment Module Classes'
+    case 'emCat': case 'emClass': case 'cmDevice': return s.name
+    case 'emInstance': return s.tag
   }
 }
 
@@ -117,6 +129,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
   const renamingClass = (n: string): boolean => ui.renaming?.kind === 'class' && ui.renaming.cls === cls && ui.renaming.name === n
   const commit = (next: string): void => {
     const r = ui.renaming
+    if (r?.kind === 'ucBlock') { if (alertResult(b.renameModuleBlock(r.unitClass, r.name, next))) ui.setRenaming(null); return }
     if (!r || (r.kind !== 'cat' && r.kind !== 'class')) return
     const res = r.kind === 'cat' ? b.renameCategory(cls, r.name, next) : b.renameClass(cls, r.name, next)
     if (!alertResult(res)) return
@@ -193,12 +206,22 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
       {kids.map(k => renderCat(k, d + 1))}
       {members.map(name => {
         const ck = `class:${name}`
-        const children: ReactNode = cls === 'unit' ? (b.unitClasses[name]?.phaseClasses ?? []).map(p => <TreeRow key={p} depth={d + 2}
-          icon={<BatchIcon kind="phaseClass" />} label={<span>{p}</span>} sub="Assigned phase class" onClick={() => onSelect({ t: 'class', cls: 'phase', name: p })} />) :
+        const children: ReactNode = cls === 'unit' ? <>{Object.values(b.unitClasses[name]?.modules ?? {}).map(m => <TreeRow key={`m${m.name}`} depth={d + 2}
+          icon={<ModuleIcon kind={m.kind === 'em' ? 'equipment' : 'control'} size={16} />} dataAttr={{ 'data-unit-block': `${name}/${m.name}` }}
+          label={ui.renaming?.kind === 'ucBlock' && ui.renaming.unitClass === name && ui.renaming.name === m.name ? <InlineName label="Module block name" value={m.name} onCommit={commit} onCancel={() => ui.setRenaming(null)} /> : <span>{m.name}</span>}
+          sub={`${m.className} · ${m.ownership}${m.allowVariant ? ' · variant allowed' : ''}`}
+          onContextMenu={e => setMenu({ x: e.clientX, y: e.clientY, label: m.name, items: [
+            { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'ucBlock', unitClass: name, name: m.name }) },
+            { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete module block ${m.name} and its alias?`)) alertResult(b.removeModuleBlock(name, m.name)) } },
+            sep,
+            { label: 'Properties', onClick: () => window.alert(`${m.name}: ${m.kind === 'em' ? 'Equipment' : 'Control'} Module Class ${m.className}\nOwnership type: ${m.ownership}\nAllow variant module to be substituted on module instances: ${m.allowVariant ? 'Yes' : 'No'}`) }
+          ] })} />)}
+          {(b.unitClasses[name]?.phaseClasses ?? []).map(p => <TreeRow key={p} depth={d + 2}
+          icon={<BatchIcon kind="phaseClass" />} label={<span>{p}</span>} sub="Assigned phase class" onClick={() => onSelect({ t: 'class', cls: 'phase', name: p })} />)}</> :
           cls === 'phase' ? COMPOSITES.map(c => <TreeRow key={c} depth={d + 2} icon={<BatchIcon kind="composite" />} label={<span>{c}</span>}
             selected={same(sel, { t: 'composite', phase: name, composite: c })} onClick={() => onSelect({ t: 'composite', phase: name, composite: c })}
             onDoubleClick={() => openPhaseStudio(name, c)} />) : null
-        const hasKids = cls === 'phase' || (cls === 'unit' && (b.unitClasses[name]?.phaseClasses.length ?? 0) > 0)
+        const hasKids = cls === 'phase' || (cls === 'unit' && ((b.unitClasses[name]?.phaseClasses.length ?? 0) > 0 || Object.keys(b.unitClasses[name]?.modules ?? {}).length > 0))
         return <TreeRow key={name} depth={d + 1} open={!!open[ck]} onToggle={hasKids ? () => toggle(ck) : undefined}
           selected={same(sel, { t: 'class', cls, name })} icon={<BatchIcon kind={CLASS_ICON[cls]} />}
           dataAttr={{ [`data-batch-class-${cls}`]: name }}
@@ -206,7 +229,10 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
             <span>{name}{cls === 'phase' && b.phaseDrafts[name] ? ' *' : ''}</span>}
           sub={CLASS_TYPE[cls]}
           drag={{ type: CLASS_DRAG[cls], value: name }}
-          drop={cls === 'unit' ? { accepts: [DRAG_PHASE_CLASS], onDrop: (_t, p) => { if (alertResult(b.assignPhaseClass(name, p))) setOpen(o => ({ ...o, [ck]: true })) } } : undefined}
+          drop={cls === 'unit' ? { accepts: [DRAG_PHASE_CLASS, DRAG_EM_CLASS, DRAG_CM_DEVICE], onDrop: (t, p) => {
+            if (t === DRAG_PHASE_CLASS) { if (alertResult(b.assignPhaseClass(name, p))) setOpen(o => ({ ...o, [ck]: true })) }
+            else { setOpen(o => ({ ...o, [ck]: true })); ui.openDialog({ t: 'moduleBlock', unitClass: name, className: p }) }
+          } } : undefined}
           onClick={() => onSelect({ t: 'class', cls, name })}
           onDoubleClick={cls === 'phase' ? () => openPhaseStudio(name) : undefined}
           onContextMenu={e => classMenu(name, e)}>
@@ -342,7 +368,8 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule }: {
         ] }) }}>
         {units.map(u => {
           const uk = `unit:${u.name}`
-          const contained = Object.entries(b.contained).filter(([, x]) => x === u.name).map(([t]) => t).sort()
+          const blockTags = new Set(Object.values(u.blocks ?? {}).filter((t): t is string => !!t))
+          const contained = Object.entries(b.contained).filter(([t, x]) => x === u.name && !blockTags.has(t)).map(([t]) => t).sort()
           const dl = unitDownloadState(b, u.name)
           return <TreeRow key={u.name} depth={depth + 1} open={!!open[uk]} onToggle={() => toggle(uk)} selected={same(sel, { t: 'unit', name: u.name })}
             icon={<BatchIcon kind="unit" />} dataAttr={{ 'data-unit-module': u.name }}
@@ -371,6 +398,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule }: {
             <TreeRow depth={depth + 2} selected={same(sel, { t: 'aliases', unit: u.name })} icon={<BatchIcon kind="aliases" />}
               label={<span>Aliases</span>} sub={aliasesResolved(u) ? 'All aliases resolved' : 'Unresolved aliases'} dataAttr={{ 'data-aliases': u.name }}
               onClick={() => onSelect({ t: 'aliases', unit: u.name })} />
+            <ModuleInstanceRows unit={u.name} depth={depth + 2} sel={sel} onSelect={onSelect} />
             {contained.map(t => renderModule(t, depth + 2))}
           </TreeRow>
         })}
@@ -422,6 +450,8 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
         if (!uc) return <div className="exp-empty">Not found.</div>
         return pane(<ContentsList rows={[
           ...UNIT_CLASS_PARAMS.map(p => ({ key: p, icon: icon('param'), name: p, type: 'Unit parameter' })),
+          ...Object.values(uc.modules ?? {}).map(m => ({ key: `m${m.name}`, icon: <ModuleIcon kind={m.kind === 'em' ? 'equipment' : 'control'} size={16} />, name: m.name,
+            type: `Module block: ${m.className} (${m.ownership})`, data: { 'data-contents-block': m.name } })),
           ...Object.values(uc.aliases).map(a => ({ key: `a${a.name}`, icon: icon('alias'), name: a.name, type: `Alias${a.description ? ` — ${a.description}` : ''}`, data: { 'data-alias-def': a.name },
             onContextMenu: (e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, label: a.name, items: [{ label: 'Delete', danger: true, onClick: () => alertResult(b.deleteAlias(uc.name, a.name)) }] }) })),
           ...uc.phaseClasses.map(p => ({ key: `p${p}`, icon: icon('phaseClass'), name: p, type: 'Phase class', onOpen: () => onSelect({ t: 'class', cls: 'phase', name: p }),
@@ -476,7 +506,13 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
           ...UNIT_MODULE_PARAMS.map(p => ({ key: p, icon: icon('param'), name: p, type: 'Unit parameter' })),
           ...Object.values(u.phases).map(ph => ({ key: `p${ph.name}`, icon: icon('uphase'), name: ph.name, type: `Unit Phase (${ph.phaseType})`, onOpen: () => onSelect({ t: 'uphase', unit: u.name, phase: ph.name }) })),
           { key: 'aliases', icon: icon('aliases'), name: 'Aliases', type: 'Aliases', onOpen: () => onSelect({ t: 'aliases', unit: u.name }) },
-          ...Object.entries(b.contained).filter(([, x]) => x === u.name).map(([t]) => ({ key: t, icon: <ModuleIcon kind="control" size={16} />, name: t, type: `Control Module${modules[t] ? ` (${modules[t].description})` : ''}` }))
+          ...Object.entries(b.contained).filter(([, x]) => x === u.name).map(([t]) => {
+            const block = Object.entries(u.blocks ?? {}).find(([, v]) => v === t)?.[0]
+            const emi = useEm.getState().instances[t]
+            return { key: t, icon: <ModuleIcon kind={emi ? 'equipment' : 'control'} size={16} />, name: block ? `${t} (${block})` : t,
+              type: emi ? `Equipment Module (${emi.className})` : `Control Module${modules[t] ? ` (${modules[t].description})` : ''}`,
+              onOpen: emi ? () => onSelect({ t: 'emInstance', tag: t }) : undefined }
+          })
         ]} />
         <table className="exp-props-table lib-instance-summary"><tbody>
           <tr><td className="k">Unit class</td><td className="v">{u.unitClass}</td></tr>
@@ -526,6 +562,8 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
     }
     case 'external':
       return pane(<ContentsList rows={[]} empty="No external phases are configured." />)
+    case 'emRoot': case 'emCat': case 'emClass': case 'emInstance': case 'cmDevice':
+      return <EmDetail sel={sel} onSelect={onSelect} />
     case 'subsystem':
       return pane(<p className="exp-hint">{sel.name} subsystem on the ProfessionalPLUS workstation. Batch {sel.name === 'Batch Executive' ? 'Executive services (procedures, unit procedures, operations, Campaign Manager)' : 'Historian collection'} are not simulated in BatchLive; unit phases are run manually from DeltaV Operate (unit and phase faceplates, BatchHelp).</p>)
   }

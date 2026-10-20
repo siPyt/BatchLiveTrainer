@@ -100,16 +100,52 @@ export const LIBRARY_TEMPLATES: TemplateNode[] = [
     { name: 'Analog', kind: 'folder', children: [{ name: 'LIMIT_ALARM', kind: 'composite-template', description: 'Limit alarm composite' }] }
   ] },
   { name: 'ModuleTemplates', kind: 'folder', children: [
-    { name: 'AnalogControl', kind: 'folder', children: [mt('PID_LOOP', 'PID loop'), mt('CASCADE_LOOP', 'Cascade loop')] },
-    { name: 'Monitoring', kind: 'folder', children: [
-      mt('AALARM', 'Analog alarm'), mt('ANALOG', 'Analog monitoring (AI block)', true),
-      mt('DISCRETE', 'Discrete monitoring'), mt('PULSE', 'Pulse input')
+    { name: 'Analog Control', kind: 'folder', children: [
+      mt('PID_LOOP', 'Pre-wired continuous control loop: AI block wired to a PID block wired to an AO block, linked to the PID_FP faceplate and detail display.'),
+      mt('CASCADE_MASTER', 'Master loop of a cascade pair (AI → PID, output to the slave loop CAS input).'),
+      mt('CASCADE_SLAVE', 'Slave loop of a cascade pair (AI → PID in CAS → AO).'),
+      mt('RATIO_CONTROL', 'Ratio station feeding a flow controller setpoint.'),
+      mt('OVERRIDE_CONTROL', 'Two controllers with low/high signal selection.'),
+      mt('SPLIT_RANGE', 'PID output split to two AO blocks (SPLTR).')
     ] },
-    { name: 'Motors-2State', kind: 'folder', children: [mt('MTR_1_SPEED', 'Single speed motor')] },
-    { name: 'Motors-3State', kind: 'folder', children: [mt('MTR_2_SPEED', 'Two speed motor')] },
-    { name: 'Simulation', kind: 'folder', children: [mt('SIM_TANK', 'Tank simulation')] }
+    { name: 'Monitoring', kind: 'folder', children: [
+      mt('ANALOG', 'Analog monitoring: read-only indication with an AI block and HI/LO alarms (also shipped as ANALOG_MON / MON_ANALOG). Used for the Chapter 1 LEVEL_INDICATOR class.', true),
+      mt('DISCRETE_MON', 'Discrete monitoring: read-only indication and alarms with a DI block.'),
+      mt('TOTALIZER', 'Integrates an analog flow into a total.')
+    ] },
+    { name: 'Valves-NormallyClosed', kind: 'folder', children: [
+      mt('VLVNC-10', 'Normally closed (fail-closed) on/off valve: Device Control (DC) block, 1 DO, 0 DI (open-loop command, no limit switch feedback).'),
+      mt('VLVNC-11', 'Normally closed on/off valve: DC block, 1 DO, 1 DI (single solenoid, one limit switch). NC_VALVE is built on this template.'),
+      mt('VLVNC-12', 'Normally closed on/off valve: DC block, 1 DO, 2 DI (single solenoid, open ZSO and closed ZSC limit switches).'),
+      mt('VLVNC-11_ILOCK', 'VLVNC-11 plus a Condition (CND) block wired to TRK_IN_D / TRK_VAL to force the fail state on an interlock trip.'),
+      mt('VLVNC-12_ILOCK', 'VLVNC-12 plus a Condition (CND) interlock block forcing the fail state on a trip.')
+    ] },
+    { name: 'Valves-NormallyOpen', kind: 'folder', children: [
+      mt('VLVNO-10', 'Normally open (fail-open) on/off valve: DC block with inverted fail/passive state, 1 DO, 0 DI.'),
+      mt('VLVNO-11', 'Normally open on/off valve: DC block, 1 DO, 1 DI.'),
+      mt('VLVNO-12', 'Normally open on/off valve: DC block, 1 DO, 2 DI.'),
+      mt('VLVNO-11_ILOCK', 'VLVNO-11 plus a Condition (CND) interlock block.')
+    ] },
+    { name: 'Motors-2State', kind: 'folder', children: [
+      mt('MTR-10', 'Single-speed non-reversing motor starter (STOP / START, mtr2-sp): DC block, 1 DO, 0 DI.'),
+      mt('MTR-11', 'Single-speed motor starter: DC block, 1 DO, 1 DI (run auxiliary contact). AGIT_MTR and OUT_PMP are built on this template.'),
+      mt('MTR-11_ILOCK', 'MTR-11 plus a Condition (CND) interlock block wired to TRK_IN_D / TRK_VAL.')
+    ] },
+    { name: 'Motors-3State', kind: 'folder', children: [
+      mt('MTR3-11', 'Two-speed (STOP / FAST / SLOW) or reversing motor: 1 DO, 1 DI.'),
+      mt('MTR3-21', 'Two-speed or reversing (STOP / FORWARD / REVERSE) motor: 2 DO, 1 DI.'),
+      mt('MTR3-22', 'Two-speed or reversing motor: 2 DO, 2 DI.')
+    ] }
   ] }
 ]
+
+/** Discrete template suffix -XY: X = discrete outputs (DO), Y = discrete inputs (DI); _ILOCK adds a CND interlock block. */
+export function templateIoNote(name: string): string | null {
+  const m = /-(\d)(\d)(_ILOCK)?$/.exec(name)
+  if (!m) return null
+  const [, x, y, ilock] = m
+  return `-${x}${y}: ${x} discrete output${x === '1' ? '' : 's'} (DO) and ${y} discrete input${y === '1' ? '' : 's'} (DI)${y === '0' ? ' — open-loop command, no feedback' : ''}${ilock ? '; _ILOCK adds a Condition (CND) block on TRK_IN_D / TRK_VAL to force the fail state on an interlock trip' : ''}.`
+}
 
 export function findTemplate(name: string, nodes: TemplateNode[] = LIBRARY_TEMPLATES, path: string[] = []): { node: TemplateNode; path: string[] } | null {
   for (const node of nodes) {

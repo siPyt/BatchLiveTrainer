@@ -84,7 +84,7 @@ test('7016 ch1: new category, template drag-and-drop, class rename and library n
   assert.equal(cat, 'NewCategory')
   assert.match(L().renameCategory(cat, 'Analog Input').error, /1-16 characters/)
   value(L().renameCategory(cat, 'AnalogInput'))
-  assert.match(L().createClassFromTemplate('DISCRETE', 'AnalogInput').error, /not modeled/)
+  assert.match(L().createClassFromTemplate('DISCRETE_MON', 'AnalogInput').error, /not modeled/)
   assert.match(L().createClassFromTemplate('AI', 'AnalogInput').error, /function block template/)
   assert.match(L().createClassFromTemplate('ANALOG', 'Nope').error, /Category/)
   const name = value(L().createClassFromTemplate('ANALOG', 'AnalogInput'))

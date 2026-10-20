@@ -20,6 +20,7 @@ import { ExplorerDisplay } from './displays/ExplorerDisplay'
 import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
 import { ClassStudio } from './displays/ClassStudio'
 import { PhaseStudio } from './displays/PhaseStudio'
+import { EmStudio } from './displays/EmStudio'
 import { BatchDialogHost } from './components/BatchDialogs'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
 import { ProcessDisplay } from './displays/ProcessDisplay'
@@ -38,6 +39,7 @@ export function App(): JSX.Element {
   const processViewRevision = useUi((s) => s.processViewRevision)
   const studioClass = useUi((s) => s.studioClass)
   const studioPhase = useUi((s) => s.studioPhase)
+  const studioEm = useUi((s) => s.studioEm)
   const last = useRef<number>(performance.now())
 
   // Fixed-rate simulation loop (~10 Hz) decoupled from render.
@@ -85,7 +87,7 @@ export function App(): JSX.Element {
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
           {display === 'explorer' && <ExplorerDisplay />}
-          {display === 'studio' && (studioPhase ? <PhaseStudio key={studioPhase} /> : studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
+          {display === 'studio' && (studioEm ? <EmStudio key={`${studioEm.className}/${studioEm.instance ?? ''}`} /> : studioPhase ? <PhaseStudio key={studioPhase} /> : studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
           {display === 'process' && <ProcessDisplay key={processViewRevision} />}
           {display === 'batchhelp' && <BatchHelpDisplay />}
           {display === 'sfc' && <SfcDisplay />}

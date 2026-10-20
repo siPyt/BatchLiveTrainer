@@ -4,7 +4,7 @@ import { useLibrary } from '../engine/libraryStore'
 import { useBatch } from '../engine/batchStore'
 import { STATE_LABEL } from '../engine/batchConfig'
 import { useBatchUi } from '../ui/batchUi'
-import { BLENDER_CAPACITY, COLOR_TANK_CAPACITY, type CourseProcess } from '../engine/classLibrary'
+import { BASE_CAPACITY, BLENDER_CAPACITY, COLOR_TANK_CAPACITY, type CourseProcess } from '../engine/classLibrary'
 import {
   ClassicAgitatorDrive, ClassicBackground, ClassicFlag, ClassicLabel, ClassicNavButton, ClassicPipe, ClassicPump, ClassicSanitaryValve,
   ClassicTank, ClassicTitle, PALE_TEXT
@@ -40,6 +40,36 @@ function LevelReadout({ tag, x, y }: { tag: string; x: number; y: number }): JSX
       <text x={x + w - 4} y={y + 21} fill={PALE_TEXT} fontSize={8} fontWeight={700} textAnchor="end">{value}</text>
     </g>
   )
+}
+
+/** FIC-404 data box (p5-46): PV / SP / OUT and the actual mode. */
+function FlowReadout({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element {
+  const m = useStore(s => s.modules[tag])
+  const openFaceplate = useUi(s => s.openFaceplate)
+  const pid = m?.type === 'PID' ? m : undefined
+  const w = 112
+  const line = (k: string, v: string, row: number): JSX.Element => <g key={k}>
+    <text x={x + 4} y={y + 21 + row * 10} fill="#3a4550" fontSize={8}>{k}</text>
+    <text x={x + w - 4} y={y + 21 + row * 10} fill={PALE_TEXT} fontSize={8} fontWeight={700} textAnchor="end">{v}</text>
+  </g>
+  return (
+    <g data-dynamo={tag} style={{ cursor: m ? 'pointer' : 'default' }} onClick={m ? () => openFaceplate(tag) : undefined}>
+      <title>{pid ? `${tag} ${pid.description}` : `${tag} does not exist`}</title>
+      <rect x={x} y={y} width={w} height={54} fill="#eceeef" stroke="#6b7680" strokeWidth={1} />
+      <text x={x + 4} y={y + 10} fill={PALE_TEXT} fontSize={8.5} fontWeight={700}>{tag}</text>
+      <text x={x + w - 4} y={y + 10} fill="#1f5fa8" fontSize={8} fontWeight={700} textAnchor="end">{pid ? pid.actualMode : ''}</text>
+      {line('PV', pid ? `${fmt(pid.pv, 1)} GPM` : '????', 0)}
+      {line('SP', pid ? `${fmt(pid.sp, 1)} GPM` : '????', 1)}
+      {line('OUT', pid ? `${fmt(pid.out, 1)} %` : '????', 2)}
+    </g>
+  )
+}
+
+/** Two stage blender color valve position label (CLOSED / DRIBBLE / BULK). */
+function StageLabel({ tag, x, y }: { tag: string; x: number; y: number }): JSX.Element | null {
+  const stage = useStore(s => { const m = s.modules[tag]; return m?.type === 'VALVE' && m.twoStage ? (m.open ? (m.bulk ? 'BULK' : 'DRIBBLE') : 'CLOSED') : '' })
+  if (!stage) return null
+  return <text data-stage={tag} x={x} y={y} fill={stage === 'CLOSED' ? PALE_TEXT : '#1f7a3a'} fontSize={8} fontWeight={700}>{stage}</text>
 }
 
 function useOpen(tag: string): boolean {
@@ -107,10 +137,14 @@ export function ProcessDisplay(): JSX.Element {
         })}
         <ClassicPipe d={`M${COLOR_CX[0]},300 H${COLOR_CX[2]}`} width={PIPE} />
 
-        {/* ===== base tank (reference only) and its lines to the blenders ===== */}
-        <ClassicTank x={40} y={400} w={95} h={120} level={0} label="" below="Not modeled" />
+        {/* ===== base tank 400, transfer pump MTR-403 and flow loop FIC-404 (Chapter 5) ===== */}
+        <ClassicTank x={40} y={400} w={95} h={120} level={level('bs400', BASE_CAPACITY)} label="" />
         <ClassicLabel x={87} y={470} text="Base 400" />
-        <ClassicPipe d="M135,460 H305" width={PIPE} />
+        <LevelReadout tag="LI-401" x={39} y={372} />
+        <ClassicPipe d="M87,520 V570 H150" width={PIPE} />
+        <ClassicPipe d="M170,570 H180 V460 H305" width={PIPE} />
+        <Running tag="MTR-403">{running => <ClassicPump x={160} y={570} running={running} tag="MTR-403" discharge="right" />}</Running>
+        <FlowReadout tag="FIC-404" x={36} y={610} />
         <Valve tag="XV-501" x={240} y={460} />
         <ClassicPipe d="M180,460 V372 H600 V460 H635" width={PIPE} />
         <Valve tag="XV-601" x={520} y={372} />
@@ -119,6 +153,7 @@ export function ProcessDisplay(): JSX.Element {
         {BLENDERS.map(b => <g key={b.n}>
           <ClassicPipe d={`M${b.cx},300 V410`} width={PIPE} />
           <Valve tag={`XV-${b.n === '500' ? '502' : '602'}`} x={b.cx} y={340} orientation="vertical" labelPosition="right" />
+          <StageLabel tag={`XV-${b.n === '500' ? '502' : '602'}`} x={b.cx + 14} y={362} />
           <ClassicTank x={b.cx - 55} y={410} w={110} h={140} level={level(b.key, BLENDER_CAPACITY)} label="" />
           <ClassicLabel x={b.cx} y={500} text={`Blender ${b.n}`} />
           <Running tag={b.agit}>{running => <ClassicAgitatorDrive x={b.cx + 30} y={413} running={running} tag={b.agit} />}</Running>

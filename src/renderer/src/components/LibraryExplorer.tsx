@@ -8,13 +8,15 @@ import {
   useLibrary, downloadState, instanceContents, type DownloadReport, type DownloadState, type Result
 } from '../engine/libraryStore'
 import {
-  LIBRARY_TEMPLATES, PARAM_TYPE_LABEL, configurableParams, formatParamValue, getParam, type TemplateNode, type ParamValue
+  LIBRARY_TEMPLATES, PARAM_TYPE_LABEL, configurableParams, findTemplate, formatParamValue, getParam, templateIoNote, type TemplateNode, type ParamValue
 } from '../engine/classLibrary'
+import { DeviceClassRows, EmClassTree, EmDetail } from './EmExplorer'
+import { CM_DEVICE_CLASSES, useEm } from '../engine/emStore'
 import { controllerIsDown, type Controller } from '../engine/hardware'
 import { fmt } from '../utils/format'
 import { useBatch, unitDownloadState } from '../engine/batchStore'
 import { useBatchUi } from '../ui/batchUi'
-import { BatchClassTree, BatchDetail, BatchIcon, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
+import { BatchClassTree, BatchDetail, BatchIcon, DRAG_CM_DEVICE, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
@@ -262,6 +264,7 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
         onClick={() => onSelect({ kind: 'class', name })}
         onDoubleClick={() => openClassStudio(name)}
         onContextMenu={e => { onSelect({ kind: 'class', name }); classMenu(name, e) }} />)}
+      <DeviceClassRows category={cat} depth={depth + 1} sel={batchSel} onSelect={pickBatch} />
     </Row>
   }
 
@@ -297,8 +300,7 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
       {renderTemplates(LIBRARY_TEMPLATES, depth + 1, [])}
       <Row depth={depth + 1} open={!!open['Advanced Definitions']} onToggle={() => toggle('Advanced Definitions')} selected={is({ kind: 'advanced' })}
         icon={<LibIcon kind="advanced" />} label={<span>Advanced Definitions</span>} onClick={() => onSelect({ kind: 'advanced' })}>
-        <Row depth={depth + 2} selected={is({ kind: 'emClasses' })} icon={<LibIcon kind="classes" />} label={<span>Equipment Module Classes</span>}
-          onClick={() => onSelect({ kind: 'emClasses' })} />
+        <EmClassTree depth={depth + 2} sel={batchSel} onSelect={pickBatch} />
         <Row depth={depth + 2} open={!!open.cmClasses} onToggle={() => toggle('cmClasses')} selected={is({ kind: 'cmClasses' })}
           icon={<LibIcon kind="classes" />} label={<span>Control Module Classes</span>} dataAttr={{ 'data-library-node': 'Control Module Classes' }}
           onClick={() => onSelect({ kind: 'cmClasses' })}
@@ -465,6 +467,7 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
   const { aum } = useBatchEnabled()
   const openClassStudio = useUi(s => s.openClassStudio)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [menu, setMenu] = useMenu()
   const pane = (body: ReactNode, actions?: ReactNode, notes?: ReactNode): JSX.Element => <div className="dvx-contents">
     {actions && <div className="dvx-actions">{actions}</div>}{body}{notes}</div>
   const tplType = (n: TemplateNode): string => n.kind === 'folder' ? 'Folder' : n.kind === 'module-template' ? 'Module Template' : n.kind === 'composite-template' ? 'Composite Template' : 'Function Block Template'
@@ -485,13 +488,18 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
         drag: n.kind === 'folder' ? undefined : { type: DRAG_TEMPLATE, value: n.name },
         onOpen: n.kind === 'folder' ? () => onSelect({ kind: 'folder', path: [...selection.path, n.name] }) : () => onSelect({ kind: 'template', name: n.name, path: [...selection.path, n.name] }) }))} />)
     }
-    case 'template':
+    case 'template': {
+      const node = findTemplate(selection.name)?.node
+      const io = templateIoNote(selection.name)
       return pane(<table className="exp-props-table"><tbody>
         <tr><td className="k">Path</td><td className="v">Library/{selection.path.join('/')}</td></tr>
         <tr><td className="k">Type</td><td className="v">{selection.path[0] === 'ModuleTemplates' ? 'Module Template' : selection.path[0] === 'CompositeTemplates' ? 'Composite Template' : 'Function Block Template'}</td></tr>
+        {node?.description && <tr><td className="k">Description</td><td className="v">{node.description}</td></tr>}
+        {io && <tr><td className="k">I/O (-XY suffix)</td><td className="v">{io}</td></tr>}
         <tr><td className="k">Use</td><td className="v">{selection.name === 'ANALOG' ? 'Drag onto a Control Module Class Category to create a Control Module Class (one AI1 block, HI/LO alarms).' :
-          'Not modeled in BatchLive — Chapter 1 uses ModuleTemplates/Monitoring/ANALOG.'}</td></tr>
+          'Reference only in BatchLiveTrainer — Chapter 1 drags ModuleTemplates/Monitoring/ANALOG; the Chapter 5 valve and motor classes (NC_VALVE, 2STAGE_VALVE, AGIT_MTR, OUT_PMP) are provided in Control Module Classes.'}</td></tr>
       </tbody></table>)
+    }
     case 'advanced':
       return pane(<ContentsList rows={[
         { key: 'em', icon: <LibIcon kind="classes" />, name: 'Equipment Module Classes', type: 'Equipment Module Classes', onOpen: () => onSelect({ kind: 'emClasses' }) },
@@ -500,7 +508,7 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
           name: ROOT_LABEL[cls], type: ROOT_LABEL[cls], onOpen: () => onSelect({ kind: 'batch', sel: { t: 'root', cls } }) })) : [])
       ]} />)
     case 'emClasses':
-      return pane(<ContentsList rows={[]} empty="No Equipment Module Classes (introduced after Chapter 1)." />)
+      return <EmDetail sel={{ t: 'emRoot' }} onSelect={s => onSelect({ kind: 'batch', sel: s })} />
     case 'cmClasses':
       return pane(<ContentsList rows={Object.values(lib.categories).filter(c => c.parent === null).sort((a, b) => a.name.localeCompare(b.name))
         .map(c => ({ key: c.name, icon: <LibIcon kind="category" />, name: c.name, type: 'Control Module Class Category', onOpen: () => onSelect({ kind: 'category', name: c.name }) }))} />)
@@ -510,7 +518,9 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
       return pane(<ContentsList rows={[
         ...cats.map(c => ({ key: c.name, icon: <LibIcon kind="category" />, name: c.name, type: 'Control Module Class Category', onOpen: () => onSelect({ kind: 'category', name: c.name }) })),
         ...cls.map(c => ({ key: c.name, icon: <LibIcon kind="class" />, name: c.name, type: 'Control Module Class', data: { 'data-contents-class': c.name },
-          drag: { type: DRAG_CLASS, value: c.name }, onClick: () => onSelect({ kind: 'class', name: c.name }), onOpen: () => openClassStudio(c.name) }))
+          drag: { type: DRAG_CLASS, value: c.name }, onClick: () => onSelect({ kind: 'class', name: c.name }), onOpen: () => openClassStudio(c.name) })),
+        ...Object.values(CM_DEVICE_CLASSES).filter(c => c.category === selection.name).map(c => ({ key: `d${c.name}`, icon: <LibIcon kind="class" />, name: c.name,
+          type: `Control Module Class (${c.template})`, drag: { type: DRAG_CM_DEVICE, value: c.name }, onOpen: () => onSelect({ kind: 'batch', sel: { t: 'cmDevice', name: c.name } }) }))
       ]} empty={`Empty. Drag Library ▸ ModuleTemplates ▸ Monitoring ▸ ANALOG onto ${selection.name} to create a class.`} />)
     }
     case 'class': {
@@ -544,8 +554,12 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
       const unitTags = Object.entries(batch.unitAssignments).filter(([, x]) => x === c.tag).map(([u]) => u).sort()
       return pane(<ContentsList rows={[...unitTags.map(u => ({ key: `unit:${u}`, icon: <BatchIcon kind="unit" />, name: u, data: { 'data-assigned-unit': u },
           type: `Unit Module (${batch.units[u]?.unitClass ?? ''})`, onOpen: () => onSelect({ kind: 'batch', sel: { t: 'unit', name: u } }) })),
-        ...tags.map(t => ({ key: t, icon: <ModuleIcon kind="control" size={16} />, name: t, data: { 'data-assigned': t },
-        type: lib.instances[t] ? `Control Module (${lib.instances[t].className})` : lib.sims[t] ? 'Control Module (simulation)' : 'Control Module' }))]}
+        ...tags.map(t => { const emi = useEm.getState().instances[t]; const cmi = useEm.getState().cmInstances[t]; return { key: t, icon: <ModuleIcon kind={emi ? 'equipment' : 'control'} size={16} />, name: t, data: { 'data-assigned': t },
+        type: emi ? `Equipment Module (${emi.className})` : lib.instances[t] ? `Control Module (${lib.instances[t].className})` : cmi ? `Control Module (${cmi.className})` : lib.sims[t] ? 'Control Module (simulation)' : 'Control Module',
+        onContextMenu: (e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, label: t, items: [
+          { label: 'Delete Assignment', danger: true, onClick: () => { if (window.confirm(`Delete the assignment of ${t} to ${c.tag}?`)) { const r = useBatch.getState().unassignModule(t); if (!r.ok) window.alert(r.error) } } },
+          sep, { label: 'Properties', onClick: () => window.alert(`${t}\nAssigned to ${c.tag}`) }
+        ] }) } })]}
         extraColumn={{ title: 'Download', value: r => r.key.startsWith('unit:') ? STATE_LABEL[unitDownloadState(batch, r.key.slice(5))] : lib.instances[r.key] ? STATE_LABEL[downloadState(lib, r.key)] : 'Downloaded' }}
         empty={`No modules assigned. Drag a Plant Area (for example ED_CENTER_BATCH) onto ${c.tag}.`} />,
       <button className="tbtn sm" onClick={() => setDownloading(c.tag)}>Download Controller...</button>,
@@ -553,7 +567,8 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
           <div className="exp-props-subhead">Last download: {lib.lastDownload.target}</div>
           {lib.lastDownload.warnings.length ? lib.lastDownload.warnings.map(w => <div key={w} className="exp-hint">⚠ {w}</div>) : <div className="exp-hint">No warnings.</div>}
         </div>}
-        {downloading && <ControllerDownloadDialog controller={c.tag} onClose={() => setDownloading(null)} />}</>)
+        {downloading && <ControllerDownloadDialog controller={c.tag} onClose={() => setDownloading(null)} />}
+        {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}</>)
     }
     case 'sim': {
       const sim = lib.sims[selection.tag]
