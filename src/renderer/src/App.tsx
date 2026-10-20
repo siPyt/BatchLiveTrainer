@@ -22,6 +22,7 @@ import { ClassStudio } from './displays/ClassStudio'
 import { PhaseStudio } from './displays/PhaseStudio'
 import { EmStudio } from './displays/EmStudio'
 import { BatchDialogHost } from './components/BatchDialogs'
+import { NoticeHost } from './components/AppNotices'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
 import { ProcessDisplay } from './displays/ProcessDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
@@ -104,6 +105,7 @@ export function App(): JSX.Element {
       <FaceplateHost />
       <BatchWindows />
       <BatchDialogHost />
+      <NoticeHost />
       <AccessDeniedToast />
       <FlexLockOverlay />
       <SignatureDialog />

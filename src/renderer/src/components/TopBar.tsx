@@ -5,6 +5,7 @@ import { useSecurity } from '../engine/security'
 import { useLibrary } from '../engine/libraryStore'
 import { useSystem } from '../engine/systemPreferences'
 import { courseSnapshot, restoreCourseDatabase, saveCourseDatabase } from '../engine/courseSave'
+import { ConfirmDialog } from './AppNotices'
 import { clockString, dateString } from '../utils/format'
 import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
@@ -121,9 +122,10 @@ export function TopBar(): JSX.Element {
     }
   }, [searchOpen])
 
+  const [confirmNew, setConfirmNew] = useState(false)
+  const [pendingImport, setPendingImport] = useState<{ name: string; text: string } | null>(null)
   const startNewProject = (): void => {
-    if (!window.confirm('Discard your saved DV_School database and start Course 7016 over with a fresh copy (ED_CENTER_BATCH)? Enable Batch is reset too (Chapter 3). Export the database first if you want a backup. This cannot be undone.')) return
-    if (!useLibrary.getState().installCourseProject()) return
+    if (!useLibrary.getState().installCourseProject()) { window.alert('New Course 7016 Project needs the Can Configure key and an unlocked workstation.'); return }
     useSystem.getState().resetPreferences()
     saveCourseDatabase()
     resetToOverview()
@@ -139,13 +141,13 @@ export function TopBar(): JSX.Element {
   }
   const importDatabase = (file: File | undefined): void => {
     if (!file) return
-    void file.text().then(text => {
-      if (!window.confirm(`Replace the current DV_School database with ${file.name}?`)) return
-      if (!useLibrary.getState().installCourseProject()) return
-      if (!restoreCourseDatabase(text)) { window.alert(`${file.name} is not a BatchLiveTrainer database export.`); return }
-      saveCourseDatabase()
-      resetToOverview()
-    })
+    void file.text().then(text => setPendingImport({ name: file.name, text }))
+  }
+  const finishImport = (name: string, text: string): void => {
+    if (!useLibrary.getState().installCourseProject()) return
+    if (!restoreCourseDatabase(text)) { window.alert(`${name} is not a BatchLiveTrainer database export.`); return }
+    saveCourseDatabase()
+    resetToOverview()
   }
 
   return (
@@ -201,7 +203,7 @@ export function TopBar(): JSX.Element {
       <DropdownMenu
         label="File"
         items={[
-          { label: '🎓 New Course 7016 Project (DV_School)', onClick: startNewProject },
+          { label: '🎓 New Course 7016 Project (DV_School)', onClick: () => setConfirmNew(true) },
           { label: '💾 Save DV_School now (also autosaved)', onClick: () => { if (!saveCourseDatabase()) window.alert('The database could not be saved (storage unavailable or full).') } },
           { label: '⤓ Export DV_School database...', onClick: exportDatabase },
           { label: '⤒ Import DV_School database...', onClick: () => importRef.current?.click() }
@@ -209,6 +211,12 @@ export function TopBar(): JSX.Element {
       />
       <input ref={importRef} type="file" accept=".json" hidden aria-label="Import DV_School database file"
         onChange={e => { importDatabase(e.target.files?.[0]); e.target.value = '' }} />
+      {confirmNew && <ConfirmDialog title="New Course 7016 Project (DV_School)" okLabel="Start over"
+        text={'Discard your saved DV_School database and start Course 7016 over with a fresh copy (ED_CENTER_BATCH)?\n\nEverything you configured is removed and Enable Batch is turned off again (Chapter 3). Your workshop check-box ticks are kept.\n\nUse File → Export DV_School database first if you want a backup. This cannot be undone.'}
+        onOk={startNewProject} onClose={() => setConfirmNew(false)} />}
+      {pendingImport && <ConfirmDialog title="Import DV_School database" okLabel="Import"
+        text={`Replace the current DV_School database with ${pendingImport.name}?`}
+        onOk={() => finishImport(pendingImport.name, pendingImport.text)} onClose={() => setPendingImport(null)} />}
       <DropdownMenu
         label="Utilities"
         items={[

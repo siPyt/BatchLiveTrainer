@@ -319,6 +319,13 @@ Review of Chapters 1-5 (2026-10-20), what changed:
   the Permissive device option when PERMISSIVE_SOURCE is used (DeltaV DEVICE_OPTS behaviour).
 - Chapter 5 run-process checks count only transfers made after the BLENDERS download.
 
+Fix after the review (2026-10-20): File -> New Course 7016 Project did nothing in the VS Code built-in browser tab,
+because that tab is attached to the assistant's browser automation, which silently cancels native confirm()/alert()
+popups. New Project and Import now use an in-app confirmation window, and every alert() message is shown in an
+in-app message box (components/AppNotices.tsx), so they work in any browser and the desktop app. Delete
+confirmations still use the native popup: they work in a normal browser (Edge/Chrome at http://localhost:5199) and
+in the desktop app; in the VS Code tab they are cancelled, so nothing is deleted by accident.
+
 Kept local only (NOT in GitHub, on purpose): 958791105-7016-8.pdf and pdf_extracted/ - Emerson copyrighted course
 material and the repository is public. bl-preview.vite.config.mjs (browser preview config, in .git/info/exclude).
 To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,
