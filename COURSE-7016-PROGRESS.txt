@@ -6,7 +6,9 @@ Companion  : https://github.com/siPyt/BatchLive stays the site digital twin and 
 Source     : Emerson Course 7016 Rev 13 PDF (958791105-7016-8.pdf, local only), chapter1.html, chapters4&5.txt and
              chapters_1_and_4_navigations_parameters_expressions.pdf (the user's breakdowns).
 
-This file records everything that has been done and how to perform each workshop in BatchLiveTrainer.
+This file is the project historian: it records everything that has been done, how to perform each workshop in
+BatchLiveTrainer, and (section 8) a dated log plus WHERE WE LEFT OFF. Update section 8 at the end of every work
+session and commit/push it with the work.
 
 
 1. PROJECT SET-UP
@@ -253,3 +255,30 @@ FAIL_MONITOR execution, Input/Output/Internal Read/Write parameter palette items
 Studio, version control (Check Out), unit arbitration and Modelock Override, batch history/reporting, EM algorithm
 types other than Command driven and State driven, Shared module blocks can be bound but variant substitution
 checks only the class name.
+
+
+8. HISTORY LOG AND WHERE WE LEFT OFF
+------------------------------------
+Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
+- 2026-10-13  0203c8f  Starting point shared with BatchLive (simulator engine, test runner).
+- 2026-10-20  c3ed383  Chapter 1: control module classes, class-based modules, Exploring DeltaV layout.
+- 2026-10-20  d84fa3f  Project split from BatchLive and renamed BatchLiveTrainer.
+- 2026-10-20  632df32  Chapters 3-4: Enable Batch, FILL unit phase, Phase Control Studio, faceplates; BatchLive site
+                       areas removed (course-only UI).
+- 2026-10-20  9b9e7b8  Chapter 5 engine: equipment module classes, runtime, BLENDERS unit class, BASE 400 process.
+- 2026-10-20  9daff84  Chapter 5 UI, workshops and live checks; standard DeltaV ModuleTemplates (templates.txt).
+- 2026-10-20  (this)   Added this history log.
+
+Kept local only (NOT in GitHub, on purpose): 958791105-7016-8.pdf and pdf_extracted/ - Emerson copyrighted course
+material and the repository is public. bl-preview.vite.config.mjs (browser preview config, in .git/info/exclude).
+To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,
+ch5/*.png ...).
+
+WHERE WE LEFT OFF (2026-10-20):
+- Chapters 1, 3, 4 and 5 are complete, including every optional exercise; each workshop step has a live check in
+  the Course 7016 Workshops display. Full test suite 754/755 (only dv09-audit, which needs pdf_om.txt, fails).
+- Next candidate: Chapter 6 (AGITATE unit phase - the PDF continues after p5-54 with "AGITATE Unit Phase").
+  Approach used so far: read pdf_extracted/7016-chN.txt and the slide images, build the engine + tests first,
+  then the screens, then the workshops/live checks, then a browser walkthrough, then update this file and push.
+- Known limitations: see section 7.
+
