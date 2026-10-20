@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict')
+const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const test = require('node:test')
 const ts = require('typescript')
@@ -72,10 +72,11 @@ function createLi(name, path, scale) {
 test('7016 ch1: the DV_School project provides ED_CENTER_BATCH, CTLR1, the course modules and TANKSIM sources', () => fixture(() => {
   assert.ok(M().areas.includes('ED_CENTER_BATCH'))
   assert.equal(M().hardware.controllers.CTLR1.commissioned, true)
-  for (const tag of ['AGIT-503', 'FIC-506', 'MTR-605', 'XV-101', 'XV-604']) assert.equal(M().modules[tag].area, 'ED_CENTER_BATCH')
-  assert.deepEqual(Object.keys(L().sims).sort(), ['LEV500-SIM', 'LEV600-SIM', 'TANKSIM'])
+  for (const tag of ['AGIT-503', 'XV-502', 'MTR-605', 'XV-101', 'XV-604']) assert.equal(M().modules[tag].area, 'ED_CENTER_BATCH')
+  for (const tag of ['MTR-403', 'FIC-404', 'LI-401']) assert.equal(M().modules[tag].area, 'FEED_TANK_AREA')
+  assert.deepEqual(Object.keys(L().sims).sort(), ['LEV500-SIM', 'LEV600-SIM', 'LEVEL-401', 'TANKSIM'])
   assert.deepEqual(Object.keys(L().categories).sort(), ['2StateMotor', 'General', 'NC_Valves'])
-  assert.deepEqual(lib.browsePaths().filter(p => !p.includes('AI1')), ['LEV500-SIM/500_LEV', 'LEV600-SIM/600_LEV', 'TANKSIM/TKLEV100', 'TANKSIM/TKLEV200', 'TANKSIM/TKLEV300'])
+  assert.deepEqual(lib.browsePaths().filter(p => !p.includes('AI1')), ['LEV500-SIM/500_LEV', 'LEV600-SIM/600_LEV', 'LEVEL-401/401_LEV', 'LEVEL-401/FLOW', 'TANKSIM/TKLEV100', 'TANKSIM/TKLEV200', 'TANKSIM/TKLEV300'])
 }))
 
 test('7016 ch1: new category, template drag-and-drop, class rename and library name rules', () => fixture(() => {

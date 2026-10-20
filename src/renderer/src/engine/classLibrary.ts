@@ -391,48 +391,94 @@ export function executeAi(d: ModuleDefinition, read: ReferenceReader, previous: 
 
 // ---------------------------------------------------------------------------
 // DV_School ED_CENTER_BATCH process: three color tanks (100/200/300) feeding
-// two blenders (500/600). TANKSIM, LEV500-SIM and LEV600-SIM publish the levels.
+// two blenders (500/600), and BASE 400 (FEED_TANK_AREA) pumped by MTR-403 under
+// FIC-404 through XV-501 / XV-601. TANKSIM, LEV500-SIM, LEV600-SIM and LEVEL-401
+// publish the levels.
 
-export interface CourseProcess { tk100: number; tk200: number; tk300: number; bl500: number; bl600: number }
+export interface CourseProcess { tk100: number; tk200: number; tk300: number; bl500: number; bl600: number; bs400: number; baseFlow: number }
 export const COLOR_TANK_CAPACITY = 500
 export const BLENDER_CAPACITY = 1000
+export const BASE_CAPACITY = 2000
 export const FILL_RATE = 6
 /** Inlet valve capacities differ per color tank (gal/s), so the fill overshoot differs per unit (Chapter 4 optional exercise). */
 export const TANK_FILL_RATE: Record<'tk100' | 'tk200' | 'tk300', number> = { tk100: FILL_RATE, tk200: 8, tk300: 5 }
+/** Color dump through a fully open (BULK) blender color valve, gal/s; DRIBBLE passes a fifth of it. */
 export const COLOR_DRAIN_RATE = 5
+export const DRIBBLE_FRACTION = 0.2
 export const BLENDER_DRAIN_RATE = 8
+/** FIC-404 at 100 % output with MTR-403 running (GPM). */
+export const BASE_MAX_FLOW = 150
 
 export interface SimModule { tag: string; area: string; description: string; params: Record<string, keyof CourseProcess> }
 
 export const COURSE_SIMS: SimModule[] = [
   { tag: 'TANKSIM', area: 'ED_CENTER_BATCH', description: 'Color tank level simulation', params: { TKLEV100: 'tk100', TKLEV200: 'tk200', TKLEV300: 'tk300' } },
   { tag: 'LEV500-SIM', area: 'ED_CENTER_BATCH', description: 'Blender 500 level simulation', params: { '500_LEV': 'bl500' } },
-  { tag: 'LEV600-SIM', area: 'ED_CENTER_BATCH', description: 'Blender 600 level simulation', params: { '600_LEV': 'bl600' } }
+  { tag: 'LEV600-SIM', area: 'ED_CENTER_BATCH', description: 'Blender 600 level simulation', params: { '600_LEV': 'bl600' } },
+  { tag: 'LEVEL-401', area: 'FEED_TANK_AREA', description: 'Base 400 level simulation', params: { '401_LEV': 'bs400', FLOW: 'baseFlow' } }
 ]
 
-export function initialCourseProcess(): CourseProcess { return { tk100: 40, tk200: 30, tk300: 50, bl500: 250, bl600: 120 } }
+export function initialCourseProcess(): CourseProcess { return { tk100: 40, tk200: 30, tk300: 50, bl500: 250, bl600: 120, bs400: 1500, baseFlow: 0 } }
 
-export function stepCourseProcess(p: CourseProcess, open: (tag: string) => boolean, running: (tag: string) => boolean, dt: number): CourseProcess {
-  const next = { ...p }
-  for (const n of [1, 2, 3] as const) {
-    const key = `tk${n}00` as 'tk100' | 'tk200' | 'tk300'
-    if (open(`XV-${n}01`)) next[key] = Math.min(COLOR_TANK_CAPACITY, next[key] + TANK_FILL_RATE[key] * dt)
-    const dests = (open(`XV-${n}02`) ? [open('XV-502') ? 'bl500' : null, open('XV-602') ? 'bl600' : null] : [])
-      .filter((x): x is 'bl500' | 'bl600' => !!x)
-    if (!dests.length) continue
-    const each = Math.min(next[key], COLOR_DRAIN_RATE * dt) / dests.length
-    for (const dest of dests) {
-      const moved = Math.min(each, BLENDER_CAPACITY - next[dest])
-      next[dest] += moved
-      next[key] -= moved
-    }
-  }
-  for (const [blender, mtr, product, waste] of [['bl500', 'MTR-505', 'XV-503', 'XV-504'], ['bl600', 'MTR-605', 'XV-603', 'XV-604']] as const) {
-    if (running(mtr) && (open(product) || open(waste))) next[blender] = Math.max(0, next[blender] - BLENDER_DRAIN_RATE * dt)
-  }
-  return next
+/** Signals the process reads from the control modules each step. */
+export interface CourseIo {
+  open: (tag: string) => boolean
+  /** Blender color valve position: 0 closed, 1 DRIBBLE, 2 BULK (single-stage valves report 2 when open). */
+  stage: (tag: string) => number
+  running: (tag: string) => boolean
+  /** FIC-404 applied output, %. */
+  baseOut: number
 }
 
+/** Material moved this step on each path (gallons; agitator entries are seconds of running). */
+export type CourseFlows = Record<string, number>
+
+export function stepCourseProcess(p: CourseProcess, io: CourseIo, dt: number): { process: CourseProcess; flows: CourseFlows } {
+  const next = { ...p }
+  const flows: CourseFlows = {}
+  const add = (k: string, v: number): void => { if (v > 0) flows[k] = (flows[k] ?? 0) + v }
+  for (const n of [1, 2, 3] as const) {
+    const key = `tk${n}00` as 'tk100' | 'tk200' | 'tk300'
+    if (io.open(`XV-${n}01`)) {
+      const added = Math.min(COLOR_TANK_CAPACITY - next[key], TANK_FILL_RATE[key] * dt)
+      next[key] += added
+      add(`TK${n}00 FILL`, added)
+    }
+    if (!io.open(`XV-${n}02`)) continue
+    const dests = ([['bl500', 'XV-502'], ['bl600', 'XV-602']] as const)
+      .map(([bl, xv]) => ({ bl, factor: io.stage(xv) >= 2 ? 1 : io.stage(xv) === 1 ? DRIBBLE_FRACTION : 0 }))
+      .filter(d => d.factor > 0)
+    if (!dests.length) continue
+    for (const d of dests) {
+      const moved = Math.max(0, Math.min(next[key], COLOR_DRAIN_RATE * d.factor * dt / dests.length, BLENDER_CAPACITY - next[d.bl]))
+      next[d.bl] += moved
+      next[key] -= moved
+      add(`TK${n}00>${d.bl.toUpperCase()}`, moved)
+    }
+  }
+  // BASE 400 → blenders: MTR-403 with FIC-404 throttling, first-order flow response.
+  const baseDests = ([['bl500', 'XV-501'], ['bl600', 'XV-601']] as const).filter(([, xv]) => io.open(xv)).map(([bl]) => bl)
+  const baseCmd = io.running('MTR-403') && baseDests.length && next.bs400 > 0 ? Math.max(0, Math.min(100, io.baseOut)) / 100 * BASE_MAX_FLOW : 0
+  next.baseFlow += (baseCmd - next.baseFlow) * Math.min(1, dt / 2)
+  if (next.baseFlow < 0.05 && baseCmd === 0) next.baseFlow = 0
+  if (baseDests.length && next.baseFlow > 0) {
+    for (const bl of baseDests) {
+      const moved = Math.max(0, Math.min(next.bs400, next.baseFlow / 60 * dt / baseDests.length, BLENDER_CAPACITY - next[bl]))
+      next[bl] += moved
+      next.bs400 -= moved
+      add(`BASE>${bl.toUpperCase()}`, moved)
+    }
+  }
+  for (const [blender, mtr, product, waste, agit] of [['bl500', 'MTR-505', 'XV-503', 'XV-504', 'AGIT-503'], ['bl600', 'MTR-605', 'XV-603', 'XV-604', 'AGIT-603']] as const) {
+    if (io.running(agit)) add(`${agit} RUN`, dt)
+    const outs = [[product, 'PRODUCT'], [waste, 'WASTE']].filter(([xv]) => io.open(xv))
+    if (!io.running(mtr) || !outs.length) continue
+    const total = Math.min(next[blender], BLENDER_DRAIN_RATE * dt)
+    next[blender] -= total
+    for (const [, dest] of outs) add(`${blender.toUpperCase()}>${dest}`, total / outs.length)
+  }
+  return { process: next, flows }
+}
 /** MODULE/PARAM[.CV] → normalized { module, param }. */
 export function parseReference(path: string): { module: string; param: string } | null {
   const clean = path.trim().replace(/\.(CV|ST)$/i, '')

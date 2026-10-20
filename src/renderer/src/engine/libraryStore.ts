@@ -10,7 +10,7 @@ import { makeModule, type NewModuleSpec } from './plant'
 import {
   COURSE_SIMS, DEFAULT_CATEGORIES, TEMPLATE_DEFINITIONS, cloneDefinition, configurableParams, defaultClassName,
   defaultInstanceName, executeAi, findTemplate, getParam, initialCourseProcess, instanceConfigurable, libraryNameError,
-  paramValueError, parseReference, pruneOverrides, resolveInstance, stepCourseProcess, wireError,
+  paramValueError, parseReference, pruneOverrides, resolveInstance, stepCourseProcess, wireError, BASE_CAPACITY, BASE_MAX_FLOW,
   type AiRuntime, type ClassCategory, type ClassInstance, type ControlModuleClass, type CourseProcess,
   type ModuleDefinition, type ParamValue, type ReferenceReader, type ScaleValue, type SimModule
 } from './classLibrary'
@@ -29,13 +29,41 @@ function renameKey<T>(r: Record<string, T>, from: string, to: string): Record<st
 
 export const COURSE_AREA = 'ED_CENTER_BATCH'
 export const COURSE_CONTROLLER = 'CTLR1'
+/** DV_School block valves confirm their position in 2 s (the travel the Chapter 4 overshoot exercise compensates for). */
+export const COURSE_VALVE_TRAVEL = 2
 
 /** Extension points used by the batch configuration (Chapter 4) without a circular import. */
 export const libraryHooks = {
   /** Download batch objects assigned to the controller; returns { downloaded, warnings }. */
   controllerDownload: [] as ((controller: string) => { downloaded: string[]; warnings: string[] })[],
   /** Called after the Course 7016 project (or any project) is (re)installed. */
-  reset: [] as ((course: boolean) => void)[]
+  reset: [] as ((course: boolean) => void)[],
+  /** Extra objects (equipment modules) that belong to an area and are assigned with it. */
+  areaTags: [] as ((area: string) => string[])[]
+}
+
+/** One path of the course process (BASE>BL500, TK100>BL500, BL500>PRODUCT, AGIT-503 RUN, TK100 FILL ...). */
+export interface TransferEpisode { amount: number; seconds: number; avgSp: number; endLevel: number }
+export interface TransferLog { active: number; seconds: number; spSum: number; total: number; episodes: TransferEpisode[] }
+
+const LEVEL_OF: Record<string, keyof CourseProcess> = { 'TK100 FILL': 'tk100', 'TK200 FILL': 'tk200', 'TK300 FILL': 'tk300' }
+
+/** Accumulate flows into episodes: an episode ends on the first step its path stops moving material. */
+export function logTransfers(prev: Record<string, TransferLog>, flows: Record<string, number>, dt: number, p: CourseProcess, baseSp: number): Record<string, TransferLog> {
+  let next = prev
+  for (const key of new Set([...Object.keys(prev), ...Object.keys(flows)])) {
+    const cur = prev[key] ?? { active: 0, seconds: 0, spSum: 0, total: 0, episodes: [] }
+    const moved = flows[key] ?? 0
+    let upd: TransferLog = cur
+    if (moved > 0) upd = { ...cur, active: cur.active + moved, seconds: cur.seconds + dt, spSum: cur.spSum + (key.startsWith('BASE>') ? baseSp * dt : 0), total: cur.total + moved }
+    else if (cur.active > 0) {
+      const level = LEVEL_OF[key]
+      const ep: TransferEpisode = { amount: cur.active, seconds: cur.seconds, avgSp: cur.seconds ? cur.spSum / cur.seconds : 0, endLevel: level ? p[level] : 0 }
+      upd = { ...cur, active: 0, seconds: 0, spSum: 0, episodes: [...cur.episodes, ep].slice(-12) }
+    }
+    if (upd !== cur || !prev[key]) next = { ...next, [key]: upd }
+  }
+  return next
 }
 
 export interface DeployedModule { definition: ModuleDefinition; controller: string; at: number; classRevision: number }
@@ -58,6 +86,8 @@ interface LibraryState {
   deployed: Record<string, DeployedModule>
   sims: Record<string, SimModule>
   process: CourseProcess | null
+  /** Course process transfer log (Chapter 2 / 5 manual operation checks). */
+  transfers: Record<string, TransferLog>
   lastDownload: DownloadReport | null
 
   resetLibrary: () => void
@@ -203,8 +233,6 @@ function courseModules(): AnyModule[] {
   return [
     spec('AGIT-503', 'MOTOR', 'Blender 500 agitator'),
     spec('AGIT-603', 'MOTOR', 'Blender 600 agitator'),
-    spec('FIC-506', 'PID', 'Blender 500 outlet flow', { unit: 'GPM', pvMin: 0, pvMax: 100 }),
-    spec('FIC-606', 'PID', 'Blender 600 outlet flow', { unit: 'GPM', pvMin: 0, pvMax: 100 }),
     spec('MTR-505', 'MOTOR', 'Blender 500 transfer pump'),
     spec('MTR-605', 'MOTOR', 'Blender 600 transfer pump'),
     ...[
@@ -212,8 +240,23 @@ function courseModules(): AnyModule[] {
       ['XV-301', 'Color 300 inlet'], ['XV-302', 'Color 300 outlet'], ['XV-501', 'Base to Blender 500'], ['XV-502', 'Colors to Blender 500'],
       ['XV-503', 'Blender 500 product'], ['XV-504', 'Blender 500 waste'], ['XV-601', 'Base to Blender 600'], ['XV-602', 'Colors to Blender 600'],
       ['XV-603', 'Blender 600 product'], ['XV-604', 'Blender 600 waste']
-    ].map(([tag, description]) => spec(tag, 'VALVE', description))
+    ].map(([tag, description]) => { const v = spec(tag, 'VALVE', description); return v.type === 'VALVE' ? { ...v, confirmTimeSec: COURSE_VALVE_TRAVEL, ...(tag === 'XV-502' || tag === 'XV-602' ? { twoStage: true, bulk: false } : {}) } : v }),
+    // FEED_TANK_AREA: BASE 400 transfer (course pp 2-6, 5-29).
+    makeModule({ tag: 'MTR-403', type: 'MOTOR', description: 'Base 400 transfer pump', area: 'FEED_TANK_AREA' }),
+    baseFlowLoop(),
+    baseLevel()
   ]
+}
+
+function baseLevel(): AnyModule {
+  const m = makeModule({ tag: 'LI-401', type: 'AI', description: 'Base 400 level', area: 'FEED_TANK_AREA', unit: 'gal', pvMin: 0, pvMax: BASE_CAPACITY })
+  // The course process step overwrites its PV with the LEVEL-401 simulation every scan.
+  return m.type === 'AI' ? { ...m, pv: 1500 } : m
+}
+
+function baseFlowLoop(): AnyModule {
+  const m = makeModule({ tag: 'FIC-404', type: 'PID', description: 'Base 400 transfer flow', area: 'FEED_TANK_AREA', unit: 'GPM', pvMin: 0, pvMax: BASE_MAX_FLOW })
+  return m.type === 'PID' ? { ...m, mode: 'MAN', actualMode: 'MAN', sp: 0, out: 0, pv: 0 } as AnyModule : m
 }
 
 /** DV_School named sets used by the batch phase logic (course 7016 pp 2-9..2-11). */
@@ -221,13 +264,22 @@ export function courseNamedSets(): Record<string, NamedSetDefinition> {
   const set = (name: string, description: string, entries: [string, number][]): NamedSetDefinition => ({
     name, description, entries: entries.map(([n, value]) => ({ name: n, value, visible: true, userSelectable: true }))
   })
+  const emSet = (name: string, entries: [string, number][]): NamedSetDefinition => ({
+    name, description: '', entries: [...entries.map(([n, value]) => ({ name: n, value, visible: true, userSelectable: true })), { name: 'Idle', value: 255, visible: true, userSelectable: false }]
+  })
   return {
     'vlvnc-sp': set('vlvnc-sp', 'Normally closed valve setpoint', [['CLOSE', 0], ['OPEN', 1]]),
     'vlvnc-pv': set('vlvnc-pv', 'Normally closed valve state', [['CLOSED', 0], ['OPEN', 1], ['TRAVEL', 2]]),
-    'vlvnc-2stage-sp': set('vlvnc-2stage-sp', '2 stage valve setpoint', [['CLOSE', 0], ['OPEN', 1], ['DRIBBLE', 2]]),
-    'vlvnc-2stage-pv': set('vlvnc-2stage-pv', '2 stage valve state', [['CLOSED', 0], ['OPEN', 1], ['DRIBBLE', 2], ['TRAVEL', 3]]),
+    'vlvnc-2stage-sp': set('vlvnc-2stage-sp', '2 stage valve setpoint', [['CLOSE', 0], ['DRIBBLE', 1], ['BULK', 2]]),
+    'vlvnc-2stage-pv': set('vlvnc-2stage-pv', '2 stage valve state', [['CLOSED', 0], ['DRIBBLE', 1], ['BULK', 2], ['TRAVEL', 3]]),
+    // Chapter 5 writes the same sets as 'vlvnc2stage-sp' / 'vlvnc2stage-pv' (p5-15).
+    'vlvnc2stage-sp': set('vlvnc2stage-sp', '2 stage valve setpoint', [['CLOSE', 0], ['DRIBBLE', 1], ['BULK', 2]]),
+    'vlvnc2stage-pv': set('vlvnc2stage-pv', '2 stage valve state', [['CLOSED', 0], ['DRIBBLE', 1], ['BULK', 2], ['TRAVEL', 3]]),
     'mtr2-sp': set('mtr2-sp', 'Two state motor setpoint', [['STOP', 0], ['START', 1]]),
-    'mtr2-pv': set('mtr2-pv', 'Two state motor state', [['STOPPED', 0], ['RUNNING', 1], ['TRAVEL', 2]])
+    'mtr2-pv': set('mtr2-pv', 'Two state motor state', [['STOPPED', 0], ['RUNNING', 1], ['TRAVEL', 2]]),
+    // Equipment module command / state named sets (pp 5-13, 5-21): 255 is the mandatory Idle entry.
+    'EM-vlvnc-2stage': emSet('EM-vlvnc-2stage', [['Close', 1], ['Dribble', 2], ['Bulk', 3], ['Auto Mode', 4]]),
+    EM_Outlet_State: emSet('EM_Outlet_State', [['Closed - CAS', 1], ['Draining Waste - CAS', 2], ['Releasing Product - CAS', 3], ['Auto Mode', 4]])
   }
 }
 
@@ -239,8 +291,8 @@ function courseController(): Controller {
   }
 }
 
-const empty = (): Pick<LibraryState, 'categories' | 'classes' | 'drafts' | 'instances' | 'assignments' | 'deployed' | 'sims' | 'process' | 'lastDownload'> => ({
-  categories: defaultCategories(), classes: {}, drafts: {}, instances: {}, assignments: {}, deployed: {}, sims: {}, process: null, lastDownload: null
+const empty = (): Pick<LibraryState, 'categories' | 'classes' | 'drafts' | 'instances' | 'assignments' | 'deployed' | 'sims' | 'process' | 'transfers' | 'lastDownload'> => ({
+  categories: defaultCategories(), classes: {}, drafts: {}, instances: {}, assignments: {}, deployed: {}, sims: {}, process: null, transfers: {}, lastDownload: null
 })
 
 export const useLibrary = create<LibraryState>((set, get) => ({
@@ -270,7 +322,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     libraryHooks.reset.forEach(fn => fn(true))
     // Built-in operator pictures belong to the BatchLive site plant; the course database has none.
     usePictures.setState({ pictures: {} })
-    log('DV_School', 'Course 7016 training database loaded: areas AREA_A / ED_CENTER_BATCH / FEED_TANK_AREA, controller CTLR1, TANKSIM/LEV500-SIM/LEV600-SIM, named sets vlvnc-sp/vlvnc-pv/vlvnc-2stage-sp/vlvnc-2stage-pv/mtr2-sp/mtr2-pv')
+    log('DV_School', 'Course 7016 training database loaded: areas AREA_A / ED_CENTER_BATCH / FEED_TANK_AREA, controller CTLR1, TANKSIM/LEV500-SIM/LEV600-SIM/LEVEL-401, named sets vlvnc-sp/vlvnc-pv/vlvnc-2stage-sp/vlvnc-2stage-pv/mtr2-sp/mtr2-pv/EM-vlvnc-2stage/EM_Outlet_State')
     return true
   },
 
@@ -509,7 +561,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     if (!main.areas.includes(area)) return fail(`Area ${area} does not exist`)
     if (!main.hardware.controllers[controller]) return fail(`Controller ${controller} does not exist`)
     const tags = [...Object.values(main.modules).filter(m => m.area === area).map(m => m.tag),
-      ...Object.values(s.sims).filter(x => x.area === area).map(x => x.tag)]
+      ...Object.values(s.sims).filter(x => x.area === area).map(x => x.tag),
+      ...libraryHooks.areaTags.flatMap(fn => fn(area))]
     if (!requireUnlockedLock('CAN_CONFIGURE', `Assign area ${area} to controller ${controller}`)) return fail('Requires the Can Configure key')
     set({ assignments: { ...s.assignments, ...Object.fromEntries(tags.map(t => [t, controller])) } })
     log(controller, `Area ${area} assigned: ${tags.length} module(s) now assigned to ${controller}`)
@@ -571,10 +624,27 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     let process = s.process
     if (process) {
       const mod = (tag: string): AnyModule | undefined => main.modules[tag]
-      process = stepCourseProcess(process,
-        tag => { const m = mod(tag); return m?.type === 'VALVE' && m.open },
-        tag => { const m = mod(tag); return m?.type === 'MOTOR' && m.running }, dt)
-      set({ process })
+      const fic = mod('FIC-404')
+      const result = stepCourseProcess(process, {
+        open: tag => { const m = mod(tag); return m?.type === 'VALVE' && m.open },
+        stage: tag => { const m = mod(tag); return m?.type === 'VALVE' && m.open ? (m.twoStage && !m.bulk ? 1 : 2) : 0 },
+        running: tag => { const m = mod(tag); return m?.type === 'MOTOR' && m.running },
+        baseOut: fic?.type === 'PID' ? fic.out : 0
+      }, dt)
+      process = result.process
+      const transfers = logTransfers(s.transfers, result.flows, dt, process, fic?.type === 'PID' ? fic.sp : 0)
+      set({ process, transfers })
+      // FIC-404 measures the base transfer flow; LI-401 indicates the BASE 400 level.
+      const flow = process.baseFlow
+      const level = process.bs400
+      useStore.setState(state => {
+        const f = state.modules['FIC-404']
+        const li = state.modules['LI-401']
+        const patch: Record<string, AnyModule> = {}
+        if (f?.type === 'PID' && f.io && Math.abs(f.io.ai.raw - flow) > 1e-6) patch['FIC-404'] = { ...f, io: { ...f.io, ai: { ...f.io.ai, raw: flow } } }
+        if (li?.type === 'AI' && Math.abs(li.pv - level) > 1e-6) patch['LI-401'] = { ...li, pv: level, pvBad: false }
+        return Object.keys(patch).length ? { modules: { ...state.modules, ...patch } } : {}
+      })
     }
     const read = makeReader({ ...s, process })
     const patches: Record<string, Partial<AnalogIndicator>> = {}

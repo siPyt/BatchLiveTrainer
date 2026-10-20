@@ -2,8 +2,13 @@ import { create } from 'zustand'
 import { useStore } from './store'
 import { useSecurity } from './security'
 import { controllerIsDown } from './hardware'
+import { isValidDeltaVTag } from './naming'
 import { useLibrary, libraryHooks, makeReader } from './libraryStore'
 import { EvalError, MODE_WORDS, toNum, type CheckEnv, type Value } from './phaseExpr'
+import {
+  CM_DEVICE_CLASSES, blockName, deployEm, emClassRenamed, emClassUsers, emIo, emParamValue, makeDeviceModule, useEm,
+  type EmInstance
+} from './emStore'
 import {
   COMPOSITES, NAME_RULE, STATE_LABEL, SYSTEM_PHASE_PARAMS, commandPhase, isNameValid, newPhaseClass, newRuntime, paramDefError,
   stepIndex, stepPhase, type AliasDef, type AliasResolution, type BatchCategory, type BatchClassKind, type CompositeName,
@@ -99,10 +104,21 @@ interface BatchState {
   /** Configured (downloaded) value of a phase parameter on one unit phase; null restores the phase class default. */
   setUnitPhaseParam: (unit: string, phase: string, param: string, value: number | string | null) => Result<string>
 
+  // ---- Chapter 5: module classes on unit classes, module instances ----------
+  addModuleBlock: (unitClass: string, className: string, ownership: 'Private' | 'Shared', allowVariant: boolean) => Result<string>
+  renameModuleBlock: (unitClass: string, block: string, next: string) => Result<string>
+  removeModuleBlock: (unitClass: string, block: string) => Result<string>
+  bindBlock: (unit: string, block: string, tag: string | null) => Result<string>
+  renameCourseModule: (tag: string, next: string) => Result<string>
+  deleteCourseModule: (tag: string) => Result<string>
+  unassignModule: (tag: string) => Result<string>
+  setModuleDescription: (tag: string, description: string) => Result<string>
+  setTwoStage: (tag: string, position: 'CLOSE' | 'DRIBBLE' | 'BULK') => Result<string>
+
   step: (dt: number) => void
 }
 
-function requireUnlockedLock(lock: 'CAN_CONFIGURE' | 'CAN_DOWNLOAD' | 'BATCH_OPERATE', action: string): boolean {
+function requireUnlockedLock(lock: 'CAN_CONFIGURE' | 'CAN_DOWNLOAD' | 'BATCH_OPERATE' | 'CONTROL', action: string): boolean {
   const sec = useSecurity.getState()
   if (sec.locked) {
     useSecurity.setState({ lastDenied: `Access Denied — ${action} requires an unlocked workstation` })
@@ -136,7 +152,7 @@ function hierarchyTaken(s: BatchState, name: string, except?: string): boolean {
   const main = useStore.getState()
   const k = name.toUpperCase()
   return [...main.areas, ...Object.keys(main.modules), ...Object.keys(main.sfcs), ...Object.keys(main.equipment), ...Object.keys(useLibrary.getState().sims),
-    ...Object.keys(s.processCells), ...Object.keys(s.units)].some(n => n.toUpperCase() === k && n !== except)
+    ...Object.keys(useEm.getState().instances), ...Object.keys(s.processCells), ...Object.keys(s.units)].some(n => n.toUpperCase() === k && n !== except)
 }
 function nextFree(stem: string, used: (n: string) => boolean): string {
   for (let n = 1; ; n++) if (!used(`${stem}_${n}`)) return `${stem}_${n}`
@@ -186,8 +202,9 @@ function modeWord(v: Value): string {
   return w
 }
 
-export function moduleParamNames(m: AnyModule | undefined, simParams?: string[]): string[] {
+export function moduleParamNames(m: AnyModule | undefined, simParams?: string[], emTag?: string): string[] {
   if (simParams) return simParams
+  if (emTag && useEm.getState().instances[emTag]) return ['A_COMMAND.CV', 'A_PV.CV', 'A_TARGET.CV', 'A_ABT_ON_NEW_CMD.CV']
   if (!m) return []
   if (m.type === 'VALVE' || m.type === 'MOTOR') return ['CAS_SP.CV', 'MODE.TARGET', 'MODE.ACTUAL', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']
   if (m.type === 'AI') return ['AI1/PV.CV', 'AI1/OUT.CV', 'PV.CV', 'OUT.CV']
@@ -206,16 +223,25 @@ function readModule(path: string): Value {
     return v.value
   }
   const m = useStore.getState().modules[sp.module]
-  if (!m) throw new EvalError(`Module ${sp.module} does not exist`)
+  if (!m) {
+    const em = useEm.getState()
+    if (em.instances[sp.module]) {
+      const v = emParamValue(em.deployed[sp.module], em.runtime[sp.module], sp.param)
+      if (v === undefined) throw new EvalError(`${sp.module} has no parameter ${sp.param}`)
+      return v
+    }
+    throw new EvalError(`Module ${sp.module} does not exist`)
+  }
   const p = sp.param
   if (m.type === 'VALVE' || m.type === 'MOTOR') {
     const remote = useBatch.getState().dc[m.tag]
     const open = m.type === 'VALVE' ? m.open : m.running
     const cmd = m.type === 'VALVE' ? m.commandedOpen : m.commanded
-    if (p === 'CAS_SP') return remote?.casSp ?? (cmd ? 1 : 0)
-    if (p === 'MODE') return remote?.mode ?? 'AUTO'
-    if (p === 'PV' || p === 'PV_D') return m.dcState.startsWith('GOING') ? 2 : open ? 1 : 0
-    if (p === 'SP_D') return cmd ? 1 : 0
+    const two = m.type === 'VALVE' && !!m.twoStage
+    if (p === 'CAS_SP') return remote?.casSp ?? (cmd ? (two ? (m.type === 'VALVE' && m.bulk ? 2 : 1) : 1) : 0)
+    if (p === 'MODE' || p === 'DC1/MODE') return remote?.mode ?? 'AUTO'
+    if (p === 'PV' || p === 'PV_D' || p === 'DC1/PV_D') return m.dcState.startsWith('GOING') ? (two ? 3 : 2) : open ? (two ? (m.type === 'VALVE' && m.bulk ? 2 : 1) : 1) : 0
+    if (p === 'SP_D' || p === 'DC1/SP_D') return cmd ? 1 : 0
   } else if (m.type === 'AI') {
     if (['PV', 'OUT', 'AI1/PV', 'AI1/OUT'].includes(p)) return m.pv
   } else if (m.type === 'PID') {
@@ -227,12 +253,19 @@ function readModule(path: string): Value {
   throw new EvalError(`${m.tag} has no parameter ${p}`)
 }
 
+/** Read a module parameter path (MODULE/PARAM.FIELD) the way phase logic does. */
+export function readModulePath(path: string): Value { return readModule(path) }
+
 function applyRemote(tag: string): void {
   const r = useBatch.getState().dc[tag]
   if (!r || r.mode !== 'CAS') return
   useStore.setState(s => {
     const m = s.modules[tag]
-    if (m?.type === 'VALVE') { const want = r.casSp === 1 || r.casSp === 2; return m.commandedOpen === want ? {} : { modules: { ...s.modules, [tag]: { ...m, commandedOpen: want } } } }
+    if (m?.type === 'VALVE') {
+      const want = r.casSp === 1 || r.casSp === 2
+      const bulk = m.twoStage ? r.casSp === 2 : m.bulk
+      return m.commandedOpen === want && m.bulk === bulk ? {} : { modules: { ...s.modules, [tag]: { ...m, commandedOpen: want, bulk } } }
+    }
     if (m?.type === 'MOTOR') { const want = r.casSp === 1; return m.commanded === want ? {} : { modules: { ...s.modules, [tag]: { ...m, commanded: want } } } }
     return {}
   })
@@ -242,7 +275,18 @@ function writeModule(path: string, value: Value): void {
   const sp = splitModulePath(path)
   if (!sp) throw new EvalError(`'//${path}' does not name a parameter (MODULE/PARAMETER)`)
   const m = useStore.getState().modules[sp.module]
-  if (!m) throw new EvalError(`Module ${sp.module} does not exist`)
+  if (!m) {
+    if (useEm.getState().instances[sp.module]) {
+      if (sp.param === 'A_COMMAND') {
+        const r = useEm.getState().setCommand(sp.module, typeof value === 'number' ? value : String(value))
+        if (!r.ok) throw new EvalError(r.error)
+        return
+      }
+      if (sp.param === 'A_ABT_ON_NEW_CMD') { const r = useEm.getState().setAbortOnNew(sp.module, toNum(value) !== 0 && String(value).toUpperCase() !== 'FALSE'); if (!r.ok) throw new EvalError(r.error); return }
+      throw new EvalError(`${sp.module}/${sp.param} cannot be written`)
+    }
+    throw new EvalError(`Module ${sp.module} does not exist`)
+  }
   if (m.type === 'VALVE' || m.type === 'MOTOR') {
     const cur = useBatch.getState().dc[m.tag] ?? { mode: 'AUTO', casSp: (m.type === 'VALVE' ? m.commandedOpen : m.commanded) ? 1 : 0 }
     if (sp.param === 'MODE') {
@@ -367,7 +411,7 @@ export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass): CheckEnv 
       if (aliases.length) return null
       const sp = splitModulePath(c.path)
       if (!sp) return `'${ref}' does not name a parameter (//MODULE/PARAMETER)`
-      const exists = !!useStore.getState().modules[sp.module] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === sp.module)
+      const exists = !!useStore.getState().modules[sp.module] || !!useEm.getState().instances[sp.module] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === sp.module)
       return exists ? null : `Module ${sp.module} does not exist`
     },
     checkNamed: (set, state) => {
@@ -711,15 +755,55 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!uc) return fail(`Unit class ${unitClass} does not exist`)
     if (!s.processCells[cell]) return fail('Drop the unit class on a Process Cell')
     const name = nextFree(unitClass.slice(0, 13), n => hierarchyTaken(s, n))
+    const area = s.processCells[cell].area
+    const blocks = Object.values(uc.modules ?? {})
+    const em = useEm.getState()
+    for (const b of blocks) if (b.kind === 'em' && !em.classes[b.className]) return fail(`Equipment module class ${b.className} (block ${b.name}) no longer exists`)
+    // Module block instances are named BLOCKn (AGITATOR1, BLNDR_COLOR1, COLOR_IN_VLV1 ...), n counting the unit class's instances.
+    const namesFor = (n: number): string[] => blocks.filter(b => b.ownership === 'Private').flatMap(b => [`${b.name}${n}`,
+      ...(b.kind === 'em' ? Object.keys(em.classes[b.className].children).map(c => `${c}${n}`) : [])])
+    let seq = (uc.seq ?? 0) + 1
+    while (namesFor(seq).some(n => hierarchyTaken(s, n) || n === name)) seq++
+    const bad = namesFor(seq).find(n => !isNameValid(n))
+    if (bad) return fail(`Module name ${bad} is not valid (${NAME_RULE})`)
     if (!requireUnlockedLock('CAN_CONFIGURE', `Create unit module ${name}`)) return fail('Requires the Can Configure key')
+    const aliases: Record<string, AliasResolution> = Object.fromEntries(Object.keys(uc.aliases).map(a => [a, { path: '', ignore: false, description: '' }]))
+    const unitBlocks: Record<string, string | null> = {}
+    const newModules: Record<string, AnyModule> = {}
+    const newEms: Record<string, EmInstance> = {}
+    const cmInst: Record<string, { tag: string; className: string; owner: { kind: 'unit' | 'em'; name: string; block: string } }> = {}
+    const contained: Record<string, string> = {}
+    for (const b of blocks) {
+      if (b.ownership === 'Shared') { unitBlocks[b.name] = null; continue }
+      const tag = `${b.name}${seq}`
+      unitBlocks[b.name] = tag
+      aliases[b.name] = { path: tag, ignore: false, description: '' }
+      contained[tag] = name
+      if (b.kind === 'cm') {
+        newModules[tag] = makeDeviceModule(tag, b.className, area)
+        cmInst[tag] = { tag, className: b.className, owner: { kind: 'unit', name, block: b.name } }
+      } else {
+        const cls = em.classes[b.className]
+        const children: Record<string, string> = {}
+        for (const child of Object.values(cls.children)) {
+          const ct = `${child.name}${seq}`
+          newModules[ct] = makeDeviceModule(ct, child.className, area)
+          cmInst[ct] = { tag: ct, className: child.className, owner: { kind: 'em', name: tag, block: child.name } }
+          children[child.name] = ct
+        }
+        newEms[tag] = { tag, className: b.className, area, unit: name, block: b.name, children, description: cls.description || `${b.className} equipment module` }
+      }
+    }
     const unit: UnitModule = {
       name, unitClass, processCell: cell, description: 'Unit Module', workInProgress: false, primaryDisplay: '', detailDisplay: '', instrumentDisplay: '', scanRate: 1,
-      aliases: Object.fromEntries(Object.keys(uc.aliases).map(a => [a, { path: '', ignore: false, description: '' }])),
-      phases: Object.fromEntries(uc.phaseClasses.map(p => [p, unitPhase(p)])),
+      aliases, phases: Object.fromEntries(uc.phaseClasses.map(p => [p, unitPhase(p)])), blocks: blocks.length ? unitBlocks : undefined,
       modified: useStore.getState().time, modifiedBy: user()
     }
-    set({ units: { ...s.units, [name]: unit } })
-    log(name, `Unit Module created from ${unitClass} in process cell ${cell}`)
+    if (Object.keys(newModules).length) useStore.setState(st => ({ modules: { ...st.modules, ...newModules }, rev: st.rev + 1 }))
+    if (Object.keys(newEms).length || Object.keys(cmInst).length) useEm.setState(st => ({ instances: { ...st.instances, ...newEms }, cmInstances: { ...st.cmInstances, ...cmInst } }))
+    set({ units: { ...s.units, [name]: unit }, contained: { ...s.contained, ...contained },
+      unitClasses: blocks.length ? { ...s.unitClasses, [unitClass]: { ...uc, seq } } : s.unitClasses })
+    log(name, `Unit Module created from ${unitClass} in process cell ${cell}${blocks.length ? `; module instances ${Object.values(unitBlocks).filter(Boolean).join(', ')} created` : ''}`)
     return ok(name)
   },
   renameUnitModule: (name, raw) => {
@@ -742,12 +826,26 @@ export const useBatch = create<BatchState>((set, get) => ({
   },
   deleteUnitModule: name => {
     const s = get()
-    if (!s.units[name]) return fail(`Unit module ${name} does not exist`)
+    const u = s.units[name]
+    if (!u) return fail(`Unit module ${name} does not exist`)
     if (Object.values(s.active).some(a => a.unit === name)) return fail(`${name} has loaded phases; unload them first`)
     if (!requireUnlockedLock('CAN_CONFIGURE', `Delete unit module ${name}`)) return fail('Requires the Can Configure key')
+    // Private module blocks were created with the unit module and are deleted with it.
+    const em = useEm.getState()
+    const owned = Object.values(em.cmInstances).filter(c => c.owner.kind === 'unit' && c.owner.name === name).map(c => c.tag)
+    const ownedEms = Object.values(em.instances).filter(i => i.unit === name)
+    const childTags = ownedEms.flatMap(i => Object.values(i.children))
+    const gone = [...owned, ...childTags]
+    if (gone.length) useStore.setState(st => ({ modules: withoutKeys(st.modules, gone), rev: st.rev + 1 }))
+    const emTags = ownedEms.map(i => i.tag)
+    if (gone.length || emTags.length) {
+      useEm.setState(st => ({ instances: withoutKeys(st.instances, emTags), cmInstances: withoutKeys(st.cmInstances, gone), deployed: withoutKeys(st.deployed, emTags), runtime: withoutKeys(st.runtime, emTags) }))
+      useLibrary.setState(l => ({ assignments: withoutKeys(l.assignments, [...gone, ...emTags]) }))
+    }
     set({ units: withoutKeys(s.units, [name]), unitAssignments: withoutKeys(s.unitAssignments, [name]), deployedUnits: withoutKeys(s.deployedUnits, [name]),
-      contained: Object.fromEntries(Object.entries(s.contained).filter(([, u]) => u !== name)) })
-    log(name, 'Unit Module deleted; contained modules returned to the plant area')
+      contained: Object.fromEntries(Object.entries(s.contained).filter(([t, x]) => x !== name && !gone.includes(t) && !emTags.includes(t))),
+      dc: withoutKeys(s.dc, gone) })
+    log(name, `Unit Module deleted${gone.length || emTags.length ? `; its module instances ${[...emTags, ...gone].join(', ')} were deleted` : ''}; other contained modules returned to the plant area`)
     return ok(name)
   },
   setUnitProps: (name, patch) => {
@@ -778,7 +876,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     const path = res.path.trim().toUpperCase()
     if (path && !res.ignore) {
       const mod = path.split('/')[0]
-      const exists = !!useStore.getState().modules[mod] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === mod)
+      const exists = !!useStore.getState().modules[mod] || !!useEm.getState().instances[mod] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === mod)
       if (!exists) return fail(`Module ${mod} does not exist. Resolve the alias to a module (XV-101) or a full parameter path (LI-104/AI1/PV.CV).`)
       if (/[#'"]/.test(path)) return fail('Alias paths are plain module or parameter paths without quotes or #')
     }
@@ -830,7 +928,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!s.units[unit]) return fail(`Unit module ${unit} does not exist`)
     if (!useStore.getState().hardware.controllers[controller]) return fail(`Controller ${controller} does not exist`)
     if (!requireUnlockedLock('CAN_CONFIGURE', `Assign unit module ${unit} to controller ${controller}`)) return fail('Requires the Can Configure key')
-    const tags = includeContained ? Object.entries(s.contained).filter(([, u]) => u === unit).map(([t]) => t) : []
+    const tags = includeContained ? withEmChildren(Object.entries(s.contained).filter(([, u]) => u === unit).map(([t]) => t)) : []
     set({ unitAssignments: { ...s.unitAssignments, [unit]: controller } })
     if (tags.length) useLibrary.setState(l => ({ assignments: { ...l.assignments, ...Object.fromEntries(tags.map(t => [t, controller])) } }))
     log(unit, `Assigned to ${controller}${tags.length ? ` with ${tags.length} contained module(s)` : ''}`)
@@ -842,8 +940,8 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!useStore.getState().hardware.controllers[controller]) return fail(`Controller ${controller} does not exist`)
     if (!requireUnlockedLock('CAN_CONFIGURE', `Assign process cell ${cell} to controller ${controller}`)) return fail('Requires the Can Configure key')
     const units = Object.values(s.units).filter(u => u.processCell === cell).map(u => u.name)
-    const tags = [...Object.entries(s.contained).filter(([, u]) => units.includes(u)).map(([t]) => t),
-      ...Object.entries(s.cellMembers).filter(([, c]) => c === cell).map(([t]) => t)]
+    const tags = withEmChildren([...Object.entries(s.contained).filter(([, u]) => units.includes(u)).map(([t]) => t),
+      ...Object.entries(s.cellMembers).filter(([, c]) => c === cell).map(([t]) => t)])
     set({ unitAssignments: { ...s.unitAssignments, ...Object.fromEntries(units.map(u => [u, controller])) } })
     useLibrary.setState(l => ({ assignments: { ...l.assignments, ...Object.fromEntries(tags.map(t => [t, controller])) } }))
     log(cell, `Process cell assigned to ${controller}: ${units.length} unit module(s), ${tags.length} module(s)`)
@@ -885,6 +983,12 @@ export const useBatch = create<BatchState>((set, get) => ({
       active: Object.fromEntries(Object.entries(s.active).filter(([, a]) => a.unit !== unit || dep.logic[a.phase])) })
     if (includeContained) {
       for (const tag of Object.entries(s.contained).filter(([, x]) => x === unit).map(([t]) => t)) {
+        if (useEm.getState().instances[tag]) {
+          const assign = withEmChildren([tag]).filter(t => !useLibrary.getState().assignments[t])
+          if (assign.length) useLibrary.setState(l => ({ assignments: { ...l.assignments, ...Object.fromEntries(assign.map(t => [t, controller])) } }))
+          warnings.push(...deployEm(tag, controller))
+          continue
+        }
         if (useLibrary.getState().instances[tag]) {
           if (!useLibrary.getState().assignments[tag]) useLibrary.setState(l => ({ assignments: { ...l.assignments, [tag]: controller } }))
           const r = useLibrary.getState().downloadModule(tag)
@@ -999,8 +1103,172 @@ export const useBatch = create<BatchState>((set, get) => ({
     return ok(param)
   },
 
+  // ---- Chapter 5: module classes on unit classes, module instances ----------
+  addModuleBlock: (unitClass, className, ownership, allowVariant) => {
+    const s = get()
+    const uc = s.unitClasses[unitClass]
+    if (!uc) return fail(`Unit class ${unitClass} does not exist`)
+    const kind = CM_DEVICE_CLASSES[className] ? 'cm' : useEm.getState().classes[className] ? 'em' : null
+    if (!kind) return fail(`${className} is not an Equipment Module Class or a Control Module Class that can be added to a unit class`)
+    const modules = uc.modules ?? {}
+    const name = blockName(className, n => !!modules[n] || !!uc.aliases[n])
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Add module block ${className} to unit class ${unitClass}`)) return fail('Requires the Can Configure key')
+    const block = { name, className, kind, ownership, allowVariant } as const
+    set({
+      unitClasses: { ...s.unitClasses, [unitClass]: { ...uc, modules: { ...modules, [name]: block }, aliases: { ...uc.aliases, [name]: { name, description: `${className} module block`, block: true } } } },
+      units: Object.fromEntries(Object.entries(s.units).map(([k, u]) => [k, u.unitClass === unitClass ?
+        { ...u, aliases: { ...u.aliases, [name]: { path: '', ignore: false, description: '' } }, blocks: { ...(u.blocks ?? {}), [name]: null } } : u]))
+    })
+    log(unitClass, `${kind === 'em' ? 'Equipment' : 'Control'} Module Class ${className} added as module block ${name} (${ownership}${allowVariant ? ', variant allowed' : ''}); alias ${name} created`)
+    return ok(name)
+  },
+  renameModuleBlock: (unitClass, block, raw) => {
+    const s = get()
+    const uc = s.unitClasses[unitClass]
+    const to = raw.trim().toUpperCase()
+    if (!uc?.modules?.[block]) return fail(`${block} is not a module block of ${unitClass}`)
+    if (to === block) return ok(block)
+    if (!isNameValid(to)) return fail(NAME_RULE)
+    if (uc.modules[to] || uc.aliases[to]) return fail(`${to} already exists on ${unitClass}`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Rename module block ${block}`)) return fail('Requires the Can Configure key')
+    const ren = <T,>(r: Record<string, T>, value: (v: T) => T): Record<string, T> => Object.fromEntries(Object.entries(r).map(([k, v]) => (k === block ? [to, value(v)] : [k, v])))
+    set({
+      unitClasses: { ...s.unitClasses, [unitClass]: { ...uc, modules: ren(uc.modules, b => ({ ...b, name: to })), aliases: ren(uc.aliases, a => ({ ...a, name: to })) } },
+      units: Object.fromEntries(Object.entries(s.units).map(([k, u]) => [k, u.unitClass === unitClass ? { ...u, aliases: ren(u.aliases, a => a), blocks: u.blocks ? ren(u.blocks, b => b) : u.blocks } : u]))
+    })
+    useEm.setState(st => ({ instances: Object.fromEntries(Object.entries(st.instances).map(([k, i]) => [k, i.block === block && s.units[i.unit ?? '']?.unitClass === unitClass ? { ...i, block: to } : i])),
+      cmInstances: Object.fromEntries(Object.entries(st.cmInstances).map(([k, c]) => [k, c.owner.kind === 'unit' && c.owner.block === block && s.units[c.owner.name]?.unitClass === unitClass ? { ...c, owner: { ...c.owner, block: to } } : c])) }))
+    log(unitClass, `Module block ${block} renamed to ${to}; alias renamed`)
+    return ok(to)
+  },
+  removeModuleBlock: (unitClass, block) => {
+    const s = get()
+    const uc = s.unitClasses[unitClass]
+    if (!uc?.modules?.[block]) return fail(`${block} is not a module block of ${unitClass}`)
+    const users = Object.values(s.units).filter(u => u.unitClass === unitClass && u.blocks?.[block]).map(u => u.name)
+    if (users.length) return fail(`${block} has module instances on ${users.join(', ')}; delete those unit modules first`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Remove module block ${block}`)) return fail('Requires the Can Configure key')
+    set({
+      unitClasses: { ...s.unitClasses, [unitClass]: { ...uc, modules: withoutKeys(uc.modules, [block]), aliases: withoutKeys(uc.aliases, [block]) } },
+      units: Object.fromEntries(Object.entries(s.units).map(([k, u]) => [k, u.unitClass === unitClass ? { ...u, aliases: withoutKeys(u.aliases, [block]), blocks: u.blocks ? withoutKeys(u.blocks, [block]) : u.blocks } : u]))
+    })
+    log(unitClass, `Module block ${block} and its alias deleted`)
+    return ok(block)
+  },
+  bindBlock: (unit, block, tag) => {
+    const s = get()
+    const u = s.units[unit]
+    const b = u && s.unitClasses[u.unitClass]?.modules?.[block]
+    if (!u || !b) return fail(`${block} is not a module block of ${unit}`)
+    if (b.ownership !== 'Shared') return fail(`${block} is a Private module block; its module was created with ${unit}`)
+    const t = tag?.trim().toUpperCase() ?? null
+    if (t) {
+      const em = useEm.getState()
+      const cls = b.kind === 'em' ? em.instances[t]?.className : em.cmInstances[t]?.className
+      if (!useStore.getState().modules[t] && !em.instances[t]) return fail(`Module ${t} does not exist`)
+      if (!b.allowVariant && cls !== b.className) return fail(`${t} is not an instance of ${b.className} (variant modules are not allowed for ${block})`)
+    }
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Bind module block ${unit}/${block}`)) return fail('Requires the Can Configure key')
+    set({ units: { ...s.units, [unit]: { ...u, blocks: { ...(u.blocks ?? {}), [block]: t }, aliases: { ...u.aliases, [block]: { path: t ?? '', ignore: false, description: '' } } } } })
+    log(unit, t ? `Shared module block ${block} bound to ${t}` : `Shared module block ${block} unbound`)
+    return ok(block)
+  },
+  renameCourseModule: (tag, raw) => {
+    const s = get()
+    const to = raw.trim().toUpperCase()
+    const main = useStore.getState()
+    const em = useEm.getState()
+    const isEm = !!em.instances[tag]
+    if (!main.modules[tag] && !isEm) return fail(`${tag} does not exist`)
+    if (to === tag) return ok(tag)
+    if (useLibrary.getState().instances[tag]) { const r = useLibrary.getState().renameInstance(tag, to); if (r.ok) renameRefs(tag, r.value); return r }
+    if (!isValidDeltaVTag(to)) return fail(NAME_RULE)
+    if (hierarchyTaken(s, to, tag)) return fail(`The name ${to} is already used`)
+    if (Object.values(s.active).some(a => { const dep = s.deployedUnits[a.unit]; return !!dep && Object.values(dep.unit.aliases).some(r => r.path.split('/')[0] === tag) }))
+      return fail(`${tag} is used by a loaded unit phase; unload it first`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Rename course module ${tag}`)) return fail('Requires the Can Configure key')
+    if (isEm) {
+      const inst = em.instances[tag]
+      useEm.setState(st => ({
+        instances: { ...withoutKeys(st.instances, [tag]), [to]: { ...inst, tag: to } },
+        deployed: st.deployed[tag] ? { ...withoutKeys(st.deployed, [tag]), [to]: st.deployed[tag] } : st.deployed,
+        runtime: st.runtime[tag] ? { ...withoutKeys(st.runtime, [tag]), [to]: st.runtime[tag] } : st.runtime,
+        cmInstances: Object.fromEntries(Object.entries(st.cmInstances).map(([k, c]) => [k, c.owner.kind === 'em' && c.owner.name === tag ? { ...c, owner: { ...c.owner, name: to } } : c]))
+      }))
+    } else {
+      useStore.setState(st => {
+        const m = st.modules[tag]
+        return { modules: { ...withoutKeys(st.modules, [tag]), [to]: { ...m, tag: to } as AnyModule }, rev: st.rev + 1 }
+      })
+      useEm.setState(st => ({
+        cmInstances: st.cmInstances[tag] ? { ...withoutKeys(st.cmInstances, [tag]), [to]: { ...st.cmInstances[tag], tag: to } } : st.cmInstances,
+        instances: Object.fromEntries(Object.entries(st.instances).map(([k, i]) => [k, Object.values(i.children).includes(tag) ? { ...i, children: Object.fromEntries(Object.entries(i.children).map(([b, t]) => [b, t === tag ? to : t])) } : i])),
+        deployed: Object.fromEntries(Object.entries(st.deployed).map(([k, d]) => [k, Object.values(d.children).includes(tag) ? { ...d, children: Object.fromEntries(Object.entries(d.children).map(([b, t]) => [b, t === tag ? to : t])) } : d]))
+      }))
+    }
+    renameRefs(tag, to)
+    log(to, `Renamed from ${tag}`)
+    return ok(to)
+  },
+  deleteCourseModule: tag => {
+    const s = get()
+    const em = useEm.getState()
+    const isEm = !!em.instances[tag]
+    if (!useStore.getState().modules[tag] && !isEm) return fail(`${tag} does not exist`)
+    const ctl = useLibrary.getState().assignments[tag]
+    if (ctl) return fail(`${tag} is assigned to ${ctl}. Delete its assignment first (Physical Network ▸ ${ctl} ▸ Assigned Modules ▸ right-click ▸ Delete Assignment).`)
+    const owner = em.cmInstances[tag]?.owner
+    if (owner?.kind === 'em') return fail(`${tag} is module block ${owner.block} of equipment module ${owner.name}; it is deleted with the equipment module`)
+    if (Object.values(s.active).some(a => { const dep = s.deployedUnits[a.unit]; return !!dep && Object.values(dep.unit.aliases).some(r => r.path.split('/')[0] === tag) }))
+      return fail(`${tag} is used by a loaded unit phase; unload it first`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Delete course module ${tag}`)) return fail('Requires the Can Configure key')
+    const children = isEm ? Object.values(em.instances[tag].children) : []
+    const gone = isEm ? children : [tag]
+    if (gone.length) useStore.setState(st => ({ modules: withoutKeys(st.modules, gone), rev: st.rev + 1 }))
+    useEm.setState(st => ({ instances: withoutKeys(st.instances, [tag]), cmInstances: withoutKeys(st.cmInstances, [tag, ...children]),
+      deployed: withoutKeys(st.deployed, [tag]), runtime: withoutKeys(st.runtime, [tag]) }))
+    useLibrary.setState(l => ({ assignments: withoutKeys(l.assignments, [tag, ...children]) }))
+    set({ contained: withoutKeys(s.contained, [tag, ...children]), cellMembers: withoutKeys(s.cellMembers, [tag]), dc: withoutKeys(s.dc, gone),
+      units: Object.fromEntries(Object.entries(s.units).map(([k, u]) => [k, u.blocks && Object.values(u.blocks).includes(tag) ?
+        { ...u, blocks: Object.fromEntries(Object.entries(u.blocks).map(([b, t]) => [b, t === tag ? null : t])) } : u])) })
+    log(tag, isEm ? `Equipment module deleted with ${children.join(', ')}` : 'Control Module deleted')
+    return ok(tag)
+  },
+  unassignModule: tag => {
+    const lib = useLibrary.getState()
+    const ctl = lib.assignments[tag]
+    if (!ctl) return fail(`${tag} is not assigned to a controller`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Delete assignment of ${tag}`)) return fail('Requires the Can Configure key')
+    const tags = withEmChildren([tag]).filter(t => lib.assignments[t] === ctl)
+    useLibrary.setState(l => ({ assignments: withoutKeys(l.assignments, tags), deployed: withoutKeys(l.deployed, tags) }))
+    useEm.setState(st => ({ deployed: withoutKeys(st.deployed, tags) }))
+    log(tag, `Assignment to ${ctl} deleted`)
+    return ok(tag)
+  },
+  setModuleDescription: (tag, description) => {
+    const em = useEm.getState()
+    const m = useStore.getState().modules[tag]
+    if (!m && !em.instances[tag]) return fail(`${tag} does not exist`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure course module ${tag}`)) return fail('Requires the Can Configure key')
+    if (m) useStore.setState(st => ({ modules: { ...st.modules, [tag]: { ...st.modules[tag], description } as AnyModule } }))
+    else useEm.setState(st => ({ instances: { ...st.instances, [tag]: { ...st.instances[tag], description } } }))
+    log(tag, `Description changed to "${description}"`)
+    return ok(tag)
+  },
+  setTwoStage: (tag, position) => {
+    const m = useStore.getState().modules[tag]
+    if (m?.type !== 'VALVE' || !m.twoStage) return fail(`${tag} is not a two stage valve`)
+    const remote = get().dc[tag]
+    if (remote?.mode === 'CAS') return fail(`${tag} is in CAS; its equipment module or phase owns the setpoint. Put it in AUTO to operate it from the faceplate.`)
+    if (!requireUnlockedLock('CONTROL', `Command two stage valve ${tag} ${position}`)) return fail('Requires the Control key')
+    useStore.setState(st => ({ modules: { ...st.modules, [tag]: { ...m, commandedOpen: position !== 'CLOSE', bulk: position === 'BULK' } } }))
+    log(tag, `Operator command: ${position}`, 'BATCH')
+    return ok(position)
+  },
+
   step: dt => {
     for (const tag of Object.keys(get().dc)) applyRemote(tag)
+    useEm.getState().stepEms(dt)
     for (const key of Object.keys(get().active)) {
       const s = get()
       const a = s.active[key]
@@ -1030,6 +1298,48 @@ export function categoriesOf(kind: BatchClassKind): BatchCategory[] {
 }
 
 export { COMPOSITES, catKey }
+
+/** Equipment module tags expanded with the child control modules they own. */
+export function withEmChildren(tags: string[]): string[] {
+  const em = useEm.getState()
+  return [...new Set(tags.flatMap(t => [t, ...Object.values(em.instances[t]?.children ?? {})]))]
+}
+
+/** After a module rename: controller assignments, unit containment, process cell members, alias paths, unit blocks, cascade remote state. */
+function renameRefs(from: string, to: string): void {
+  const swap = <T,>(r: Record<string, T>): Record<string, T> => (from in r ? { ...withoutKeys(r, [from]), [to]: r[from] } : r)
+  useLibrary.setState(l => ({ assignments: swap(l.assignments) }))
+  useBatch.setState(s => ({
+    contained: swap(s.contained), cellMembers: swap(s.cellMembers), dc: swap(s.dc),
+    units: Object.fromEntries(Object.entries(s.units).map(([k, u]) => {
+      const aliases = Object.fromEntries(Object.entries(u.aliases).map(([a, r]) => {
+        const head = r.path.split('/')[0]
+        return [a, head === from ? { ...r, path: to + r.path.slice(from.length) } : r]
+      }))
+      const blocks = u.blocks ? Object.fromEntries(Object.entries(u.blocks).map(([b, t]) => [b, t === from ? to : t])) : u.blocks
+      return [k, { ...u, aliases, blocks }]
+    }))
+  }))
+}
+
+// Equipment modules run against the same module I/O as unit phases (valves and motors in CAS).
+emIo.current = {
+  read: (path: string) => readModule(path),
+  write: (path: string, value: Value) => { writeModule(path, value); const m = splitModulePath(path)?.module; if (m) applyRemote(m) },
+  named: (set: string, state: string) => namedValue(set, state),
+  log: (tag: string, text: string) => log(tag, text, 'BATCH')
+}
+emClassUsers.push(cls => Object.values(useBatch.getState().unitClasses).filter(u => Object.values(u.modules ?? {}).some(b => b.kind === 'em' && b.className === cls)).map(u => u.name))
+emClassRenamed.push((from, to) => useBatch.setState(s => ({ unitClasses: Object.fromEntries(Object.entries(s.unitClasses).map(([k, u]) => [k, u.modules ?
+  { ...u, modules: Object.fromEntries(Object.entries(u.modules).map(([b, m]) => [b, m.kind === 'em' && m.className === from ? { ...m, className: to } : m])) } : u])) })))
+libraryHooks.reset.push(() => useEm.getState().resetEm())
+libraryHooks.areaTags.push(area => Object.values(useEm.getState().instances).filter(i => i.area === area).map(i => i.tag))
+libraryHooks.controllerDownload.push(controller => {
+  const lib = useLibrary.getState()
+  const em = useEm.getState()
+  const tags = Object.keys(em.instances).filter(t => lib.assignments[t] === controller).sort()
+  return { downloaded: tags, warnings: tags.flatMap(t => deployEm(t, controller)) }
+})
 
 libraryHooks.reset.push(() => useBatch.getState().resetBatch())
 libraryHooks.controllerDownload.push(controller => {

@@ -500,6 +500,9 @@ export interface ValveModule extends ModuleDisplayProperties {
   equipmentModule?: string
   /** command open (true) / closed (false) for on-off valves. */
   commandedOpen: boolean
+  /** Course 7016 2STAGE_VALVE (XV-502 / XV-602): when open, bulk selects BULK, otherwise DRIBBLE. */
+  twoStage?: boolean
+  bulk?: boolean
   open: boolean
   fault: boolean
   /** INTERLOCK_D: true = tripped (forces Passive / Shutdown). */

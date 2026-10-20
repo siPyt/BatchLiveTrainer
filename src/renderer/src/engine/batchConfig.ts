@@ -10,13 +10,18 @@ export type BatchClassKind = 'pcell' | 'unit' | 'phase'
 
 export interface BatchCategory { name: string; kind: BatchClassKind; parent: string | null }
 export interface ProcessCellClass { name: string; category: string; description: string }
-export interface AliasDef { name: string; description: string }
+export interface AliasDef { name: string; description: string; /** Created for a module block (Chapter 5); renamed with the block. */ block?: boolean }
+/** A Module Class added to a Unit Class (p5-26 / 5-27). */
+export interface ModuleBlock { name: string; className: string; kind: 'em' | 'cm'; ownership: 'Private' | 'Shared'; allowVariant: boolean }
 export interface UnitClass {
   name: string
   category: string
   description: string
   aliases: Record<string, AliasDef>
   phaseClasses: string[]
+  modules?: Record<string, ModuleBlock>
+  /** Instance counter for module block names (AGITATOR1, AGITATOR2 ...). */
+  seq?: number
 }
 
 export type BatchParamType = 'Integer' | 'Real' | 'String'
@@ -87,6 +92,8 @@ export interface UnitModule {
   scanRate: number
   aliases: Record<string, AliasResolution>
   phases: Record<string, UnitPhaseConfig>
+  /** Module block → module instance created (Private) or bound (Shared, null while unbound). */
+  blocks?: Record<string, string | null>
   modified: number
   modifiedBy: string
 }
