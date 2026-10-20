@@ -326,6 +326,10 @@ in-app message box (components/AppNotices.tsx), so they work in any browser and 
 confirmations still use the native popup: they work in a normal browser (Edge/Chrome at http://localhost:5199) and
 in the desktop app; in the VS Code tab they are cancelled, so nothing is deleted by accident.
 
+Fix (2026-10-20, Chapter 1 p1-22): a class-based module follows the SAVED class; Control Studio edits (for example
+"Allow instance value to be configured" on AI1 OUT_SCALE) stay in a draft until File -> Save. The instance's
+Contents pane and its Control Studio view now say so when the class has unsaved changes, with an Open button.
+
 Kept local only (NOT in GitHub, on purpose): 958791105-7016-8.pdf and pdf_extracted/ - Emerson copyrighted course
 material and the repository is public. bl-preview.vite.config.mjs (browser preview config, in .git/info/exclude).
 To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,

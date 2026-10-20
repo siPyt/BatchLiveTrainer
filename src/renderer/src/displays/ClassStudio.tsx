@@ -255,6 +255,10 @@ export function ClassStudio(): JSX.Element {
         <span>[{title}] — Control Studio{readOnly ? ' (Read-Only)' : dirty ? ' *' : ''}</span>
         <span className="studio-caption-status">{readOnly ? `Class-based module · ${instanceTag ? downloadState(lib, instanceTag) : ''}` : `Class revision ${cls.revision}${dirty ? ' · unsaved changes' : ' · saved'}`}</span>
       </div>
+      {readOnly && lib.drafts[className] && <div className="sp-note" role="note" data-unsaved-class={className} style={{ margin: '2px 6px', maxWidth: 'none' }}>
+        Class {className} has unsaved changes in Control Studio; this module shows the saved class. Open {className}, then File → Save (Ctrl+S) to apply them.
+        <button className="tbtn sm" style={{ marginLeft: 8 }} onClick={() => openClassStudio(className)}>Open {className}</button>
+      </div>}
       <div className="ribbon-tabs">
         <div className="rb-quick" role="toolbar" aria-label="Quick access">
           <Btn glyph="save" label="Save" size="tiny" onClick={readOnly || !dirty ? undefined : save} unavailable={readOnly ? 'Class-based modules are edited through their class' : dirty ? undefined : 'No unsaved changes'} />

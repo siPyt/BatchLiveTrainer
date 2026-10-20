@@ -617,6 +617,11 @@ export function InstanceContents({ tag }: { tag: string }): JSX.Element {
       <button className="tbtn sm" disabled={!controller} onClick={() => setDownloading(true)}>Download...</button>
       <button className="tbtn sm" disabled={!module?.primaryDisplay} onClick={() => openModuleDisplay(tag, 'primary')}>Primary display</button>
     </div>
+    {lib.drafts[cls.name] && <div className="sp-note" role="note" data-unsaved-class={cls.name}>
+      Class {cls.name} has unsaved changes in Control Studio. {tag} follows the saved class: open {cls.name} with Control Studio and
+      use File → Save (Ctrl+S) to apply them here (for example a parameter marked "Allow instance value to be configured").
+      <button className="tbtn sm" style={{ marginLeft: 8 }} onClick={() => openClassStudio(cls.name)}>Open {cls.name}</button>
+    </div>}
     <ContentsList rows={rows.map(r => ({ key: r.path, icon: <LibIcon kind="param" />, name: r.name, type: PARAM_TYPE_LABEL[getParam(cls.definition, r.path)!.type],
       data: { 'data-param': r.name, 'aria-selected': String(selected === r.path) }, selected: selected === r.path,
       onClick: () => setSelected(r.path), onOpen: () => setEditing(r.path), onContextMenu: rowMenu(r.path, r.name) }))}
