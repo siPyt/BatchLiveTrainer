@@ -302,7 +302,7 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
 - 2026-10-20  9b9e7b8  Chapter 5 engine: equipment module classes, runtime, BLENDERS unit class, BASE 400 process.
 - 2026-10-20  9daff84  Chapter 5 UI, workshops and live checks; standard DeltaV ModuleTemplates (templates.txt).
 - 2026-10-20  ce110c7  Added this history log.
-- 2026-10-20  (next)   Review of Chapters 1-5 so every workshop can be done by hand (see below).
+- 2026-10-20  d39fec8  Review of Chapters 1-5 so every workshop can be done by hand (see below).
 
 Review of Chapters 1-5 (2026-10-20), what changed:
 - Added Chapter 2 (reading + Workshop - Manual Operation with live checks) and the Chapter 3 licensing reading.
