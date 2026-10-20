@@ -5,6 +5,7 @@ import {
   changedNamedSets, cloneNamedSet, namedSetError, namedSetTargetKey,
   type NamedSetDefinition, type NamedSetEntry, type NamedSetTarget
 } from '../engine/namedSets'
+import { askConfirm } from './AppNotices'
 
 export function NamedSetControls({ selected, onSelect, createRequest, propertiesRequest, onRequestsHandled }: {
   selected: string | null; onSelect: (name: string) => void; createRequest: number
@@ -39,9 +40,9 @@ export function NamedSetControls({ selected, onSelect, createRequest, properties
     <div className="sfc-edit-row">
       <button className="tbtn sm" onClick={() => { setError(''); setCreating(true) }}>New Named Set...</button>
       <button className="tbtn sm" onClick={() => {
-        if (window.confirm('Replace configured custom Named Sets with the saved browser configuration? Deployed setup remains unchanged.')) {
+        void askConfirm('Replace configured custom Named Sets with the saved browser configuration? Deployed setup remains unchanged.').then(ok => { if (ok) {
           useStore.getState().loadSavedNamedSets()
-        }
+        } })
       }}>Load Saved Named Sets</button>
     </div>
     <table className="studio-param-table"><thead><tr><th>Name (case-sensitive)</th><th>Entries</th><th>Properties</th></tr></thead>
@@ -75,9 +76,9 @@ export function NamedSetControls({ selected, onSelect, createRequest, properties
       </table> : <p>Not transferred to this target.</p>}
     </>}
     <button className="tbtn sm" disabled={!changes.length} onClick={() => {
-      if (window.confirm(`Download Changed Setup Data: ${changes.join(', ')} to ${targetName}? This transfers the Named Set subset only.`)) {
+      void askConfirm(`Download Changed Setup Data: ${changes.join(', ')} to ${targetName}? This transfers the Named Set subset only.`).then(ok => { if (ok) {
         useStore.getState().downloadChangedNamedSets(target)
-      }
+      } })
     }}>Download Changed Setup Data...</button>
     <p className="traditional-note">
       Controller and workstation copies are independent and session-local. Transfers require Can Download;

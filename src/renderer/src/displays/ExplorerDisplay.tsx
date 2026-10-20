@@ -38,6 +38,7 @@ import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, 
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
 import { useBatchUi } from '../ui/batchUi'
+import { askConfirm } from '../components/AppNotices'
 
 /** Delete a control or equipment module; assigned modules must have their controller assignment deleted first (course p5-29). */
 function deleteCourse(tag: string): void {
@@ -389,8 +390,8 @@ export function ExplorerDisplay(): JSX.Element {
 
   const selectedArea = node?.startsWith('AREA:') ? node.slice(5) : selected?.area ?? areas[0]
   const deleteSelected = (): void => {
-    if (selected && libraryInstances[selected.tag]) { if (window.confirm(`Delete ${selected.tag}?`)) alertResult(useLibrary.getState().deleteInstance(selected.tag)) }
-    else if (selected && !node && !libSel) { if (window.confirm(`Delete ${selected.tag}?`)) deleteCourse(selected.tag) }
+    if (selected && libraryInstances[selected.tag]) { void askConfirm(`Delete ${selected.tag}?`).then(ok => { if (ok) { alertResult(useLibrary.getState().deleteInstance(selected.tag)) } })}
+    else if (selected && !node && !libSel) { void askConfirm(`Delete ${selected.tag}?`).then(ok => { if (ok) { deleteCourse(selected.tag) } })}
     else window.alert('Select a control module to delete.')
   }
 

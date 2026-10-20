@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { SimulatorDialog } from './SimulatorDialog'
 import { conditionDelayAlarmDefError, conditionDelayAlarmMessage, type ConditionDelayAlarmDef } from '../engine/conditionDelayAlarms'
+import { askConfirm } from './AppNotices'
 
 /** DV09-047 Setup UI: a named two-condition conjunction + strict elapsed-
  * delay custom advisory, bound to a deployed custom alarm type (Pass59). */
@@ -55,7 +56,7 @@ export function ConditionDelayAlarmControls({ selected, onSelect, createRequest,
                 <td>{row?.active ? 'ACTIVE' : 'Normal'}</td>
                 <td><button className="tbtn sm" onClick={() => { onSelect(name); setEditing({ name, def }) }}>Edit...</button></td>
                 <td><button className="tbtn sm" onClick={() => {
-                  if (window.confirm(`Delete condition alarm ${name}?`)) useStore.getState().deleteConditionDelayAlarm(name)
+                  void askConfirm(`Delete condition alarm ${name}?`).then(ok => { if (ok) { useStore.getState().deleteConditionDelayAlarm(name) } })
                 }}>Delete</button></td>
               </tr>
             )

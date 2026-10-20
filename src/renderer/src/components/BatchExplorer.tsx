@@ -14,6 +14,7 @@ import { ModuleIcon } from './EngineeringIcons'
 import { EmDetail, ModuleInstanceRows } from './EmExplorer'
 import { useEm } from '../engine/emStore'
 import { fmt } from '../utils/format'
+import { askConfirm } from './AppNotices'
 
 export const DRAG_PCELL_CLASS = 'application/x-bl-pcell-class'
 export const DRAG_UNIT_CLASS = 'application/x-bl-unit-class'
@@ -155,7 +156,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
   const classMenu = (name: string, e: React.MouseEvent): void => {
     onSelect({ t: 'class', cls, name })
     const common: MenuItem[] = [sep, { label: 'References...', onClick: () => onSelect({ t: 'class', cls, name }) }, sep,
-      { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete ${name}?`)) alertResult(b.deleteClass(cls, name)) } },
+      { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${name}?`).then(ok => { if (ok) { alertResult(b.deleteClass(cls, name)) } })} },
       { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'class', cls, name }) }, sep,
       { label: "What's this?", onClick: () => window.alert(cls === 'pcell' ? 'Process Cell Class — common properties for a class of process cells.' : cls === 'unit' ? 'Unit Class — logical grouping of like equipment. Aliases are created here and resolved on each unit module.' : 'Phase Class — common properties and phase logic. Phase logic is created at the Phase Class.') },
       { label: 'Properties', onClick: () => onSelect({ t: 'class', cls, name }) }]
@@ -212,7 +213,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
           sub={`${m.className} · ${m.ownership}${m.allowVariant ? ' · variant allowed' : ''}`}
           onContextMenu={e => setMenu({ x: e.clientX, y: e.clientY, label: m.name, items: [
             { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'ucBlock', unitClass: name, name: m.name }) },
-            { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete module block ${m.name} and its alias?`)) alertResult(b.removeModuleBlock(name, m.name)) } },
+            { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete module block ${m.name} and its alias?`).then(ok => { if (ok) { alertResult(b.removeModuleBlock(name, m.name)) } })} },
             sep,
             { label: 'Properties', onClick: () => window.alert(`${m.name}: ${m.kind === 'em' ? 'Equipment' : 'Control'} Module Class ${m.className}\nOwnership type: ${m.ownership}\nAllow variant module to be substituted on module instances: ${m.allowVariant ? 'Yes' : 'No'}`) }
           ] })} />)}
@@ -324,7 +325,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule }: {
       sep,
       { label: 'Cut', disabled: NOT_MODELED }, { label: 'Copy', disabled: NOT_MODELED }, { label: 'Paste', disabled: NOT_MODELED },
       sep,
-      { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete ${unit}?`)) alertResult(b.deleteUnitModule(unit)) } },
+      { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${unit}?`).then(ok => { if (ok) { alertResult(b.deleteUnitModule(unit)) } })} },
       { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'unit', name: unit }) },
       sep,
       { label: "What's this?", onClick: () => window.alert('Unit Module — created when a Unit Class is assigned to a Process Cell. It runs its unit phases in the controller.') },
@@ -358,7 +359,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule }: {
           sep,
           { label: 'Assign ▸ Process Cell and Contained Modules to Node', onClick: () => {
             const ctl = Object.keys(useStore.getState().hardware.controllers)[0]
-            if (ctl && window.confirm(`Assign ${cell.name}, its unit modules and contained modules to ${ctl}?`)) alertResult(b.assignCell(cell.name, ctl))
+            if (ctl) void askConfirm(`Assign ${cell.name}, its unit modules and contained modules to ${ctl}?`).then(ok => { if (ok) { alertResult(b.assignCell(cell.name, ctl)) } })
           } },
           sep,
           { label: 'Delete', danger: true, onClick: () => alertResult(b.deleteProcessCell(cell.name)) },

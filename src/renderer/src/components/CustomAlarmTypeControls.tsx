@@ -6,6 +6,7 @@ import {
   type CustomAlarmTypeDef
 } from '../engine/customAlarmTypes'
 import type { AlarmPriority } from '../engine/types'
+import { askConfirm } from './AppNotices'
 
 /** DV09-041 Setup UI: a project-wide registry of custom alarm types (up to
  * 255), each with a priority and a %P1/%P2 message template, independent of
@@ -54,7 +55,7 @@ export function CustomAlarmTypeControls({ selected, onSelect, createRequest, onR
               <td><button className="tbtn sm" onClick={() => { onSelect(name); setEditing({ name, def }) }}>Edit...</button></td>
               <td>
                 <button className="tbtn sm" onClick={() => {
-                  if (window.confirm(`Delete custom alarm type ${name}?`)) useStore.getState().deleteCustomAlarmType(name)
+                  void askConfirm(`Delete custom alarm type ${name}?`).then(ok => { if (ok) { useStore.getState().deleteCustomAlarmType(name) } })
                 }}>Delete</button>
               </td>
             </tr>
@@ -68,9 +69,9 @@ export function CustomAlarmTypeControls({ selected, onSelect, createRequest, onR
       <h3>Changed Setup Data — Alarm Types</h3>
       <p>{changes.length ? `Changed: ${changes.join(', ')}` : 'No alarm type setup changes.'}</p>
       <button className="tbtn sm" disabled={!changes.length} onClick={() => {
-        if (window.confirm(`Download Changed Setup Data: ${changes.join(', ')}? This transfers the alarm type subset only.`)) {
+        void askConfirm(`Download Changed Setup Data: ${changes.join(', ')}? This transfers the alarm type subset only.`).then(ok => { if (ok) {
           useStore.getState().downloadCustomAlarmTypeSetup()
-        }
+        } })
       }}>Download Changed Setup Data...</button>
 
       {definition && (

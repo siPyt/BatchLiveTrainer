@@ -7,6 +7,7 @@ import { useLibrary } from '../engine/libraryStore'
 import { useBatch, aliasesResolved, type UploadRow } from '../engine/batchStore'
 import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
 import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
+import { askConfirm } from './AppNotices'
 
 const NO_PARAMS: Record<string, PhaseParamDef> = {}
 const NO_LOGIC: Record<string, unknown> = {}
@@ -374,7 +375,7 @@ export function BatchDialogHost(): JSX.Element | null {
     case 'newUnitClass': return <NewObjectDialog objectType="Unit Class" algorithm="<None>" onClose={close} onOk={n => asErr(b.newUnitClass(d.category, n))} />
     case 'newPhaseClass': return <NewObjectDialog objectType="Phase Class" algorithm="Sequential Function Chart" onClose={close} onOk={n => {
       const r = useBatch.getState().newPhaseClass(d.category, n)
-      if (r.ok && window.confirm(`Phase class ${r.value} created. Open it with Control Studio now?`)) useUi.getState().openPhaseStudio(r.value)
+      if (r.ok) void askConfirm(`Phase class ${r.value} created. Open it with Control Studio now?`).then(ok => { if (ok) { useUi.getState().openPhaseStudio(r.value) } })
       return asErr(r)
     }} />
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
@@ -420,7 +421,7 @@ function NewEmClassDialog({ category, onClose }: { category: string; onClose: ()
     const r = useEm.getState().newClass(category, name, algorithm, namedSet)
     if (!r.ok) { setError(r.error); return }
     onClose()
-    if (window.confirm(`Equipment module class ${r.value} created. Open it with Control Studio now?`)) useUi.getState().openEmStudio(r.value)
+    void askConfirm(`Equipment module class ${r.value} created. Open it with Control Studio now?`).then(ok => { if (ok) { useUi.getState().openEmStudio(r.value) } })
   }
   return <SimulatorDialog className="module-download-dialog dvd" label="New" onClose={onClose}>
     <div className="dvd-split">

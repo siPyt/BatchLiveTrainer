@@ -3,6 +3,7 @@ import { useStore } from '../engine/store'
 import { sfcDraftDirty, sfcNeedsDownload, type SfcConfiguration } from '../engine/sfcLifecycle'
 import { SimulatorDialog } from './SimulatorDialog'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
+import { askConfirm } from './AppNotices'
 
 export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
   const lifecycle = useStore(s => s.sfcLifecycle[name])
@@ -28,9 +29,9 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => setProperties(lifecycle.draft)}>Module Properties...</button>
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => useStore.getState().saveSfc(name)}>Save</button>
       <button className="tbtn sm" disabled={lifecycle.online} onClick={() => {
-        if (window.confirm('Replace the offline SFC draft with its saved browser configuration? The deployed SFC will not change.')) {
+        void askConfirm('Replace the offline SFC draft with its saved browser configuration? The deployed SFC will not change.').then(ok => { if (ok) {
           useStore.getState().loadSavedSfc(name)
-        }
+        } })
       }}>Load Saved</button>
       <button className="tbtn sm" disabled={lifecycle.online || !lifecycle.saved || dirty} onClick={() => {
         setError(''); setDownload(lifecycle.saved ?? null)

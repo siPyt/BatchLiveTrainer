@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../engine/store'
 import { channelBad, traditionalChannels, type TraditionalCard, type TraditionalCardType,
   type TraditionalChannel, DO_MODE_LABEL, type DoOutputMode } from '../engine/traditionalIo'
+import { askConfirm } from '../components/AppNotices'
 
 export function TraditionalIoPanel({ controllerTag }: { controllerTag: string }): JSX.Element {
   const hardware = useStore(s => s.hardware)
@@ -35,7 +36,7 @@ export function TraditionalIoPanel({ controllerTag }: { controllerTag: string })
       {cards.map(card => <div className="traditional-card" key={card.id}>
         <div className="exp-newmod-title">{card.id} — {card.type}</div>
         {card.type === 'AI' && <button className="tbtn sm" onClick={() => {
-          if (window.confirm(`Transfer configured input filters for all eight channels of ${card.id}? This simulated filter-only transfer does not download other card properties.`)) downloadFilters(card.id)
+          void askConfirm(`Transfer configured input filters for all eight channels of ${card.id}? This simulated filter-only transfer does not download other card properties.`).then(ok => { if (ok) { downloadFilters(card.id) } })
         }}>Download Input Filters</button>}
         {card.channels.map(channel => <TraditionalChannelEditor key={channel.channel}
           card={card} channel={channel} />)}

@@ -5,6 +5,7 @@ import { traditionalChannels } from '../engine/traditionalIo'
 import { PidTransferDialog } from './PidTransferDialog'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 import { compareModuleDownload } from '../engine/downloadStatus'
+import { askConfirm } from './AppNotices'
 
 export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const [showUpload, setShowUpload] = useState(false)
@@ -20,7 +21,7 @@ export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const online = useStore(state => state.setPidLifecycleOnline)
   if (!record) return <tr><td>SAVED CONFIGURATION</td><td>
     <button className="tbtn sm" onClick={() => {
-      if (window.confirm('Enable the isolated PID_LOOP Save/Download lifecycle? The loop will hold OOS until a Full Download and Go Online.')) enable(tag)
+      void askConfirm('Enable the isolated PID_LOOP Save/Download lifecycle? The loop will hold OOS until a Full Download and Go Online.').then(ok => { if (ok) { enable(tag) } })
     }}>Enable Saved PID_LOOP Lifecycle</button>
   </td><td>Opt-in; currently live</td></tr>
 
@@ -44,14 +45,14 @@ export function PidLifecycleRows({ tag }: { tag: string }): JSX.Element {
       </button>
       <button className="tbtn sm" disabled={record.online} onClick={() => save(tag)}>Save Module</button>
       <button className="tbtn sm" disabled={record.online} onClick={() => {
-        if (window.confirm('Replace the offline PID_LOOP draft with the saved configuration from this browser profile? Runtime remains unchanged.')) load(tag)
+        void askConfirm('Replace the offline PID_LOOP draft with the saved configuration from this browser profile? Runtime remains unchanged.').then(ok => { if (ok) { load(tag) } })
       }}>Load Saved Configuration</button>
       <button className="tbtn sm" disabled={!record.online || !downloaded} onClick={() => setShowUpload(true)}>
         Upload Online Values
       </button>
       <button className="tbtn sm" disabled={record.online || dirty} onClick={() => {
         if (changed.length) setShowDownload(true)
-        else if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) download(tag)
+        else void askConfirm('Full-download this saved PID_LOOP to its assigned simulated controller?').then(ok => { if (ok) download(tag) })
       }}>Full Download</button>
     </div>
       {showUpload && <PidTransferDialog tag={tag} mode="UPLOAD" onClose={() => setShowUpload(false)} />}

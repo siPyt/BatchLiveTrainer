@@ -24,6 +24,7 @@ import {
   type CharmChannel,
   type Controller
 } from '../engine/hardware'
+import { askConfirm } from '../components/AppNotices'
 
 // DeltaV Explorer "Physical Network" view: Controller -> I/O Carrier (CIOC)
 // -> CHARM Baseplate -> CHARM (one field signal per CHARM, auto-characterized).
@@ -365,35 +366,35 @@ function ControllerPanel({
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerAoRecords(useStore.getState().moduleLifecycle, c.tag)
           const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.saved]))
-          if (window.confirm(`Full Download all configured managed AOs assigned to ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Every module is validated before any runtime changes. Running modes and outputs use saved defaults. Cancel aborts all transfers. PID/device/SFC, cards and Setup are excluded; this is not native controller Total Download.`)) {
+          void askConfirm(`Full Download all configured managed AOs assigned to ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Every module is validated before any runtime changes. Running modes and outputs use saved defaults. Cancel aborts all transfers. PID/device/SFC, cards and Setup are excluded; this is not native controller Total Download.`).then(ok => { if (ok) {
             useStore.getState().downloadControllerAos(c.tag, reviewed)
-          }
+          } })
         }}>Full Download Managed AOs</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerRegulatoryRecords(useStore.getState(), c.tag)
           const reviewed = Object.fromEntries(records.map(({ tag, record }) => [tag, record.saved]))
-          if (window.confirm(`Full Download managed regulatory modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All members must be saved and PID_LOOP Offline. AO running outputs use saved defaults; PID_LOOP remains held OOS until Go Online. Any failure or Cancel aborts every transfer. Live tuning is not uploaded. Devices/SFC, cards and Setup are excluded; this is not native Total Download.`)) {
+          void askConfirm(`Full Download managed regulatory modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All members must be saved and PID_LOOP Offline. AO running outputs use saved defaults; PID_LOOP remains held OOS until Go Online. Any failure or Cancel aborts every transfer. Live tuning is not uploaded. Devices/SFC, cards and Setup are excluded; this is not native Total Download.`).then(ok => { if (ok) {
             useStore.getState().downloadControllerRegulatory(c.tag, reviewed)
-          }
+          } })
         }}>Full Download Managed AO/PID</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerManagedRecords(useStore.getState(), c.tag)
           const reviewed = Object.fromEntries(records.map(({ tag, saved }) => [tag, saved]))
-          if (window.confirm(`Full Download managed modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All drafts must be saved. PID/SFC must be Offline; devices stopped/closed with passive Good channels. AO uses saved defaults, PID stays OOS until Online, devices await confirmation and SFC stays READY without executing actions. Cancel or any member failure aborts the entire batch. Cards/Setup/unmanaged algorithms are excluded; this is not native Total Download.`)) {
+          void askConfirm(`Full Download managed modules on ${c.tag}: ${records.map(({ tag, kind }) => `${tag} (${kind})`).join(', ') || '(none)'}. All drafts must be saved. PID/SFC must be Offline; devices stopped/closed with passive Good channels. AO uses saved defaults, PID stays OOS until Online, devices await confirmation and SFC stays READY without executing actions. Cancel or any member failure aborts the entire batch. Cards/Setup/unmanaged algorithms are excluded; this is not native Total Download.`).then(ok => { if (ok) {
             useStore.getState().downloadControllerManagedModules(c.tag, reviewed)
-          }
+          } })
         }}>Full Download Managed Modules</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
           const records = controllerDeployedAoRecords(useStore.getState().moduleLifecycle, c.tag)
           const reviewed = Object.fromEntries(records.map(([tag, record]) => [tag, record.lastGoodDownload]))
-          if (window.confirm(`Re-send last-good transfers for deployed managed AOs on ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Later saved/draft edits are excluded. This changes running modes/outputs atomically. Cancel aborts all replay. Recommissioning requires fresh Full. Other algorithms/cards/Setup and native controller scripts are excluded.`)) {
+          void askConfirm(`Re-send last-good transfers for deployed managed AOs on ${c.tag}: ${records.map(([tag]) => tag).join(', ') || '(none)'}. Later saved/draft edits are excluded. This changes running modes/outputs atomically. Cancel aborts all replay. Recommissioning requires fresh Full. Other algorithms/cards/Setup and native controller scripts are excluded.`).then(ok => { if (ok) {
             useStore.getState().resendControllerAoDownloads(c.tag, reviewed)
-          }
+          } })
         }}>Re-send Last Good Managed AOs</button>
         <button className="tbtn sm" disabled={!c.commissioned || down} onClick={() => {
-          if (window.confirm('Capture last-good downloads for managed AO modules on this controller into separate simulated restart memory? Running configuration and saved database stay unchanged. This opts those modules into transfer-snapshot restart; Partial downloads then require another memory update. Other module types and native controller scripts are not included.')) {
+          void askConfirm('Capture last-good downloads for managed AO modules on this controller into separate simulated restart memory? Running configuration and saved database stay unchanged. This opts those modules into transfer-snapshot restart; Partial downloads then require another memory update. Other module types and native controller scripts are not included.').then(ok => { if (ok) {
             useStore.getState().updateControllerAoRestartMemory(c.tag)
-          }
+          } })
         }}>Update AO Cold Restart Memory</button>
         <button className="tbtn sm" disabled={!c.commissioned || down || c.powerDownAt !== null} onClick={powerLoss}>Power Loss</button>
         <WhatsThis topic={c.powerDownAt !== null ? 'restorePower' : 'powerLoss'} controller={c} />

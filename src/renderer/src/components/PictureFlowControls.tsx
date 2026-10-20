@@ -4,6 +4,7 @@ import { usePictures, type PicElement } from '../engine/pictureStore'
 import type { FlowCondition } from '../engine/pictureFlow'
 import { useStore } from '../engine/store'
 import { SimulatorDialog } from './SimulatorDialog'
+import { askConfirm } from './AppNotices'
 
 export function FlowTablesDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const tables = useFlowColors(state => state.tables)
@@ -42,11 +43,11 @@ export function FlowTablesDialog({ onClose }: { onClose: () => void }): JSX.Elem
       }}>Apply Table</button>
       <button className="tbtn sm" onClick={() => { if (save()) setStatus('Tables saved to this browser profile.') }}>Save Tables</button>
       <button className="tbtn sm" onClick={() => {
-        if (window.confirm('Replace shared tables with the saved tables from this browser profile?') && load()) {
+        void askConfirm('Replace shared tables with the saved tables from this browser profile?').then(ok => { if (ok && load()) {
           const table = useFlowColors.getState().tables[name]
           if (table) { setFlowColor(table.flowColor); setNoFlowColor(table.noFlowColor) }
           setStatus('Tables loaded.')
-        }
+        } })
       }}>Load Saved Tables</button>
       <button className="tbtn sm" onClick={onClose}>Close</button>
     </div>

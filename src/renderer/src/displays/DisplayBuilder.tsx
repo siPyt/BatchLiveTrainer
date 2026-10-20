@@ -18,6 +18,7 @@ import { CourseDynamo } from '../components/CourseDynamos'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { DYNAMO_SETS, FONT_FAMILIES, TITLE_GROUP, clampPosition, formatLayout, historicalValue, pictureDiscretePath,
   pictureDiscreteSignal, pictureSourcePaths, refreshedSample, type DynamoSetName } from '../engine/pictureObjects'
+import { askConfirm } from '../components/AppNotices'
 
 const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 
@@ -168,9 +169,9 @@ export function DisplayBuilder(): JSX.Element {
           <>
             <button className="tbtn sm" onClick={() => savePicture(selected)}>Save Picture</button>
             <button className="tbtn sm" onClick={() => {
-              if (window.confirm('Replace this picture with its saved browser configuration?')) {
+              void askConfirm('Replace this picture with its saved browser configuration?').then(ok => { if (ok) {
                 if (loadPicture(selected)) setSelEl(null)
-              }
+              } })
             }}>Load Saved Picture</button>
             <button className="tbtn sm" onClick={() => add('datalink')}>
               + Datalink

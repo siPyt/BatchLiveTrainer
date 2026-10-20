@@ -8,6 +8,7 @@ import { CM_DEVICE_CLASSES, EM_ALGORITHM_NOTE, EM_PARAMS, emDisplay, emDownloadS
 import { TreeRow, ContextMenu, ContentsList, alertResult } from './LibraryExplorer'
 import { BatchIcon, DRAG_CM_DEVICE, DRAG_EM_CLASS, DRAG_MODULE, type BatchSel } from './BatchExplorer'
 import { ModuleIcon } from './EngineeringIcons'
+import { askConfirm } from './AppNotices'
 
 // DeltaV Explorer for Course 7016 Chapter 5: Library ▸ Advanced Definitions ▸ Equipment Module
 // Classes (categories, command- and state-driven classes and their module blocks), the provided
@@ -69,7 +70,7 @@ export function EmClassTree({ depth, sel, onSelect }: { depth: number; sel: Batc
       sep,
       { label: 'References...', onClick: () => onSelect({ t: 'emClass', name }) },
       sep,
-      { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete ${name}?`)) alertResult(em.deleteClass(name)) } },
+      { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${name}?`).then(ok => { if (ok) { alertResult(em.deleteClass(name)) } })} },
       { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'emClass', name }) },
       sep,
       { label: "What's this?", onClick: () => window.alert('Equipment Module Class — common properties for a type of equipment module. It can contain control modules derived from control module classes.') },
@@ -118,7 +119,7 @@ export function EmClassTree({ depth, sel, onSelect }: { depth: number; sel: Batc
             sub={`Module block (${b.className})`}
             onContextMenu={e => setMenu({ x: e.clientX, y: e.clientY, label: b.name, items: [
               { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'emBlock', cls: name, name: b.name }) },
-              { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete module block ${b.name}?`)) alertResult(em.removeChild(name, b.name)) } },
+              { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete module block ${b.name}?`).then(ok => { if (ok) { alertResult(em.removeChild(name, b.name)) } })} },
               sep,
               { label: 'Properties', onClick: () => window.alert(`${b.name}: embedded control module of class ${b.className}. Each equipment module instance creates its own ${b.className} module for it.`) }
             ] })} />)}
@@ -177,7 +178,7 @@ export function ModuleInstanceRows({ unit, depth, sel, onSelect }: { unit: strin
       { label: 'Open with Control Studio', onClick: () => (isEm ? useUi.getState().openEmStudio(em.instances[tag].className, tag) : useUi.getState().openStudio(tag)) },
       ...(isEm ? [] : [{ label: 'Open ▸ Faceplate', onClick: () => useUi.getState().openFaceplate(tag) }]),
       sep,
-      { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete ${tag}?`)) alertResult(b.deleteCourseModule(tag)) } },
+      { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${tag}?`).then(ok => { if (ok) { alertResult(b.deleteCourseModule(tag)) } })} },
       { label: 'Rename', onClick: () => ui.setRenaming({ kind: 'module', name: tag }) },
       sep,
       { label: "What's this?", onClick: () => window.alert(isEm ? 'Equipment Module — created from the unit class module block; it coordinates its control modules through A_COMMAND.' : 'Control Module — created from the unit class module block.') },

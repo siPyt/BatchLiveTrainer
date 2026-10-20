@@ -325,6 +325,9 @@ popups. New Project and Import now use an in-app confirmation window, and every 
 in-app message box (components/AppNotices.tsx), so they work in any browser and the desktop app. Delete
 confirmations still use the native popup: they work in a normal browser (Edge/Chrome at http://localhost:5199) and
 in the desktop app; in the VS Code tab they are cancelled, so nothing is deleted by accident.
+UPDATE: all 53 native confirm() calls (Delete, Delete Assignment, Save/Discard on closing a studio, "expression has
+errors - save anyway?", downloads, Initialize simulation ...) now use the in-app OK/Cancel window (askConfirm in
+components/AppNotices.tsx), so every action works in the VS Code tab too. No window.confirm is left in the app.
 
 Fix (2026-10-20, Chapter 1 p1-22): a class-based module follows the SAVED class; Control Studio edits (for example
 "Allow instance value to be configured" on AI1 OUT_SCALE) stay in a draft until File -> Save. The instance's

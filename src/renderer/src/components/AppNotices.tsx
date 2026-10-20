@@ -5,17 +5,35 @@ import { SimulatorDialog } from './SimulatorDialog'
 // host: the desktop app, a normal browser, and embedded/automated browsers that suppress native popups.
 
 interface Notice { id: number; text: string }
-interface NoticeState { items: Notice[]; push: (text: string) => void; dismiss: (id: number) => void }
+interface Ask { id: number; text: string; resolve: (ok: boolean) => void }
+interface NoticeState { items: Notice[]; asks: Ask[]; push: (text: string) => void; dismiss: (id: number) => void; answer: (id: number, ok: boolean) => void }
 let seq = 0
 export const useNotices = create<NoticeState>(set => ({
   items: [],
+  asks: [],
   push: text => set(s => ({ items: [...s.items.slice(-4), { id: ++seq, text }] })),
-  dismiss: id => set(s => ({ items: s.items.filter(n => n.id !== id) }))
+  dismiss: id => set(s => ({ items: s.items.filter(n => n.id !== id) })),
+  answer: (id, ok) => set(s => { s.asks.find(a => a.id === id)?.resolve(ok); return { asks: s.asks.filter(a => a.id !== id) } })
 }))
+
+/** In-app replacement for window.confirm (native popups are suppressed in some hosts): resolves true on OK. */
+export function askConfirm(text: string): Promise<boolean> {
+  return new Promise(resolve => useNotices.setState(s => ({ asks: [...s.asks, { id: ++seq, text, resolve }] })))
+}
 
 export function NoticeHost(): JSX.Element | null {
   const items = useNotices(s => s.items)
+  const asks = useNotices(s => s.asks)
   const dismiss = useNotices(s => s.dismiss)
+  const answer = useNotices(s => s.answer)
+  const ask = asks[0]
+  if (ask) return <SimulatorDialog className="module-download-dialog dvd app-notice" label="BatchLiveTrainer" onClose={() => answer(ask.id, false)}>
+    <p data-app-confirm style={{ whiteSpace: 'pre-wrap', maxWidth: 560 }}>{ask.text}</p>
+    <div className="lib-dlg-buttons" style={{ justifyContent: 'flex-end', gap: 8 }}>
+      <button className="tbtn sm" autoFocus onClick={() => answer(ask.id, true)}>OK</button>
+      <button className="tbtn sm" onClick={() => answer(ask.id, false)}>Cancel</button>
+    </div>
+  </SimulatorDialog>
   const top = items.at(-1)
   if (!top) return null
   return <SimulatorDialog className="module-download-dialog dvd app-notice" label="BatchLiveTrainer" onClose={() => dismiss(top.id)}>

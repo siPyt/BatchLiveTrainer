@@ -1,3 +1,4 @@
+import { askConfirm } from '../components/AppNotices'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
@@ -1503,7 +1504,7 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }
   const downloadAction = (): void => {
     if (pidRecord) {
       if (pidTuningChanges.length) setShowPidTransfer(true)
-      else if (window.confirm('Full-download this saved PID_LOOP to its assigned simulated controller?')) downloadPid(tag)
+      else void askConfirm('Full-download this saved PID_LOOP to its assigned simulated controller?').then(ok => { if (ok) downloadPid(tag) })
     } else setShowDownload(true)
   }
   const downloadUnavailable = pidRecord ? pidDownloadUnavailable : lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :

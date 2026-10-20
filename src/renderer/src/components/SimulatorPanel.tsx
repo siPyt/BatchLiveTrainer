@@ -1,3 +1,4 @@
+import { askConfirm } from './AppNotices'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import {
@@ -48,8 +49,9 @@ export function SimulatorPanel(): JSX.Element {
       <p className="muted">{SIMULATOR_DISCLOSURE}</p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="tbtn sm" onClick={() => {
-          if (!window.confirm('Initialize the simulation? Process values return to their initial conditions and runtime state is cleared.')) return
-          setMessage(initialize() ? 'Simulation initialized and on hold.' : 'Initialize was refused (see the event journal).')
+          void askConfirm('Initialize the simulation? Process values return to their initial conditions and runtime state is cleared.').then(ok => {
+            if (ok) setMessage(initialize() ? 'Simulation initialized and on hold.' : 'Initialize was refused (see the event journal).')
+          })
         }}>Initialize simulation</button>
         <button className={'tbtn sm' + (running ? ' active' : '')} onClick={() => setRunning(!running)}>{running ? '❚❚ Running' : '▶ Hold'}</button>
         <span>Simulation time {new Date(time).toISOString().replace('T', ' ').slice(0, 19)}</span>

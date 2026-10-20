@@ -14,6 +14,7 @@ import { ContextMenu } from '../components/LibraryExplorer'
 import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
+import { askConfirm } from '../components/AppNotices'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
 // one Sequential Function Chart per composite state, the "All SFC Items" palette with the
@@ -127,13 +128,14 @@ export function PhaseStudio(): JSX.Element {
     if (!r.ok) window.alert(r.error)
   }
   const close = (): void => {
-    if (useBatch.getState().phaseDrafts[name]) {
-      if (window.confirm(`Save changes to phase class ${name}?`)) save()
-      else if (window.confirm(`Discard the unsaved changes to ${name}?`)) useBatch.getState().discardPhaseDraft(name)
+    const leave = (): void => { useUi.getState().closePhaseStudio(); useUi.getState().navigate('explorer') }
+    if (!useBatch.getState().phaseDrafts[name]) { leave(); return }
+    void (async () => {
+      if (await askConfirm(`Save changes to phase class ${name}?`)) save()
+      else if (await askConfirm(`Discard the unsaved changes to ${name}?`)) useBatch.getState().discardPhaseDraft(name)
       else return
-    }
-    useUi.getState().closePhaseStudio()
-    useUi.getState().navigate('explorer')
+      leave()
+    })()
   }
   const itemCount = sfc ? sfc.steps.length + sfc.transitions.length : 0
   const afterIndex = (): number => sel ? sel.i : (sfc ? sfc.steps.length - 1 : 0)
@@ -149,8 +151,7 @@ export function PhaseStudio(): JSX.Element {
   const removeStep = (i: number): void => {
     if (!sfc) return
     const step = sfc.steps[i]
-    if (!window.confirm(`Delete step ${step.name} and transition ${sfc.transitions[i]?.name ?? ''}?`)) return
-    if (editSfc(s => deleteStep(s, i))) setSel(null)
+    void askConfirm(`Delete step ${step.name} and transition ${sfc.transitions[i]?.name ?? ''}?`).then(ok => { if (ok && editSfc(s => deleteStep(s, i))) setSel(null) })
   }
   const stepMenu = (i: number, e: React.MouseEvent): void => {
     e.preventDefault()
@@ -210,7 +211,7 @@ export function PhaseStudio(): JSX.Element {
       <div className="ribbon-body rb-body">
         {tab === 'File' && <Group label="File">
           <Btn glyph="save" label="Save" onClick={dirty ? save : undefined} unavailable={dirty ? undefined : 'No unsaved changes'} />
-          <Btn glyph="reset" label="Discard Changes" onClick={dirty ? () => { if (window.confirm('Discard unsaved changes?')) useBatch.getState().discardPhaseDraft(name) } : undefined}
+          <Btn glyph="reset" label="Discard Changes" onClick={dirty ? () => { void askConfirm('Discard unsaved changes?').then(ok => { if (ok) { useBatch.getState().discardPhaseDraft(name) } })} : undefined}
             unavailable={dirty ? undefined : 'No unsaved changes'} />
           <Btn glyph="backOut" label="Close" onClick={close} />
         </Group>}
@@ -620,8 +621,8 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     if (name !== action?.name && existing.includes(name)) { setError(`${name} already exists in step ${step}`); return }
     if ((v.qualifier === 'D' || v.qualifier === 'L') && !(v.time >= 0)) { setError('Enter the delay/limit time in seconds'); return }
     const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
-    if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`)) return
-    onOk({ ...v, name })
+    if (!problems.length) { onOk({ ...v, name }); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk({ ...v, name }) })
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${composite}/${step}/${v.name || 'A1'} Action`} onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
@@ -661,8 +662,8 @@ export function TransitionDialog({ sfc, index, composite, ctx, onOk, onClose }: 
     const e = renameError(sfc, tr.name, name)
     if (e) { setError(e); return }
     const problems = v.condition.trim() ? checkExpression(v.condition, 'condition', ctx.check) : []
-    if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the transition anyway?`)) return
-    onOk({ ...v, name })
+    if (!problems.length) { onOk({ ...v, name }); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the transition anyway?`).then(ok => { if (ok) onOk({ ...v, name }) })
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${composite}/${tr.name} Transition Properties`} onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
@@ -711,8 +712,8 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
   }
   const submit = (): void => {
     const problems = text.trim() ? checkExpression(text, kind, ctx.check) : []
-    if (problems.length && !window.confirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`)) return
-    onOk(text)
+    if (!problems.length) { onOk(text); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`).then(ok => { if (ok) onOk(text) })
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide ps-expr-dialog" label={title} onClose={onClose}>
     <div className="ps-expr-body">

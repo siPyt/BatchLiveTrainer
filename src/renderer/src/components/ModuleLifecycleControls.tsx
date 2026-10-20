@@ -4,6 +4,7 @@ import { useStore } from '../engine/store'
 import { changedAoParameters, lifecycleDirty, prepareAoTransfer, type AoConfiguration } from '../engine/moduleLifecycle'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 import { compareModuleDownload } from '../engine/downloadStatus'
+import { askConfirm } from './AppNotices'
 
 export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const record = useStore(s => s.moduleLifecycle[tag])
@@ -21,7 +22,7 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const [showParameterUpload, setShowParameterUpload] = useState(false)
   if (!record) return <tr><td>SAVED CONFIGURATION</td><td>
     <button className="tbtn sm" onClick={() => {
-      if (window.confirm('Enable the isolated saved AO lifecycle? Output will hold until the first Save and Full Download. Existing plant modules are unchanged.')) enable(tag)
+      void askConfirm('Enable the isolated saved AO lifecycle? Output will hold until the first Save and Full Download. Existing plant modules are unchanged.').then(ok => { if (ok) { enable(tag) } })
     }}>Enable Saved Module Lifecycle</button>
   </td><td>Opt-in; currently live</td></tr>
   const c = record.draft
@@ -40,19 +41,19 @@ export function ModuleLifecycleRows({ tag }: { tag: string }): JSX.Element {
       </button>
       <button className="tbtn sm" disabled={record.online} onClick={() => save(tag)}>Save Module</button>
       <button className="tbtn sm" disabled={record.online} onClick={() => {
-        if (window.confirm('Replace this draft with the saved configuration for this tag from this browser profile? Runtime remains unchanged.')) load(tag)
+        void askConfirm('Replace this draft with the saved configuration for this tag from this browser profile? Runtime remains unchanged.').then(ok => { if (ok) { load(tag) } })
       }}>Load Saved Configuration</button>
       <button className="tbtn sm" onClick={() => setShowDownload(true)}>Download Module</button>
       <button className="tbtn sm" disabled={!record.lastGoodDownload || record.replayFullRequired} onClick={() => {
-        if (window.confirm('Re-send this AO module\'s last successful transfer, including values preserved by its last Partial Download? Later saved/draft edits are not included. This changes the simulated runtime; it is not a whole-controller replay.')) resend(tag)
+        void askConfirm('Re-send this AO module\'s last successful transfer, including values preserved by its last Partial Download? Later saved/draft edits are not included. This changes the simulated runtime; it is not a whole-controller replay.').then(ok => { if (ok) { resend(tag) } })
       }}>Re-send Last Good Module Download</button>
       <button className="tbtn sm" disabled={!downloaded} onClick={() => {
-        if (window.confirm('Replace the offline draft with uploaded controller values? Unsaved draft edits will be discarded; Save is still required.')) upload(tag)
+        void askConfirm('Replace the offline draft with uploaded controller values? Unsaved draft edits will be discarded; Save is still required.').then(ok => { if (ok) { upload(tag) } })
       }}>Upload to Draft</button>
       <button className="tbtn sm" disabled={!downloaded || !Object.keys(m.parameters).length}
         onClick={() => setShowParameterUpload(true)}>Upload Selected Parameters</button>
       <button className="tbtn sm" disabled={!downloaded} onClick={() => {
-        if (window.confirm('Simulate a cold restart using deployed defaults and the selected NVM restore flags?')) restart(tag)
+        void askConfirm('Simulate a cold restart using deployed defaults and the selected NVM restore flags?').then(ok => { if (ok) { restart(tag) } })
       }}>Cold Restart Module</button>
     </div>{showDownload && <ModuleDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}
     {showParameterUpload && <AoParameterUploadDialog tag={tag} onClose={() => setShowParameterUpload(false)} />}</td>

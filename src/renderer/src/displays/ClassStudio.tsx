@@ -15,6 +15,7 @@ import {
 import { isValidDeltaVTag } from '../engine/naming'
 import type { AlarmPriority } from '../engine/types'
 import { fmt } from '../utils/format'
+import { askConfirm } from '../components/AppNotices'
 
 // Control Studio on a Control Module Class (course 7016 pp 1-19..1-25), drawn with the same ribbon,
 // Hierarchy / Diagram / Palette / Parameter / Alarm panes and status bar as BatchLive's Control Studio
@@ -113,10 +114,11 @@ export function ClassStudio(): JSX.Element {
   const edit = (fn: (draft: ModuleDefinition) => string | null | void): boolean => alertResult(lib.editDraft(className, fn))
   const save = (): void => { alertResult(useLibrary.getState().saveClass(className)) }
   const closeStudio = (): void => {
-    if (dirty && window.confirm(`Save changes to ${className}?`)) {
-      if (!alertResult(useLibrary.getState().saveClass(className))) return
-    }
-    close()
+    if (!dirty) { close(); return }
+    void askConfirm(`Save changes to ${className}?`).then(ok => {
+      if (ok && !alertResult(useLibrary.getState().saveClass(className))) return
+      close()
+    })
   }
   const deleteWire = (i: number): void => { if (edit(draft => { draft.wires.splice(i, 1) })) setSelectedWire(null) }
   const pos = (id: string): { x: number; y: number } => {
@@ -272,7 +274,7 @@ export function ClassStudio(): JSX.Element {
       <div className="ribbon-body rb-body">
         {tab === 'File' && <Group label="File">
           <Btn glyph="save" label="Save" onClick={readOnly || !dirty ? undefined : save} unavailable={readOnly ? 'Read-only' : dirty ? undefined : 'No unsaved changes'} />
-          <Btn glyph="reset" label="Discard Changes" onClick={!readOnly && dirty ? () => { if (window.confirm('Discard unsaved changes?')) lib.discardDraft(className) } : undefined}
+          <Btn glyph="reset" label="Discard Changes" onClick={!readOnly && dirty ? () => { void askConfirm('Discard unsaved changes?').then(ok => { if (ok) { lib.discardDraft(className) } })} : undefined}
             unavailable={!readOnly && dirty ? undefined : 'No unsaved changes'} />
           <Btn glyph="properties" label="Properties" onClick={() => setModuleProps(true)} />
           <Btn glyph="backOut" label="Close" onClick={closeStudio} />

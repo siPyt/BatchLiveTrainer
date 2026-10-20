@@ -8,6 +8,7 @@ import { deviceEditorModules } from '../engine/deviceLifecycle'
 import { descriptorRoles, type DeviceStateDescriptors } from '../engine/deviceDescriptors'
 import { DownloadStatusIndicator } from './DownloadStatusIndicator'
 import { compareModuleDownload } from '../engine/downloadStatus'
+import { askConfirm } from './AppNotices'
 
 export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const record = useStore(s => s.deviceLifecycle[tag])
@@ -25,7 +26,7 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
   const [showDownload, setShowDownload] = useState(false)
   if (!record) return <tr><td>SAVED DEVICE CONFIGURATION</td><td>
     <button className="tbtn sm" onClick={() => {
-      if (window.confirm('Enable saved device lifecycle for this stopped/closed device? It will be inhibited until the first Save and Full Download. Other devices are unchanged.')) enable(tag)
+      void askConfirm('Enable saved device lifecycle for this stopped/closed device? It will be inhibited until the first Save and Full Download. Other devices are unchanged.').then(ok => { if (ok) { enable(tag) } })
     }}>Enable Saved Device Lifecycle</button>
   </td><td>Opt-in; currently live</td></tr>
   const c = record.draft
@@ -39,7 +40,7 @@ export function DeviceLifecycleRows({ tag }: { tag: string }): JSX.Element {
       <button className="tbtn sm" onClick={() => online(tag, !record.online)}>{record.online ? 'Go Offline' : 'Go Online'}</button>
       <button className="tbtn sm" disabled={record.online} onClick={() => save(tag)}>Save Device</button>
       <button className="tbtn sm" disabled={record.online} onClick={() => {
-        if (window.confirm('Replace this device draft with its persistent saved configuration? Runtime remains unchanged.')) load(tag)
+        void askConfirm('Replace this device draft with its persistent saved configuration? Runtime remains unchanged.').then(ok => { if (ok) { load(tag) } })
       }}>Load Saved Device</button>
       <button className="tbtn sm" onClick={() => setShowDownload(true)}>Download Device</button>
     </div>{showDownload && <DeviceDownloadDialog tag={tag} onClose={() => setShowDownload(false)} />}</td><td>{record.online ? 'Online runtime' : 'Offline draft'}; {status}</td></tr>

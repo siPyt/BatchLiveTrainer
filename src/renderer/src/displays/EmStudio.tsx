@@ -15,6 +15,7 @@ import { ModuleIcon } from '../components/EngineeringIcons'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { ActionDialog, PaletteGlyph, SequenceDialog, SfcDiagram, StepDialog, TransitionDialog, type ExprCtx } from './PhaseStudio'
+import { askConfirm } from '../components/AppNotices'
 
 // Control Studio on an Equipment Module Class (course 7016 pp 5-14..5-24) and on-line on an
 // equipment module instance (pp 5-40..5-50): command-driven COMMAND_0000n sequences or the
@@ -96,13 +97,14 @@ export function EmStudio(): JSX.Element {
   }) : false
   const save = (): void => { if (!useEm.getState().drafts[className]) return; const r = useEm.getState().saveClass(className); if (!r.ok) window.alert(r.error) }
   const close = (): void => {
-    if (!online && useEm.getState().drafts[className]) {
-      if (window.confirm(`Save changes to ${className}?`)) save()
-      else if (window.confirm(`Discard the unsaved changes to ${className}?`)) useEm.getState().discardDraft(className)
+    const leave = (): void => { useUi.getState().closeEmStudio(); useUi.getState().navigate('explorer') }
+    if (online || !useEm.getState().drafts[className]) { leave(); return }
+    void (async () => {
+      if (await askConfirm(`Save changes to ${className}?`)) save()
+      else if (await askConfirm(`Discard the unsaved changes to ${className}?`)) useEm.getState().discardDraft(className)
       else return
-    }
-    useUi.getState().closeEmStudio()
-    useUi.getState().navigate('explorer')
+      leave()
+    })()
   }
   const drill = (b: string | null): void => useUi.getState().openEmStudio(className, instance, b)
   const afterIndex = (): number => (sel ? sel.i : sfc ? sfc.steps.length - 1 : 0)
@@ -139,7 +141,7 @@ export function EmStudio(): JSX.Element {
       <div className="ribbon-body rb-body">
         {tab === 'File' && <Group label="File">
           <Btn glyph="save" label="Save" onClick={dirty ? save : undefined} unavailable={dirty ? undefined : 'No unsaved changes'} />
-          <Btn glyph="reset" label="Discard Changes" onClick={dirty ? () => { if (window.confirm('Discard unsaved changes?')) useEm.getState().discardDraft(className) } : undefined} unavailable={dirty ? undefined : 'No unsaved changes'} />
+          <Btn glyph="reset" label="Discard Changes" onClick={dirty ? () => { void askConfirm('Discard unsaved changes?').then(ok => { if (ok) { useEm.getState().discardDraft(className) } })} : undefined} unavailable={dirty ? undefined : 'No unsaved changes'} />
           <Btn glyph="backOut" label="Close" onClick={close} />
         </Group>}
         {tab === 'Home' && <>

@@ -17,6 +17,7 @@ import { fmt } from '../utils/format'
 import { useBatch, unitDownloadState } from '../engine/batchStore'
 import { useBatchUi } from '../ui/batchUi'
 import { BatchClassTree, BatchDetail, BatchIcon, DRAG_CM_DEVICE, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
+import { askConfirm } from './AppNotices'
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
@@ -223,7 +224,7 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
     sep,
     { label: 'Cut', disabled: 'Drag the class onto another category to move it' }, { label: 'Copy', disabled: NOT_MODELED }, { label: 'Paste', disabled: NOT_MODELED },
     sep,
-    { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete Control Module Class ${name}?`)) alertResult(lib.getState().deleteClass(name)) } },
+    { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete Control Module Class ${name}?`).then(ok => { if (ok) { alertResult(lib.getState().deleteClass(name)) } })} },
     { label: 'Rename', onClick: () => setRenaming({ kind: 'class', name }) },
     sep,
     { label: "What's this?", onClick: () => whatsThis('class') },
@@ -557,7 +558,7 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
         ...tags.map(t => { const emi = useEm.getState().instances[t]; const cmi = useEm.getState().cmInstances[t]; return { key: t, icon: <ModuleIcon kind={emi ? 'equipment' : 'control'} size={16} />, name: t, data: { 'data-assigned': t },
         type: emi ? `Equipment Module (${emi.className})` : lib.instances[t] ? `Control Module (${lib.instances[t].className})` : cmi ? `Control Module (${cmi.className})` : lib.sims[t] ? 'Control Module (simulation)' : 'Control Module',
         onContextMenu: (e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, label: t, items: [
-          { label: 'Delete Assignment', danger: true, onClick: () => { if (window.confirm(`Delete the assignment of ${t} to ${c.tag}?`)) { const r = useBatch.getState().unassignModule(t); if (!r.ok) window.alert(r.error) } } },
+          { label: 'Delete Assignment', danger: true, onClick: () => { void askConfirm(`Delete the assignment of ${t} to ${c.tag}?`).then(ok => { if (ok) { const r = useBatch.getState().unassignModule(t); if (!r.ok) window.alert(r.error) } }) } },
           sep, { label: 'Properties', onClick: () => window.alert(`${t}\nAssigned to ${c.tag}`) }
         ] }) } })]}
         extraColumn={{ title: 'Download', value: r => r.key.startsWith('unit:') ? STATE_LABEL[unitDownloadState(batch, r.key.slice(5))] : lib.instances[r.key] ? STATE_LABEL[downloadState(lib, r.key)] : 'Downloaded' }}
@@ -693,7 +694,7 @@ export function instanceMenuItems(tag: string, actions: { rename: () => void; se
     sep,
     { label: 'Cut', disabled: NOT_MODELED }, { label: 'Copy', disabled: NOT_MODELED }, { label: 'Paste', disabled: NOT_MODELED },
     sep,
-    { label: 'Delete', danger: true, onClick: () => { if (window.confirm(`Delete ${tag}?`)) alertResult(useLibrary.getState().deleteInstance(tag)) } },
+    { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${tag}?`).then(ok => { if (ok) { alertResult(useLibrary.getState().deleteInstance(tag)) } })} },
     { label: 'Rename', onClick: actions.rename },
     sep,
     { label: "What's this?", onClick: () => window.alert(WHATS_THIS.instance) },
