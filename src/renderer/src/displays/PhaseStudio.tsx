@@ -401,66 +401,75 @@ function ParamPane({ pc, composite, name, live }: { pc: PhaseClass; composite: C
 }
 
 // ---------------------------------------------------------------------------
-// Phase state diagram (S88.01, p4-17 / p4-53)
+// Phase state diagram (S88.01, p4-17 / p4-53). Coordinates are slide 4-53 scaled onto a grid:
+// columns Idle/Aborted, Running/Holding/Aborting/Complete, Stopping/Held/Stopped, Restarting.
 
-type Box = { id: string; label: string; x: number; y: number; composite?: CompositeName; state?: PhaseState }
+type Box = { id: string; label: string; x: number; y: number; w?: number; composite?: CompositeName; state?: PhaseState }
+const COL = [27, 225, 390, 554]
+const ROW = [100, 232, 365, 474]
 const BOXES: Box[] = [
-  { id: 'fm', label: 'Failure_Monitor', x: 20, y: 18, composite: 'FAIL_MONITOR' },
-  { id: 'aborted', label: 'Aborted', x: 120, y: 110, state: 'ABORTED' },
-  { id: 'aborting', label: 'Aborting', x: 330, y: 110, composite: 'ABORT_LOGIC', state: 'ABORTING' },
-  { id: 'holding', label: 'Holding', x: 330, y: 260, composite: 'HOLD_LOGIC', state: 'HOLDING' },
-  { id: 'held', label: 'Held', x: 480, y: 260, state: 'HELD' },
-  { id: 'restarting', label: 'Restarting', x: 630, y: 260, composite: 'RESTART_LOGIC', state: 'RESTARTING' },
-  { id: 'idle', label: 'Idle', x: 120, y: 360, state: 'IDLE' },
-  { id: 'running', label: 'Running', x: 330, y: 360, composite: 'RUN_LOGIC', state: 'RUNNING' },
-  { id: 'stopping', label: 'Stopping', x: 480, y: 360, composite: 'STOP_LOGIC', state: 'STOPPING' },
-  { id: 'complete', label: 'Complete', x: 330, y: 450, state: 'COMPLETE' },
-  { id: 'stopped', label: 'Stopped', x: 480, y: 450, state: 'STOPPED' }
+  { id: 'fm', label: 'Failure_Monitor', x: 12, y: 12, w: 121, composite: 'FAIL_MONITOR' },
+  { id: 'aborted', label: 'Aborted', x: COL[0], y: ROW[0], state: 'ABORTED' },
+  { id: 'aborting', label: 'Aborting', x: COL[1], y: ROW[0], composite: 'ABORT_LOGIC', state: 'ABORTING' },
+  { id: 'holding', label: 'Holding', x: COL[1], y: ROW[1], composite: 'HOLD_LOGIC', state: 'HOLDING' },
+  { id: 'held', label: 'Held', x: COL[2], y: ROW[1], state: 'HELD' },
+  { id: 'restarting', label: 'Restarting', x: COL[3], y: ROW[1], composite: 'RESTART_LOGIC', state: 'RESTARTING' },
+  { id: 'idle', label: 'Idle', x: COL[0], y: ROW[2], state: 'IDLE' },
+  { id: 'running', label: 'Running', x: COL[1], y: ROW[2], composite: 'RUN_LOGIC', state: 'RUNNING' },
+  { id: 'stopping', label: 'Stopping', x: COL[2], y: ROW[2], composite: 'STOP_LOGIC', state: 'STOPPING' },
+  { id: 'complete', label: 'Complete', x: COL[1], y: ROW[3], state: 'COMPLETE' },
+  { id: 'stopped', label: 'Stopped', x: COL[2], y: ROW[3], state: 'STOPPED' }
 ]
-const BW = 96
-const BH = 30
-type Arrow = { pts: [number, number][]; label?: string; lx?: number; ly?: number }
+const BW = 92
+const BH = 34
+const DIAGRAM_W = 690
+const DIAGRAM_H = 550
+/** Orthogonal connectors as on p4-53; a label may span two lines ('Sequence\nDone') like the course. */
+type Arrow = { pts: [number, number][]; label: string; lx: number; ly: number }
 const ARROWS: Arrow[] = [
-  { pts: [[216, 375], [330, 375]], label: 'Start & not fail', lx: 273, ly: 368 },
-  { pts: [[378, 390], [378, 450]], label: 'Sequence Done', lx: 384, ly: 424 },
-  { pts: [[330, 465], [168, 465], [168, 390]], label: 'Reset', lx: 238, ly: 459 },
-  { pts: [[378, 360], [378, 290]], label: 'Fail/Hold', lx: 384, ly: 330 },
-  { pts: [[426, 275], [480, 275]], label: 'Sequence Done', lx: 453, ly: 268 },
-  { pts: [[576, 275], [630, 275]], label: 'Restart & not fail', lx: 603, ly: 268 },
-  { pts: [[678, 290], [678, 400], [426, 400], [426, 390]], label: 'Sequence Done', lx: 600, ly: 414 },
-  { pts: [[426, 375], [480, 375]], label: 'Stop', lx: 453, ly: 368 },
-  { pts: [[400, 290], [500, 360]], label: 'Stop', lx: 440, ly: 318 },
-  { pts: [[528, 290], [528, 360]], label: 'Stop', lx: 534, ly: 330 },
-  { pts: [[650, 290], [560, 360]], label: 'Stop', lx: 612, ly: 330 },
-  { pts: [[528, 390], [528, 450]], label: 'Sequence Done', lx: 534, ly: 424 },
-  { pts: [[528, 480], [528, 496], [140, 496], [140, 390]], label: 'Reset', lx: 330, ly: 491 },
-  { pts: [[330, 125], [216, 125]], label: 'Sequence Done', lx: 273, ly: 118 },
-  { pts: [[168, 140], [168, 360]], label: 'Reset', lx: 174, ly: 250 },
-  { pts: [[726, 260], [726, 80], [378, 80], [378, 110]], label: 'Abort', lx: 690, ly: 74 },
-  { pts: [[355, 360], [355, 140]], label: 'Abort', lx: 318, ly: 220 },
-  { pts: [[500, 260], [400, 140]], label: 'Abort', lx: 452, ly: 196 },
-  { pts: [[576, 360], [606, 360], [606, 240], [426, 140]], label: 'Abort', lx: 588, ly: 236 }
+  { pts: [[248, 100], [248, 74], [73, 74], [73, 100]], label: 'Sequence\nDone', lx: 160, ly: 70 },
+  { pts: [[73, 134], [73, 365]], label: 'Reset', lx: 73, ly: 246 },
+  { pts: [[119, 382], [225, 382]], label: 'Start &\nnot fail', lx: 172, ly: 378 },
+  { pts: [[271, 399], [271, 474]], label: 'Sequence\nDone', lx: 271, ly: 437 },
+  { pts: [[225, 491], [97, 491], [97, 399]], label: 'Reset', lx: 160, ly: 487 },
+  { pts: [[436, 508], [436, 536], [50, 536], [50, 399]], label: 'Reset', lx: 241, ly: 532 },
+  { pts: [[271, 365], [271, 266]], label: 'Fail/\nHold', lx: 271, ly: 306 },
+  { pts: [[248, 365], [248, 338], [172, 338], [172, 117], [225, 117]], label: 'Abort', lx: 172, ly: 222 },
+  { pts: [[577, 266], [577, 338], [294, 338], [294, 365]], label: 'Sequence\nDone', lx: 577, ly: 296 },
+  { pts: [[623, 232], [623, 117], [317, 117]], label: 'Abort', lx: 623, ly: 165 },
+  { pts: [[577, 232], [577, 162], [271, 162], [271, 232]], label: 'Fail/\nHold', lx: 577, ly: 190 },
+  { pts: [[623, 266], [623, 382], [482, 382]], label: 'Stop', lx: 623, ly: 320 },
+  { pts: [[317, 249], [390, 249]], label: 'Sequence\nDone', lx: 353, ly: 245 },
+  { pts: [[482, 249], [554, 249]], label: 'Restart &\nnot fail', lx: 518, ly: 245 },
+  { pts: [[248, 232], [248, 134]], label: 'Abort', lx: 248, ly: 186 },
+  { pts: [[412, 232], [412, 206], [294, 206], [294, 134]], label: 'Abort', lx: 353, ly: 202 },
+  { pts: [[294, 266], [294, 294], [412, 294], [412, 365]], label: 'Stop', lx: 353, ly: 290 },
+  { pts: [[436, 266], [436, 365]], label: 'Stop', lx: 436, ly: 316 },
+  { pts: [[317, 382], [390, 382]], label: 'Stop', lx: 353, ly: 378 },
+  { pts: [[436, 399], [436, 474]], label: 'Sequence\nDone', lx: 436, ly: 437 },
+  { pts: [[459, 399], [459, 426], [667, 426], [667, 74], [294, 74], [294, 100]], label: 'Abort', lx: 565, ly: 422 }
 ]
 
 function StateDiagram({ zoom, live, onOpen }: { zoom: number; live: PhaseState | null; onOpen: (c: CompositeName) => void }): JSX.Element {
-  return <svg className="cs-diagram ps-state-diagram" width={780 * zoom} height={510 * zoom} viewBox="0 0 780 510" role="img" aria-label="Phase state diagram">
+  return <svg className="cs-diagram ps-state-diagram" width={DIAGRAM_W * zoom} height={DIAGRAM_H * zoom} viewBox={`0 0 ${DIAGRAM_W} ${DIAGRAM_H}`} role="img" aria-label="Phase state diagram">
     <defs>
       <marker id="psArrow" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={7} markerHeight={7} orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" className="ps-arrowhead" /></marker>
       <pattern id="psGrid" width={20} height={20} patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} /></pattern>
     </defs>
-    <rect width={780} height={510} fill="url(#psGrid)" />
-    {ARROWS.map((a, i) => <g key={i}>
-      <polyline points={a.pts.map(p => p.join(',')).join(' ')} className="ps-edge" markerEnd="url(#psArrow)" />
-      {a.label && <text x={a.lx} y={a.ly} className="ps-edge-label" textAnchor="middle">{a.label}</text>}
-    </g>)}
+    <rect width={DIAGRAM_W} height={DIAGRAM_H} fill="url(#psGrid)" />
+    {ARROWS.map((a, i) => <polyline key={i} points={a.pts.map(p => p.join(',')).join(' ')} className="ps-edge" markerEnd="url(#psArrow)" />)}
+    {ARROWS.map((a, i) => <text key={i} x={a.lx} y={a.ly} className="ps-edge-label" textAnchor="middle">
+      {a.label.split('\n').map((line, j) => <tspan key={j} x={a.lx} dy={j === 0 ? 0 : 14}>{line}</tspan>)}
+    </text>)}
     {BOXES.map(b => {
       const on = !!live && b.state === live
+      const w = b.w ?? BW
       return <g key={b.id} transform={`translate(${b.x},${b.y})`} data-state-box={b.label} className={b.composite ? 'ps-composite-box' : undefined}
         onDoubleClick={b.composite ? () => onOpen(b.composite!) : undefined} onMouseDown={e => e.stopPropagation()}>
         <title>{b.composite ? `${b.composite} — double-click to drill down` : `${b.label} (no composite logic)`}</title>
-        <rect width={BW} height={BH} className={'ps-state' + (on ? ' live' : '') + (b.composite ? ' composite' : '')} />
-        <text x={b.composite ? 8 : BW / 2} y={19} textAnchor={b.composite ? 'start' : 'middle'} className="ps-state-label">{b.label}</text>
-        {b.composite && <g transform={`translate(${BW - 20},7)`}><BatchIcon kind="composite" /></g>}
+        <rect width={w} height={BH} className={'ps-state' + (on ? ' live' : '') + (b.composite ? ' composite' : '')} />
+        <text x={b.composite ? 8 : w / 2} y={BH / 2 + 4} textAnchor={b.composite ? 'start' : 'middle'} className="ps-state-label">{b.label}</text>
+        {b.composite && <g transform={`translate(${w - 21},${BH / 2 - 8})`}><BatchIcon kind="composite" /></g>}
       </g>
     })}
   </svg>

@@ -368,8 +368,13 @@ test('7016 ch4 screens render: Phase Studio state diagram and RUN_LOGIC SFC, Bat
   try {
     ui.getState().openPhaseStudio('FILL')
     const states = render(PhaseStudio)
-    for (const s of ['Failure_Monitor', 'Aborting', 'Holding', 'Held', 'Restarting', 'Idle', 'Running', 'Stopping', 'Complete', 'Stopped', 'Start &amp; not fail'])
+    for (const s of ['Failure_Monitor', 'Aborting', 'Holding', 'Held', 'Restarting', 'Idle', 'Running', 'Stopping', 'Complete', 'Stopped', 'Start &amp;', 'not fail', 'Restart &amp;'])
       assert.ok(states.includes(s), s)
+    assert.equal((states.match(/class="ps-edge"/g) || []).length, 21, 'every p4-53 connector')
+    for (const [, pts] of states.matchAll(/<polyline points="([^"]*)" class="ps-edge"/g)) {
+      const p = pts.split(' ').map(xy => xy.split(',').map(Number))
+      for (let i = 1; i < p.length; i++) assert.ok(p[i][0] === p[i - 1][0] || p[i][1] === p[i - 1][1], `orthogonal connector ${pts}`)
+    }
     assert.match(states, /R_FILL_LEVEL/)
     ui.getState().openPhaseStudio('FILL', 'RUN_LOGIC')
     const sfc = render(PhaseStudio)
