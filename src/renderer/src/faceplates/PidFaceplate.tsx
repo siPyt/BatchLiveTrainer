@@ -27,7 +27,8 @@ export function PidFaceplate({ tag }: { tag: string }): JSX.Element | null {
   const spPct = ((m.sp - m.pvMin) / span) * 100
   const shed = m.actualMode !== m.mode && m.actualMode !== 'LO'
   const bad = m.pvBad || pidExecutionBad(m)
-  const spEditable = m.actualMode === 'AUTO'
+  // DeltaV accepts operator SP writes in MAN and AUTO (CAS/RCAS take SP from upstream).
+  const spEditable = online && (m.actualMode === 'AUTO' || m.actualMode === 'MAN')
   const outEditable = online && (m.mode === 'MAN' || m.mode === 'ROUT') &&
     m.actualMode !== 'LO' && m.actualMode !== 'OOS'
   const io = pidIo(m)
@@ -371,9 +372,10 @@ function Stepper({
   label?: string
   onChange: (v: number) => void
 }): JSX.Element {
+  const v = Number.isFinite(value) ? value : 0
   return (
     <div className="fp-stepper">
-      <button disabled={disabled} onClick={() => onChange(value - step)}>
+      <button disabled={disabled} onClick={() => onChange(v - step)}>
         −
       </button>
       <input
@@ -382,10 +384,10 @@ function Stepper({
         aria-label={label}
         step={step}
         disabled={disabled}
-        value={Number(value.toFixed(decimals))}
+        value={Number(v.toFixed(decimals))}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <button disabled={disabled} onClick={() => onChange(value + step)}>
+      <button disabled={disabled} onClick={() => onChange(v + step)}>
         +
       </button>
     </div>
@@ -401,7 +403,7 @@ export function PidTuningControls({ tag }: { tag: string }): JSX.Element | null 
       onChange={value => setTuning(tag, { gain: value })} />
     <TuneRow label="Reset (s/rpt)" value={module.reset} step={0.1} decimals={2}
       onChange={value => setTuning(tag, { reset: value })} />
-    <TuneRow label="Rate (s)" value={module.rate} step={0.1} decimals={2}
+    <TuneRow label="Rate (s)" value={module.rate ?? 0} step={0.1} decimals={2}
       onChange={value => setTuning(tag, { rate: value })} />
   </>
 }

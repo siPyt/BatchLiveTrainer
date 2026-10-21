@@ -153,6 +153,27 @@ test('7016 ch2 Workshop - Manual Operation: two runs from the faceplates verify 
   assert.match(checkCourse7016ManualOp(L().transfers)[5].detail, /fill .* → .*, base .* → /)
 }))
 
+test('7016 ch2 FIC-404 faceplate: SP is enterable in MAN and the TUNE controls render', () => fixture(() => {
+  const React = require('react')
+  const { renderToStaticMarkup } = require('react-dom/server')
+  const store = require('../src/renderer/src/engine/store.ts')
+  const { PidFaceplate, PidTuningControls } = require('../src/renderer/src/faceplates/PidFaceplate.tsx')
+  const fic = M().modules['FIC-404']
+  assert.equal(fic.actualMode, 'MAN')
+  assert.equal(fic.rate, 0)
+  const hook = test.mock.method(store, 'useStore', selector => selector(store.useStore.getState()))
+  try {
+    const html = renderToStaticMarkup(React.createElement(PidFaceplate, { tag: 'FIC-404' }))
+    const spRow = html.slice(html.indexOf('>Setpoint<'), html.indexOf('>Output %<'))
+    assert.ok(spRow.length > 0 && !/disabled/.test(spRow), 'Setpoint stepper enabled in MAN')
+    assert.match(renderToStaticMarkup(React.createElement(PidTuningControls, { tag: 'FIC-404' })), /Rate \(s\)/)
+  } finally {
+    hook.mock.restore()
+  }
+  assert.equal(M().setSetpoint('FIC-404', 90), true)
+  assert.equal(M().modules['FIC-404'].sp, 90)
+}))
+
 test('7016 ch2/ch3 workshop definitions: every Chapter 2 Manual Operation step has a live check', () => {
   const ch2 = COURSE.find(m => m.module.includes('Ch 2'))
   assert.ok(ch2)

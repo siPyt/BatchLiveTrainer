@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { PidFaceplate } from './PidFaceplate'
@@ -12,6 +12,26 @@ import { moduleOwnUnacknowledgedAlarms } from '../utils/format'
 import { PidDetailDialog } from './PidDetailDialog'
 import { FfDeviceFaceplate } from './FfDeviceFaceplate'
 import { findFfDevice } from '../engine/deviceAlarms'
+
+/** Keeps a faceplate render error inside its own window instead of blanking the whole app. */
+class FaceplateErrorBoundary extends Component<{ tag: string; children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+  componentDidCatch(error: Error): void {
+    console.error(`Faceplate ${this.props.tag} failed to render`, error)
+  }
+  render(): ReactNode {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="fp-body" role="alert" style={{ color: 'var(--dv-bad)' }}>
+        Faceplate error: {this.state.error.message}
+        <button className="fp-btn" onClick={() => this.setState({ error: null })}>Retry</button>
+      </div>
+    )
+  }
+}
 
 /** Renders every open faceplate window. */
 export function FaceplateHost(): JSX.Element {
@@ -138,7 +158,7 @@ function FaceplateWindow({ tag, x, y, zIndex }: { tag: string; x: number; y: num
         </button>
       </div>
       {!minimized && <>
-      {body}
+      <FaceplateErrorBoundary tag={tag}>{body}</FaceplateErrorBoundary>
       {(m.primaryDisplay || m.detailDisplay || m.type === 'PID') && <div className="fp-links">
         {m.primaryDisplay && <button className="fp-link-btn" onClick={() => openModuleDisplay(tag, 'primary')}
           title={`Primary control display: ${m.primaryDisplay}`}>Primary</button>}

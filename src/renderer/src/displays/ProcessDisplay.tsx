@@ -142,12 +142,14 @@ export function ProcessDisplay(): JSX.Element {
         <ClassicLabel x={87} y={470} text="Base 400" />
         <LevelReadout tag="LI-401" x={39} y={372} />
         <ClassicPipe d="M87,520 V570 H150" width={PIPE} />
-        <ClassicPipe d="M170,570 H180 V460 H305" width={PIPE} />
+        <ClassicPipe d="M170,570 H180 V520" width={PIPE} />
         <Running tag="MTR-403">{running => <ClassicPump x={160} y={570} running={running} tag="MTR-403" discharge="right" />}</Running>
         <FlowReadout tag="FIC-404" x={36} y={610} />
-        <Valve tag="XV-501" x={240} y={460} />
-        <ClassicPipe d="M180,460 V372 H600 V460 H635" width={PIPE} />
-        <Valve tag="XV-601" x={520} y={372} />
+        {/* Base header tee (p2-5): XV-501 rises to its own Blender 500 inlet; XV-601 runs behind Blender 500 to Blender 600. */}
+        <ClassicPipe d="M180,520 V390 H330 V414" width={PIPE} />
+        <Valve tag="XV-501" x={180} y={450} orientation="vertical" labelPosition="right" />
+        <ClassicPipe d="M180,520 H570 V390 H660 V414" width={PIPE} />
+        <Valve tag="XV-601" x={245} y={520} />
 
         {/* ===== blenders 500 / 600 ===== */}
         {BLENDERS.map(b => <g key={b.n}>
