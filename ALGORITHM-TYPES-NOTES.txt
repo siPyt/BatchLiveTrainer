@@ -1,0 +1,173 @@
+ALGORITHM TYPES IN THE "NEW" CLASS DIALOGS - WHAT IS KNOWN, WHAT IS NEEDED, WHERE TO GET IT
+=========================================================================================
+Last updated: 2026-10-21
+
+Rule used: only behavior backed by a source is simulated. Nothing below is guessed.
+Source available in this repo: 958791105-7016-8.pdf (Course 7016 Rev 13, 5/15/06).
+
+
+1. WHAT IS KNOWN (with source)
+------------------------------
+
+A) New Phase Class dialog (slide 4-14, PDF page 66)
+   - The real DeltaV screenshot shows Algorithm type = "Phase Algorithm", greyed out.
+   - Object type ("Phase Class") and Browse are greyed too. Start From Existing is available.
+   - BatchLiveTrainer now matches this: Phase Algorithm only, greyed; Start From Existing works.
+   - NOTE: an earlier change added a "No Algorithm" choice. That was NOT backed by a source and
+     has been removed.
+
+B) Equipment Module Class algorithm types (slides 5-8 / 5-9, PDF pages 124-125)
+   The course says there are seven, with these definitions:
+   1. Function Block Diagram - interconnected standard DeltaV function blocks; you define the
+      blocks, their parameters and how they work together.
+   2. Sequential Function Chart (SFC) - a sequence of events with steps, transitions, actions.
+   3. Command-Driven - SFC code based on commands. Selects one of a number of command sub-blocks
+      based on the value written to A_COMMAND (named set; one entry per command plus the
+      mandatory 255 undefined/idle entry).
+   4. State-Driven - SFC code based on states. A single step or value manipulates the control
+      modules; for simple equipment manipulation without complex timing (e.g. changing the
+      setpoints of a group of valves or motors).
+   5. Phase Algorithm - a state transition diagram made up of embedded composites that hold the
+      logic governing the transitions between the states of a phase.
+   6. Phase with command-driven run logic - the run logic composite is replaced by a
+      command-driven composite.
+   7. Phase with state-driven run logic - the run logic composite is replaced by state-driven
+      logic.
+   - All seven are in the dropdown, and each shows the course definition (with page) when chosen.
+   - SIMULATED: 3 (Command driven) and 4 (State driven) - used by Chapter 5 (BLENDER_COLOR,
+     BLENDER_OUTLET), with Control Studio editing, download, A_COMMAND / A_PV and the workshops.
+   - NOT YET SIMULATED: 1, 2, 5, 6, 7. Choosing one and pressing OK shows a message saying so.
+
+C) Unit Class dialog (slide 4-11)
+   - Algorithm type is shown as "<None>" (greyed). The course does not show any other choice.
+
+D) Unit phase "Phase type" (slide 4-29, PDF page 81) - already simulated:
+   Controller (downloaded with the unit module), Disabled (ignored during downloads),
+   External Phase (exists outside the DeltaV system database).
+
+
+2. WHAT IS NEEDED TO ADD THE MISSING TYPES (not in the Course 7016 PDF)
+-----------------------------------------------------------------------
+For each of EM types 1, 2, 5, 6, 7:
+   - How the class is configured: what Control Studio shows for a NEW class of that type
+     (default blocks/composites, parameters created automatically, palette).
+   - Execution: when the logic runs (continuously? on a command? on START/RESET?), and in what
+     order relative to the module scan.
+   - Interface parameters the type exposes (e.g. for SFC: start/stop/pause/state parameters;
+     for the phase-style EM types: the phase state, command and owner parameters, and how
+     A_COMMAND / A_PV relate to the phase states).
+   - For 6 and 7: exactly which composite replaces RUN_LOGIC and how its command/state
+     selection interacts with the phase states (Running, Holding, Restarting, ...).
+   - How each type is operated from a faceplate / BatchHelp, and how it is downloaded.
+
+For the Phase Class dialog:
+   - Whether the real Algorithm type dropdown ever offers anything other than "Phase Algorithm"
+     (for any DeltaV version you will use), and if so, the exact names and what each does.
+
+For the Unit Class dialog:
+   - Whether "<None>" can ever be changed, and what the alternatives do.
+
+
+3. WHERE TO GET IT
+------------------
+   - DeltaV Books Online (installed with DeltaV; Start menu -> DeltaV -> Books Online).
+     Search topics: "equipment module algorithm", "command-driven algorithm",
+     "state-driven algorithm", "sequential function chart", "phase logic module",
+     "phase class", "unit class".
+   - Later chapters / companion courses from Emerson Educational Services that cover equipment
+     modules and phase logic in more depth (ask your instructor which course covers the
+     Function Block Diagram, SFC and phase-style equipment module algorithms).
+   - Screenshots from a real DeltaV system are the fastest way to get the exact UI:
+       * DeltaV Explorer -> right-click an EM class category -> New Equipment Module Class ->
+         open the Algorithm type dropdown (one screenshot per type after creating it, opened in
+         Control Studio).
+       * Right-click a phase class category -> New Phase Class -> open the Algorithm type
+         dropdown.
+       * Right-click a unit class category -> New Unit Class -> open the Algorithm type dropdown.
+   - Emerson Guardian support knowledge base (if you have access) for the same topics.
+
+Give any of the above (pages, PDFs or screenshots) to the assistant and the missing types can be
+added without guessing.
+
+
+4. REVIEW OF A PASTED "SPECIFICATION" (2026-10-21) - DO NOT USE AS A SOURCE
+----------------------------------------------------------------------------
+A pasted text describing all five missing algorithm types was checked against the course PDF.
+It reads like an AI-generated answer, not an Emerson document, and it contains errors:
+   - Wrong citations: says the seven EM algorithm types are on slides 4-10..4-12 (they are on
+     5-8 / 5-9); cites "Module 7: MIXER_XFR & REACTOR_CHG" (not in Course 7016 Rev 13); gives no
+     real links for the "Batch Tutorial pages".
+   - Wrong command number: says Start = 10. Slide 8-7 says 10 = Abort and Start = 100.
+   - Not in the course: palg-state / palg-cmd named sets, OWNER as a parameter name, PROMPT_INDEX,
+     PROMPT_BOOL/INT/FLOAT/STR, the "<COMPOSITE>.DONE.CV := 1" completion rule, the per-type
+     Named Set enable/disable table, and all of its FBD / SFC equipment-module execution rules.
+   Nothing from it was implemented. Only statements confirmed by the PDF (below) are recorded.
+
+
+5. CONFIRMED BY THE PDF WHILE CHECKING (phase logic, needed for Chapter 6 and later)
+-----------------------------------------------------------------------------------
+   - Slide 8-7 "Talking With Your Phase": BCOMMAND (Batch Executive) and XCOMMAND (phase owner
+     External) both use: 10 Abort, 20 Hold, 30 Stop, 40 Reset, 50 Pause, 60 Single Step,
+     70 Download, 80 Resume, 90 Restart, 100 Start, 110 Automatic, 120 Manual, 130 Clear Failures.
+     REQUEST: 0 Clear Message, 1000 Download Parameters, 2000 Upload Parameters.
+   - Slide 6-32: the Failure Monitor continuously monitors failure conditions and sets FAIL_INDEX
+     to the failure number; when FAIL_INDEX is non-zero the phase goes to Holding.
+   - Slides 6-33 / 6-34: failure numbers come from the phase_failures named set
+     (0 Ok, 1 Watchdog, 2 Write Req., 3 Switchover, then user failures such as Agitator stopped,
+     Product vlv open ...). FAIL_MONITOR uses a BFI block (FIRST_OUT, OUT_D, IN_D1..5) and a CALC
+     block; conditions can be enabled/disabled from RUN_LOGIC (6-42 .. 6-44).
+   - Slides 6-16 .. 6-20, 6-42 .. 6-44: RUN_LOGIC actions WRITE STEP_INDEX (1, 2, 3, 4, 5, 0).
+   - Slides 6-26, 6-46, 6-47, 6-50: HOLD_LOGIC and RESTART_LOGIC branch on STEP_INDEX and
+     FAIL_INDEX; RESTART_LOGIC sets RESTART_TYPE ('Continue' / 'From_Start', $phase_restart_types).
+   - Slide 6-17: PENDING_CONFIRMS step parameter; slide 6-20: step parameter TIME;
+     slides 6-18 .. 6-20: BLEND_TIMER linked composite (START, RESET, TIME_DURATION, ELAPSED_TIME).
+   - Slide 10-34: recipe transitions use AGITATE:1/BSTATUS = $phase_state:Complete.
+
+   GAPS IN BATCHLIVETRAINER FOUND BY THIS CHECK (to fix before Chapter 6):
+   - STEP_INDEX is computed by the simulator and read-only; the course writes it from RUN_LOGIC.
+   - FAIL_INDEX is shown as text ('OK') and read-only; the course writes a number from
+     FAIL_MONITOR and a non-zero value must drive the phase to Holding.
+   - FAIL_MONITOR is an SFC in BatchLiveTrainer; the course builds it as a function block diagram
+     (BFI + CALC). RESTART_TYPE, PENDING_CONFIRMS, step TIME, linked composites (BLEND_TIMER)
+     and the phase_failures / $phase_restart_types / $phase_state named sets need checking.
+   All of these are described in Chapter 6 of the course PDF, so they can be implemented from it
+   when Chapter 6 starts (render the slides for the exact screens).
+
+
+6. ADDITIONAL LICENSED SOURCES ON THIS PC (user-provided, 2026-10-21) AND WHAT THEY CONFIRM
+---------------------------------------------------------------------------------------------
+   Files (used locally, not downloaded):
+   - C:\Users\Chero\OneDrive\Desktop\DVTrainer (2)\DVTrainer\828617362-7009-DeltaV-Implementation-I-...pdf
+     (7009 v15.LTS Rev 1, 496 pages)
+   - C:\Users\Chero\Downloads\729782550-7017-v143-Rev1.pdf (7017 v14.3 Rev 1, 523 pages)
+   - C:\Users\Chero\Downloads\165261423-Delta-v-Course-7009-9.pdf (7009 Module 9 PLMs, Rev 3 2001)
+   Confirmed:
+   - 7009 pp436-438 and 7017 pp229-230: the same seven EM algorithm definitions as 7016 p5-8/5-9.
+     7009 p437 adds: State-driven states are also on A_COMMAND (named set with 255 idle entry).
+   - 7009 Module 8 (pp295-331): SFC algorithm for CONTROL MODULES ("set the Algorithm Type to
+     Sequential Function Chart", STARTUP_T101 / SHUTDOWN_T101): steps, transitions, Termination
+     (may contain an expression), action qualifiers, delays, confirms.
+     -> BatchLiveTrainer's SFC Charts engine (sfc.ts / sfcLogic.ts) already implements this.
+   - 7009 p446: CONFIRM_FAIL, FAILED_CONFIRMS, PENDING_CONFIRMS definitions (a step with a
+     confirm must be followed by a transition/termination that lets the confirm complete).
+   - 7009 pp447-455: command-driven EM workshop (EM-TANK201, named set EM-T201 1/2/255).
+   - 7017 pp231-243: command-driven EM BASE_400_OUT (named set NS_BASE400_OUT; promoted params).
+   - 7009-9 (PLM): Failure_Monitor sets FAIL_INDEX = fail number, non-zero -> Holding; add names
+     to phase_failures; condition block DISABLE parameter; BLOCK1 IF/THEN writes FAIL_INDEX;
+     HOLD_LOGIC branches on '/FAIL_INDEX.CV' != 0; step TIME; PENDING_CONFIRMS; operate with
+     Toggle owner External, Start, Hold, Restart, Clear Failures, Reset.
+   Still NOT covered by any of these files:
+   - How an EQUIPMENT MODULE class behaves with Function Block Diagram, Sequential Function
+     Chart, Phase Algorithm, or the two "Phase with ... run logic" algorithm types (Control
+     Studio layout, parameters, how it is commanded). Only the one-line definitions exist.
+   - Best remaining source: DeltaV Books Online on the LTS16 system (topics "equipment module",
+     "algorithm type"), or screenshots of those EM types created in a real Control Studio.
+
+   PLAN (verified material only):
+   Step 1 - Phase logic engine to Chapter 6 / 7009-9 level: writable STEP_INDEX, numeric
+            FAIL_INDEX + phase_failures named set + automatic Holding, Clear Failures command,
+            step TIME / PENDING_CONFIRMS / FAILED_CONFIRMS / CONFIRM_FAIL inside phase logic
+            (reuse the SFC Charts engine semantics), RESTART_TYPE with $phase_restart_types,
+            FAIL_MONITOR as condition blocks + BFI + CALC, TIMER_SEC linked composite.
+   Step 2 - Only after Step 1 and with a source for the EM-specific behaviour: the five remaining
+            EM algorithm types.

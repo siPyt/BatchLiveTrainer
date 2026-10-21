@@ -105,7 +105,7 @@ function emClasses() {
   // Workshop – BLENDER_COLOR
   value(E().renameCategory(value(E().newCategory(null)), 'CommandDriven'))
   assert.match(E().newClass('CommandDriven', 'BAD', 'Command driven', 'vlvnc-sp').error, /255/)
-  assert.match(E().newClass('CommandDriven', 'BAD', 'Function Block Diagram', 'EM-vlvnc-2stage').error, /not modeled/)
+  assert.match(E().newClass('CommandDriven', 'BAD', 'Function Block Diagram', 'EM-vlvnc-2stage').error, /not yet simulated/)
   value(E().newClass('CommandDriven', 'BLENDER_COLOR', 'Command driven', 'EM-vlvnc-2stage'))
   assert.deepEqual(Object.values(E().classes.BLENDER_COLOR.commands).map(c => `${c.block}:${c.state}`),
     ['COMMAND_00001:Close', 'COMMAND_00002:Dribble', 'COMMAND_00003:Bulk', 'COMMAND_00004:Auto Mode'])

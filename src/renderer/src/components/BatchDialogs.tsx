@@ -464,7 +464,7 @@ function NewEmClassDialog({ category, onClose }: { category: string; onClose: ()
           <legend><label className="lib-dlg-check"><input type="radio" name="new-em-mode" aria-label="Create New" checked={!fromExisting} onChange={() => setFromExisting(false)} /> Create New</label></legend>
           <label>Algorithm type:<select aria-label="Algorithm type" value={algorithm} onChange={e => setAlgorithm(e.target.value as EmAlgorithm)}>
             {EM_ALGORITHMS.map(a => <option key={a} value={a}>{a}</option>)}</select></label>
-          <p className="exp-hint">{EM_ALGORITHM_NOTE[algorithm]}{SUPPORTED_EM_ALGORITHMS.includes(algorithm) ? '' : ' (not modeled in BatchLiveTrainer)'}</p>
+          <p className="exp-hint">{EM_ALGORITHM_NOTE[algorithm]}{SUPPORTED_EM_ALGORITHMS.includes(algorithm) ? '' : ' — Not yet simulated in BatchLiveTrainer (see ALGORITHM-TYPES-NOTES.txt).'}</p>
           <div className="dvd-inline">
             <label style={{ flex: 1 }}>Named Set name:<input aria-label="Named Set name" value={namedSet} onChange={e => setNamedSet(e.target.value)} /></label>
             <button className="tbtn sm" onClick={() => setBrowse(v => !v)}>Browse...</button>

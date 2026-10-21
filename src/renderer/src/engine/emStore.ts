@@ -22,14 +22,15 @@ export type EmAlgorithm = 'Function Block Diagram' | 'Sequential Function Chart'
   'Phase Algorithm' | 'Phase with command-driven run logic' | 'Phase with state-driven run logic'
 export const EM_ALGORITHMS: EmAlgorithm[] = ['Function Block Diagram', 'Sequential Function Chart', 'Command driven', 'State driven',
   'Phase Algorithm', 'Phase with command-driven run logic', 'Phase with state-driven run logic']
+/** Course 7016 pp 5-8 / 5-9 definitions. Only Command driven and State driven are simulated (ALGORITHM-TYPES-NOTES.txt). */
 export const EM_ALGORITHM_NOTE: Record<EmAlgorithm, string> = {
-  'Function Block Diagram': 'Interconnected standard DeltaV function blocks.',
-  'Sequential Function Chart': 'A single sequence of steps, transitions and actions.',
-  'Command driven': 'One SFC command block per named-set command, selected by A_COMMAND (needs a 255 entry).',
-  'State driven': 'A table of item values per named-set state, written together and confirmed by readbacks.',
-  'Phase Algorithm': 'A phase state transition diagram with composite logic.',
-  'Phase with command-driven run logic': 'Phase logic whose RUN_LOGIC is a command-driven block.',
-  'Phase with state-driven run logic': 'Phase logic whose RUN_LOGIC is state-driven.'
+  'Function Block Diagram': 'Contains a control strategy with interconnected standard DeltaV function blocks. You define which blocks to use, their parameters and how they work together (p5-8).',
+  'Sequential Function Chart': 'Contains a sequence of events with steps, transitions and actions (p5-8).',
+  'Command driven': 'Contains SFC code based on commands: selects one of a number of command sub-blocks to run, based on the value written to A_COMMAND (a named set with an entry for each command plus the mandatory 255 idle entry) (p5-8).',
+  'State driven': 'Contains SFC code based on states: a single step or value manipulates the control modules; best for simple equipment manipulation without complex timing, such as changing the setpoints on a group of valves or motors (p5-9).',
+  'Phase Algorithm': 'Contains a state transition diagram made up of embedded composites that contain the logic that governs the transition between the states of a phase (p5-9).',
+  'Phase with command-driven run logic': 'Substitutes the run logic composite block with a command-driven composite block (p5-9).',
+  'Phase with state-driven run logic': 'Substitutes the run logic composite block with state-driven logic (p5-9).'
 }
 export const SUPPORTED_EM_ALGORITHMS: EmAlgorithm[] = ['Command driven', 'State driven']
 
@@ -312,7 +313,7 @@ export const useEm = create<EmState>((set, get) => ({
     if (!s.categories[category]) return fail(`Category ${category} does not exist`)
     if (!isNameValid(name)) return fail(NAME_RULE)
     if (emNameTaken(name)) return fail(`The name ${name} is already used in the library`)
-    if (!SUPPORTED_EM_ALGORITHMS.includes(algorithm)) return fail(`The ${algorithm} algorithm type is not modeled in BatchLiveTrainer; Chapter 5 uses Command driven (BLENDER_COLOR) and State driven (BLENDER_OUTLET)`)
+    if (!SUPPORTED_EM_ALGORITHMS.includes(algorithm)) return fail(`The ${algorithm} algorithm type is defined in the course (p5-8/5-9) but not yet simulated in BatchLiveTrainer; Chapter 5 uses Command driven (BLENDER_COLOR) and State driven (BLENDER_OUTLET). See ALGORITHM-TYPES-NOTES.txt for what is needed to add it.`)
     if (!namedSet.trim()) return fail('Browse for the named set that defines the commands or states')
     const cls = newEmClass(name, category, algorithm, namedSetOf(namedSet)?.name ?? namedSet.trim())
     if (typeof cls === 'string') return fail(cls)
