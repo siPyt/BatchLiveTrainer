@@ -3,7 +3,18 @@ ALGORITHM TYPES IN THE "NEW" CLASS DIALOGS - WHAT IS KNOWN, WHAT IS NEEDED, WHER
 Last updated: 2026-10-21
 
 Rule used: only behavior backed by a source is simulated. Nothing below is guessed.
-Source available in this repo: 958791105-7016-8.pdf (Course 7016 Rev 13, 5/15/06).
+Sources used:
+   - 958791105-7016-8.pdf in this repo (Course 7016 Rev 13, 5/15/06).
+   - The user's own licensed copies of Course 7009 (v15.LTS Rev 1), Course 7017 (v14.3 Rev 1)
+     and Course 7009 Module 9 (PLMs, Rev 3) on this PC - see section 6 for paths.
+   Licensing: the user stated (2026-10-21) that they have permission from Emerson Impact Partner
+   Experitec to use the copyrighted course material and purchased it with DeltaV LTS16. The
+   assistant worked only from those local copies; nothing was downloaded from third-party sites
+   (pdfcoffee.com / Scribd links offered by another AI were not used).
+
+Sections: 1 known | 2 needed | 3 where to get it | 4 + 7 reviews of other-AI answers |
+          5 Chapter 6 facts | 6 licensed sources | 8 current BatchLiveTrainer status |
+          9 decisions + change history
 
 
 1. WHAT IS KNOWN (with source)
@@ -75,8 +86,9 @@ For the Unit Class dialog:
      "state-driven algorithm", "sequential function chart", "phase logic module",
      "phase class", "unit class".
    - Later chapters / companion courses from Emerson Educational Services that cover equipment
-     modules and phase logic in more depth (ask your instructor which course covers the
-     Function Block Diagram, SFC and phase-style equipment module algorithms).
+     modules and phase logic in more depth. ALREADY CHECKED (section 6): 7009 v15.LTS and
+     7017 v14.3 only repeat the one-line definitions; neither builds an equipment module with the
+     FBD, SFC, Phase Algorithm or "Phase with ... run logic" types.
    - Screenshots from a real DeltaV system are the fastest way to get the exact UI:
        * DeltaV Explorer -> right-click an EM class category -> New Equipment Module Class ->
          open the Algorithm type dropdown (one screenshot per type after creating it, opened in
@@ -171,3 +183,73 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
             FAIL_MONITOR as condition blocks + BFI + CALC, TIMER_SEC linked composite.
    Step 2 - Only after Step 1 and with a source for the EM-specific behaviour: the five remaining
             EM algorithm types.
+
+
+7. REVIEW OF THE SECOND OTHER-AI ANSWER (2026-10-21, its "mea culpa" reply)
+--------------------------------------------------------------------------
+   It corrected its own errors. Each claim was checked against the licensed PDFs:
+   CONFIRMED
+   - BCOMMAND/XCOMMAND: 10 = Abort, 100 = Start (7016 slide 8-7).
+   - BLEND_TIMER is a linked composite made from TIMER_SEC (7016 slides 6-11, 6-12, 6-15, 6-18).
+   - Step confirm parameters PENDING_CONFIRMS / CONFIRM_FAIL (7016 6-8, 6-9, 6-17;
+     7009 p446 also defines FAILED_CONFIRMS).
+   - SFC termination ends a sequence (7016 6-8, 6-47, 6-51; 7009 p298 "Termination - special
+     symbol that represents the end of a sequence. May also contain an expression").
+   - FAIL_MONITOR uses condition (CND) blocks, a BFI block and a CALC block; FAIL_INDEX non-zero
+     -> Holding (7016 6-32, 6-34, 6-38, 6-39, 6-40; 7009-9 pp7, 13).
+   - STEP_INDEX is written by the user's RUN_LOGIC actions (7016 6-16 .. 6-20). Note: the course
+     uses 1, 2, 3, 4, 5, 0 - the other AI's example values 10, 20, 30 are not from the course.
+   NOT CONFIRMED (do not rely on)
+   - That it no longer uses "<COMPOSITE>.DONE.CV := 1": correct to drop it; it was never sourced.
+   - That no standard Emerson course (7009/7016/7017) builds the two "Phase with ... run logic"
+     EM types: consistent with 7009 v15.LTS and 7017 v14.3 (only definitions), but not proven
+     for every course revision.
+   - That 7016 Rev 17 (2014) has a different chapter layout (slides 4-10..4-12 for algorithm
+     types): no Rev 17 copy is available to check.
+   - Its "how to build" mapping of the five EM types onto existing BatchLiveTrainer parts
+     (FBD editor in an EM container, SFC at the EM root, Chapter 6 state diagram inside an EM,
+     RUN_LOGIC replaced by a command/state-driven composite): plausible, but no course page shows
+     these EM configurations in Control Studio, so it stays unimplemented until a source does.
+   - Its links (pdfcoffee.com / Scribd): not used (see Licensing at the top). The user's own
+     copy of 7009 Module 9 (165261423-Delta-v-Course-7009-9.pdf) was used instead.
+
+
+8. CURRENT BATCHLIVETRAINER STATUS (2026-10-21)
+-----------------------------------------------
+   New class dialogs (Library -> Advanced Definitions):
+   - New Phase Class: Algorithm type "Phase Algorithm", greyed (matches 7016 slide 4-14).
+   - New Unit Class: Algorithm type "<None>", greyed (matches 7016 slide 4-11).
+   - New Equipment Module Class: all seven algorithm types listed with the course definition;
+     Command driven and State driven are simulated; the other five show "not yet simulated".
+   - Start From Existing + Browse works in all three dialogs (copies the saved class; revision 1).
+   - Greyed controls have hover text explaining why.
+   Engines:
+   - Standalone SFC modules (SFC Charts; engine/sfc.ts, sfcLogic.ts, sfcParameters.ts): already
+     follow 7009 Module 8 - steps, transitions, termination, qualifiers, delays, confirms, and the
+     step parameters ACTIVE, TIME, PENDING_CONFIRMS, FAILED_CONFIRMS, CONFIRM_FAIL, DISABLED.
+   - Phase logic (engine/batchConfig.ts, batchStore.ts - FILL in Chapter 4): a simpler SFC runner.
+     Missing for Chapter 6 (all sourced in section 5/6):
+       * STEP_INDEX is computed and read-only (course writes it).
+       * FAIL_INDEX is text 'OK'/'FAILED' and read-only (course: number from phase_failures,
+         written by FAIL_MONITOR; non-zero -> Holding).
+       * No Clear Failures command; no RESTART_TYPE ($phase_restart_types) behaviour.
+       * Step TIME / PENDING_CONFIRMS / FAILED_CONFIRMS / CONFIRM_FAIL not available in phase logic.
+       * FAIL_MONITOR is an SFC, not condition blocks + BFI + CALC; condition DISABLE not modeled.
+       * No linked composites (TIMER_SEC / BLEND_TIMER).
+     BCOMMAND / XCOMMAND / RESTART_TYPE / STEP_INDEX exist only as listed system parameters.
+
+
+9. DECISIONS AND CHANGE HISTORY
+-------------------------------
+   2026-10-21
+   - fbec23f: New dialog "Start From Existing" for unit, phase and EM classes; phase class
+     Algorithm type label "Phase Algorithm" (was "Sequential Function Chart"); in-app value
+     prompt for R_FILL_LEVEL (window.prompt does not work in Electron).
+   - (not committed, reverted) A "No Algorithm" phase-class choice was added and then removed
+     because no source supports it.
+   - c4d9133: EM dialog shows the course definition per algorithm type; this notes file created.
+   - Decision (user): do NOT start the phase-logic work yet. Do PLAN Step 1 (section 6) when
+     Chapter 6 (AGITATE unit phase) starts, using only the licensed course PDFs.
+   - Open request to the user: for the five remaining EM algorithm types, provide DeltaV Books
+     Online pages from the LTS16 system or Control Studio screenshots of each type created in a
+     real equipment module class (dialog, top-level canvas, parameters, faceplate).
