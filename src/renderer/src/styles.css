@@ -4817,6 +4817,13 @@ button {
 /* ===== Phase Control Studio (pp 4-16..4-21) ===== */
 .phase-studio .ps-hier { display: flex; flex-direction: column; }
 .phase-studio .ps-tree { flex: 1 1 50%; overflow: auto; min-height: 120px; }
+/* p4-17: the hierarchy is split into a tree (left) and the contents of the selected item (right). */
+.phase-studio .ps-hier-split { display: flex; flex: 1 1 50%; min-height: 120px; gap: 3px; padding: 3px; overflow: hidden; }
+.phase-studio .ps-hier-split .ps-tree { flex: 1 1 50%; min-width: 0; min-height: 0; background: #fff; border: 1px solid var(--dv-border); }
+.ps-tree-left .studio-tree-node { padding-left: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-tree-left .studio-tree-node, .ps-tree-right .studio-tree-node { width: 100%; }
+.ps-tree-right .studio-tree-node { padding-left: 8px; white-space: nowrap; }
+.ps-tree-right .ps-tree-item .ps-ico-step, .ps-tree-right .ps-tree-item .ps-ico-tr { flex: none; }
 .ps-tree-items { padding-left: 18px; }
 .ps-tree-item { font-size: 11px; }
 .ps-ico-step, .ps-ico-tr { display: inline-block; width: 12px; height: 10px; margin-right: 5px; vertical-align: -1px; }

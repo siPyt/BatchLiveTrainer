@@ -376,11 +376,14 @@ test('7016 ch4 screens render: Phase Studio state diagram and RUN_LOGIC SFC, Bat
       for (let i = 1; i < p.length; i++) assert.ok(p[i][0] === p[i - 1][0] || p[i][1] === p[i - 1][1], `orthogonal connector ${pts}`)
     }
     assert.match(states, /R_FILL_LEVEL/)
+    assert.match(states, /aria-label="Contents of FILL"/, 'split hierarchy: contents pane (p4-17)')
+    assert.equal((states.match(/data-content-node="/g) || []).length, 6, 'FILL contents list its six composites')
     ui.getState().openPhaseStudio('FILL', 'RUN_LOGIC')
     const sfc = render(PhaseStudio)
     for (const s of ['INIT', 'OUTLET_CLOSED', 'OPEN_INLET', 'LEVEL_MET', 'CLOSE_INLET', 'INLET_CLOSED', 'COMPLETE', 'COMPLETE_2', 'All SFC Items', 'Sequence', 'Termination'])
       assert.ok(sfc.includes(`>${s}<`) || sfc.includes(s), s)
     assert.match(sfc, /data-step="OPEN_INLET"/)
+    assert.match(sfc, /aria-label="Contents of RUN_LOGIC"[^>]*>[\s\S]*?OPEN_INLET/, 'RUN_LOGIC contents list its steps and transitions')
     assert.match(sfc, /AUTO_ADVANCE/, 'composite parameters in the parameter view')
   } finally { ui.setState(before, true) }
   assert.match(render(ProcessDisplay), /data-unit-link="UM_COLOR_100"/)

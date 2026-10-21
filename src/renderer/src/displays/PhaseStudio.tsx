@@ -91,7 +91,7 @@ export function PhaseStudio(): JSX.Element {
   const [stepDlg, setStepDlg] = useState<number | null>(null)
   const [trDlg, setTrDlg] = useState<number | null>(null)
   const [actionDlg, setActionDlg] = useState<{ step: number; index: number | null } | null>(null)
-  const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 230)
+  const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 320)
   const [paletteWidth, setPaletteWidth] = usePersistentSize('phaseStudio.paletteWidth', 190)
   const [bottomHeight, setBottomHeight] = usePersistentSize('phaseStudio.bottomHeight', 170)
 
@@ -269,23 +269,27 @@ export function PhaseStudio(): JSX.Element {
 
     <div className="studio-main">
       {panes.hierarchy && <div className="studio-pane studio-hier ps-hier" style={{ width: hierWidth, minWidth: hierWidth, flex: `0 0 ${hierWidth}px` }}>
-        <div className="studio-tree ps-tree" role="tree" aria-label="Phase class hierarchy">
-          <div className={'studio-tree-root' + (!composite ? ' cs-sel' : '')} role="treeitem" aria-selected={!composite} onClick={() => drill(null)}>
-            <BatchIcon kind="phaseClass" /> {name}
-          </div>
-          {COMPOSITES.map(c => <div key={c}>
-            <button type="button" role="treeitem" aria-selected={c === composite} data-composite-node={c}
+        {/* Split hierarchy (p4-17): tree on the left, contents of the selected item on the right. */}
+        <div className="ps-hier-split">
+          <div className="studio-tree ps-tree ps-tree-left" role="tree" aria-label="Phase class hierarchy">
+            <div className={'studio-tree-root' + (!composite ? ' cs-sel' : '')} role="treeitem" aria-selected={!composite} onClick={() => drill(null)}>
+              <BatchIcon kind="phaseClass" /> {name}
+            </div>
+            {COMPOSITES.map(c => <button key={c} type="button" role="treeitem" aria-selected={c === composite} data-composite-node={c}
               className={'studio-tree-node studio-block-select' + (c === composite ? ' active' : '') + (live?.composite === c ? ' ps-live' : '')}
-              onClick={() => drill(c)}><BatchIcon kind="composite" />{c}</button>
-            {c === composite && sfc && <div className="ps-tree-items">
-              {sfc.steps.map((s, i) => <div key={s.id}>
-                <button type="button" role="treeitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '')}
+              title={c} onClick={() => drill(c)}><BatchIcon kind="composite" />{c}</button>)}
+          </div>
+          <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${composite ?? name}`}>
+            {!composite ? COMPOSITES.map(c => <button key={c} type="button" role="listitem" data-content-node={c}
+              className={'studio-tree-node ps-tree-item' + (live?.composite === c ? ' ps-live' : '')}
+              title={`${c} — double-click to drill down`} onDoubleClick={() => drill(c)}><BatchIcon kind="composite" />{c}</button>) :
+              sfc?.steps.map((s, i) => <div key={s.id}>
+                <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '')}
                   onClick={() => setSel({ k: 'step', i })} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
-                {sfc.transitions[i] && <button type="button" role="treeitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i ? ' active' : '')}
+                {sfc.transitions[i] && <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i ? ' active' : '')}
                   onClick={() => setSel({ k: 'transition', i })} onDoubleClick={() => setTrDlg(i)}><span className="ps-ico-tr" />{sfc.transitions[i].name}</button>}
               </div>)}
-            </div>}
-          </div>)}
+          </div>
         </div>
         {panes.parameters && <ParamPane pc={pc} composite={composite} name={name} live={live?.key ?? null} />}
         <div className="studio-pane-label">Hierarchy View</div>
