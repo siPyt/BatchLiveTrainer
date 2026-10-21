@@ -42,9 +42,9 @@ function ValuePrompt({ ask, onAnswer }: { ask: ValueAsk; onAnswer: (value: strin
         <input aria-label="Value" autoFocus style={{ display: 'block', marginTop: 6, width: '100%' }} value={value}
           onChange={e => setValue(e.target.value)} onFocus={e => e.target.select()} />
       </label>
-      <div className="lib-dlg-buttons" style={{ justifyContent: 'flex-end', gap: 8 }}>
-        <button type="submit" className="tbtn sm">OK</button>
-        <button type="button" className="tbtn sm" onClick={() => onAnswer(null)}>Cancel</button>
+      <div className="lib-dlg-buttons" style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+        <button type="submit" className="tbtn sm" style={{ minWidth: 76 }}>OK</button>
+        <button type="button" className="tbtn sm" style={{ minWidth: 76 }} onClick={() => onAnswer(null)}>Cancel</button>
       </div>
     </form>
   </SimulatorDialog>

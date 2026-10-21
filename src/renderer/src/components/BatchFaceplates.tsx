@@ -60,13 +60,8 @@ export function UnitFaceplate({ unit }: { unit: string }): JSX.Element {
   const active = useBatch(s => s.active)
   const phases = activePhasesOf(active, unit)
   const [page, setPage] = useState(0)
-  const [prompt, setPrompt] = useState(false)
-  const [name, setName] = useState('')
   if (!u) return <div className="fp-body"><p>Unit module {unit} no longer exists.</p></div>
   const slots = Array.from({ length: 5 }, (_, i) => phases[page * 5 + i])
-  const load = (): void => {
-    if (alertResult(useBatch.getState().loadPhase(unit, name))) { setPrompt(false); setName('') }
-  }
   return <div className="fp-body bfp-body" data-unit-faceplate={unit}>
     <div className="bfp-title">{unit}</div>
     <div className="bfp-sub">{(dep?.unit.description || u.description) || `Unit class ${u.unitClass}`}</div>
@@ -88,22 +83,13 @@ export function UnitFaceplate({ unit }: { unit: string }): JSX.Element {
       </div>)}
     </div>
     <div className="bfp-load"><span className="bfp-engraved">Load a Phase</span>
-      <button className="tbtn sm" aria-label="Load a Phase" onClick={() => setPrompt(true)} disabled={!dep} title={dep ? 'Load a unit phase by name' : 'Download the unit module first'}>...</button></div>
+      <button className="tbtn sm" aria-label="Load a Phase" onClick={() => useBatchUi.getState().openDialog({ t: 'loadPhase', unit })} disabled={!dep} title={dep ? 'Load a unit phase by name' : 'Download the unit module first'}>...</button></div>
     <div className="bfp-footer">
       <button className="fp-link-btn" onClick={() => useUi.getState().navigate('process')}
         title={`Primary control display: ${dep?.unit.primaryDisplay || u.primaryDisplay || 'not configured'}`}>{dep?.unit.primaryDisplay || u.primaryDisplay || 'Process'}</button>
       <button className="fp-link-btn" onClick={() => useUi.getState().navigate('batchhelp')}>BatchHelp</button>
       <button className="fp-link-btn" onClick={() => useUi.getState().navigate('explorer')}>Explorer</button>
     </div>
-    {prompt && <div className="bfp-prompt" role="dialog" aria-label="DeltaV Operate">
-      <div className="bfp-prompt-title">DeltaV Operate</div>
-      <div className="bfp-prompt-body">
-        <span>Enter the name of the phase to start :</span>
-        <input aria-label="Phase name" autoFocus value={name} onChange={e => setName(e.target.value.toUpperCase())}
-          onKeyDown={e => { if (e.key === 'Enter') load(); if (e.key === 'Escape') setPrompt(false) }} />
-        <div className="bfp-prompt-buttons"><button className="tbtn sm" onClick={load}>OK</button><button className="tbtn sm" onClick={() => setPrompt(false)}>Cancel</button></div>
-      </div>
-    </div>}
   </div>
 }
 
@@ -217,7 +203,7 @@ export function BatchHelpDisplay(): JSX.Element {
                 <td>{p && a ? (p.direction === 'Input'
                   ? <button className="bh-value" aria-label={`${unit} ${p.name}`} onClick={() => edit(unit, phase, p, String(a.rt.params[p.name] ?? ''))}>{String(a.rt.params[p.name] ?? '')} {p.units}</button>
                   : <span className="bh-report">{typeof a.rt.params[p.name] === 'number' ? Number(a.rt.params[p.name]).toFixed(1) : String(a.rt.params[p.name] ?? '')} {p.units}</span>)
-                  : p ? <span className="bh-dim">{p.direction === 'Input' ? `${dep?.unit.phases[phase]?.paramValues[p.name] ?? p.defaultValue} ${p.units} (configured)` : ''}</span> : ''}</td>
+                  : p ? <span className="bh-dim" title={p.direction === 'Input' ? `Load ${phase} on the ${unit} unit faceplate (Load a Phase ...) to change this value` : undefined}>{p.direction === 'Input' ? `${dep?.unit.phases[phase]?.paramValues[p.name] ?? p.defaultValue} ${p.units} (configured)` : ''}</span> : ''}</td>
                 {i === 0 && <td rowSpan={rows.length}>{a
                   ? <button className="tbtn sm" onClick={() => useBatchUi.getState().openPhase(unit, phase)}>Phase faceplate</button>
                   : <button className="tbtn sm" onClick={() => useBatchUi.getState().openUnit(unit)}>Unit faceplate</button>}</td>}

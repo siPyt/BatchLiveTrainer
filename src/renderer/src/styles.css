@@ -4816,7 +4816,7 @@ button {
 .dvd-list, .dvd-table { width: 100%; border: 1px solid var(--dv-border); background: #ffffff; font-size: 12px; border-collapse: collapse; }
 .dvd-table th, .dvd-table td { border-bottom: 1px solid #e3e5ea; padding: 3px 6px; text-align: left; }
 .dvd-table th { background: var(--dv-bg-3); font-weight: 700; }
-.dvd-big-input { font-size: 14px; padding: 4px 6px; }
+.dvd-big-input { display: block; width: 100%; min-width: 380px; box-sizing: border-box; margin-top: 10px; font-size: 14px; padding: 4px 6px; }
 
 /* ===== Phase Control Studio (pp 4-16..4-21) ===== */
 .phase-studio .ps-hier { display: flex; flex-direction: column; }
