@@ -4,7 +4,7 @@ import { useBatchUi } from '../ui/batchUi'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
-import { useBatch, aliasesResolved, type UploadRow } from '../engine/batchStore'
+import { useBatch, aliasesResolved, moduleParamNames, type UploadRow } from '../engine/batchStore'
 import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
 import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
 import { askConfirm } from './AppNotices'
@@ -103,19 +103,68 @@ export function NewAliasDialog({ unitClass, onClose }: { unitClass: string; onCl
 }
 
 /** Resolving Aliases (p4-26): Alias dialog on a unit module. */
+/** Alias Browse... (p4-48): drill down module ▸ function block ▸ parameter ▸ field, as in the DeltaV browser. */
+type PathNode = { key: string; label: string; children: PathNode[]; pickable: boolean }
+export function aliasPathTree(): PathNode[] {
+  const modules = useStore.getState().modules
+  const sims = useLibrary.getState().sims
+  const ems = useEm.getState().instances
+  const tags = [...new Set([...Object.keys(modules), ...Object.keys(sims), ...Object.keys(ems)])].sort()
+  return tags.map(tag => {
+    const simParams = sims[tag] ? Object.keys(sims[tag].params).map(p => `${p}.CV`) : undefined
+    const root: PathNode = { key: tag, label: tag, children: [], pickable: true }
+    for (const path of moduleParamNames(modules[tag], simParams, ems[tag] ? tag : undefined)) {
+      const segs = path.split('/')
+      const [param, field] = segs.pop()!.split('.')
+      const parts = [...segs, param, ...(field ? [field] : [])]
+      let node = root
+      parts.forEach((label, i) => {
+        const key = node.key + (i === 0 ? '/' : i === parts.length - 1 && field ? '.' : '/') + label
+        let next = node.children.find(c => c.key === key)
+        if (!next) { next = { key, label, children: [], pickable: i === parts.length - 1 }; node.children.push(next) }
+        node = next
+      })
+    }
+    return root
+  })
+}
+
+function AliasPathBrowser({ onPick, onClose }: { onPick: (path: string) => void; onClose: () => void }): JSX.Element {
+  const [tree] = useState(aliasPathTree)
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [sel, setSel] = useState<PathNode | null>(null)
+  const toggle = (k: string): void => setOpen(o => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const pick = (n: PathNode | null = sel): void => { if (n?.pickable) onPick(n.key) }
+  const rows = (nodes: PathNode[], depth: number): JSX.Element[] => nodes.flatMap(n => [
+    <div key={n.key} role="treeitem" aria-selected={sel?.key === n.key} aria-expanded={n.children.length ? open.has(n.key) : undefined}
+      className={'ctx-item alias-browse-node' + (sel?.key === n.key ? ' on' : '')} style={{ paddingLeft: 6 + depth * 16 }}
+      onClick={() => setSel(n)} onDoubleClick={() => (n.children.length ? toggle(n.key) : pick(n))}>
+      <span className="alias-browse-twisty" onClick={e => { e.stopPropagation(); if (n.children.length) toggle(n.key) }}>{n.children.length ? (open.has(n.key) ? '−' : '+') : ''}</span>
+      {n.label}
+    </div>,
+    ...(open.has(n.key) ? rows(n.children, depth + 1) : [])
+  ])
+  return <SimulatorDialog className="module-download-dialog dvd" label="Browse" onClose={onClose}>
+    <p className="exp-hint">Select a module (valves, motors, equipment modules) or expand it to a parameter field (LI-104 ▸ AI1 ▸ PV ▸ CV).</p>
+    <div className="lib-browse alias-browse" role="tree" aria-label="Browse alias path">{rows(tree, 0)}</div>
+    <p className="exp-hint ps-code" aria-label="Selected path">{sel ? sel.key : ''}{sel && !sel.pickable ? ' — expand to a field or select the module' : ''}</p>
+    <div className="lib-dlg-buttons" style={{ justifyContent: 'flex-end', gap: 8 }}>
+      <button className="tbtn sm" disabled={!sel?.pickable} onClick={() => pick()}>OK</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel</button>
+    </div>
+  </SimulatorDialog>
+}
+
 export function AliasResolveDialog({ unit, alias, onClose }: { unit: string; alias: string; onClose: () => void }): JSX.Element {
   const res = useBatch(s => s.units[unit]?.aliases[alias])
   const [v, setV] = useState<AliasResolution>(res ?? { path: '', ignore: false, description: '' })
   const [browse, setBrowse] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const modules = useStore(s => s.modules)
-  const sims = useLibrary(s => s.sims)
   const submit = (): void => {
     const r = useBatch.getState().resolveAlias(unit, alias, v)
     if (r.ok) onClose()
     else setError(r.error)
   }
-  const paths = [...Object.values(modules).flatMap(m => m.type === 'AI' ? [m.tag, `${m.tag}/AI1/PV.CV`] : [m.tag]), ...Object.keys(sims)].sort()
   return <SimulatorDialog className="module-download-dialog dvd" label="Alias" onClose={onClose}>
     <Tabs tabs={['General']} active="General" onChange={() => {}} />
     <div className="lib-dlg-fields dvd-panel">
@@ -127,12 +176,10 @@ export function AliasResolveDialog({ unit, alias, onClose }: { unit: string; ali
       <div className="dvd-inline">
         <label style={{ flex: 1 }}>Path:<input aria-label="Alias path" autoFocus value={v.path} disabled={v.ignore}
           onChange={e => setV({ ...v, path: e.target.value.toUpperCase() })} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
-        <button className="tbtn sm" disabled={v.ignore} onClick={() => setBrowse(b => !b)}>Browse...</button>
+        <button className="tbtn sm" disabled={v.ignore} onClick={() => setBrowse(true)}>Browse...</button>
       </div>
-      {browse && <div className="lib-browse" role="listbox" aria-label="Browse alias path">
-        {paths.map(p => <button key={p} className="ctx-item" onClick={() => { setV({ ...v, path: p }); setBrowse(false) }}>{p}</button>)}
-      </div>}
     </div>
+    {browse && <AliasPathBrowser onClose={() => setBrowse(false)} onPick={p => { setV({ ...v, path: p }); setBrowse(false) }} />}
     <Buttons onOk={submit} onClose={onClose} help="Resolve the alias to a module name (XV-101) for valves and motors, or to a full parameter path (LI-104/AI1/PV.CV) for level indicators. Ignore makes the phase skip writes to this alias." />
     <Err error={error} />
   </SimulatorDialog>
@@ -232,7 +279,7 @@ export function UnitPhasePropsDialog({ unit, phase, onClose }: { unit: string; p
   const u = useBatch(s => s.units[unit])
   const ph = u?.phases[phase]
   const [tab, setTab] = useState('General')
-  const [v, setV] = useState({ description: ph?.description ?? '', phaseType: ph?.phaseType ?? 'Controller' as PhaseType, scanRate: ph?.scanRate ?? 1,
+  const [v, setV] = useState({ description: ph?.description ?? '', phaseType: ph?.phaseType ?? 'Disabled' as PhaseType, scanRate: ph?.scanRate ?? 1,
     alwaysInMemory: !!ph?.alwaysInMemory, simulate: !!ph?.simulate })
   const [error, setError] = useState<string | null>(null)
   if (!u || !ph) return <></>

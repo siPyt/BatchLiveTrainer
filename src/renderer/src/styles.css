@@ -4686,6 +4686,10 @@ button {
 .lib-dlg-props legend { font-size: 11px; color: var(--dv-text-dim); padding: 0 4px; }
 .lib-dlg-error { color: #c0392b; font-size: 12px; margin: 8px 0 0; }
 .lib-browse { margin-top: 8px; border: 1px solid var(--dv-border); background: #ffffff; padding: 6px; max-height: 180px; overflow: auto; }
+.lib-browse.alias-browse { min-width: 340px; min-height: 220px; max-height: 320px; padding: 4px 0; }
+.alias-browse-node { display: flex; align-items: center; gap: 4px; cursor: default; user-select: none; }
+.alias-browse-node.on { background: var(--dv-select); }
+.alias-browse-twisty { width: 12px; text-align: center; font-weight: 700; cursor: pointer; }
 .lib-download-list { max-height: 200px; overflow: auto; border: 1px solid var(--dv-border); background: #ffffff; padding: 6px 8px; font-size: 12px; margin-bottom: 10px; }
 .lib-download-warnings { font-size: 12px; color: var(--dv-text-dim); padding-left: 18px; }
 

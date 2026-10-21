@@ -170,8 +170,9 @@ export function aliasesResolved(u: UnitModule): boolean {
   return Object.values(u.aliases).every(a => a.ignore || !!a.path.trim())
 }
 
+/** A new unit phase starts Disabled; the workshops set Phase Type = Controller (p4-51 Step 2, AGITATE, CHG_COLOR, DUMP). */
 function unitPhase(phaseClass: string): UnitPhaseConfig {
-  return { name: phaseClass, phaseClass, description: '', phaseType: 'Controller', scanRate: 1, alwaysInMemory: false, simulate: false, paramValues: {} }
+  return { name: phaseClass, phaseClass, description: '', phaseType: 'Disabled', scanRate: 1, alwaysInMemory: false, simulate: false, paramValues: {} }
 }
 
 // ---------------------------------------------------------------------------

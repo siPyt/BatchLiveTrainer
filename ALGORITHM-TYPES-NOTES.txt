@@ -253,3 +253,8 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
    - Open request to the user: for the five remaining EM algorithm types, provide DeltaV Books
      Online pages from the LTS16 system or Control Studio screenshots of each type created in a
      real equipment module class (dialog, top-level canvas, parameters, faceplate).
+   - Unit phase Phase Type default changed from Controller to Disabled (user, DeltaV LTS16). Evidence:
+     every workshop step says "Set the Phase Type to Controller" (7016 4-51 Step 2; AGITATE Step 10,
+     PDF p191; CHG_COLOR/DUMP Step 8, PDF p248). Counter-evidence: slide 4-28 screenshot shows
+     Controller with "Aliases Resolved? No" (lecture image, may have been set already). No PDF states
+     the default explicitly.
