@@ -62,6 +62,8 @@ interface BatchState {
   newProcessCellClass: (category: string) => Result<string>
   newUnitClass: (category: string, name: string) => Result<string>
   newPhaseClass: (category: string, name: string) => Result<string>
+  /** New ▸ Start From Existing: copy a saved unit or phase class into category under a new name. */
+  copyClass: (kind: 'unit' | 'phase', category: string, source: string, name: string) => Result<string>
   renameClass: (kind: BatchClassKind, name: string, next: string) => Result<string>
   deleteClass: (kind: BatchClassKind, name: string) => Result<string>
 
@@ -558,6 +560,22 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!requireUnlockedLock('CAN_CONFIGURE', `Create phase class ${name}`)) return fail('Requires the Can Configure key')
     set({ phaseClasses: { ...s.phaseClasses, [name]: newPhaseClass(name, category) } })
     log(name, `Phase Class created in ${category}`)
+    return ok(name)
+  },
+  copyClass: (kind, category, source, raw) => {
+    const s = get()
+    const name = raw.trim().toUpperCase()
+    const label = kind === 'unit' ? 'unit class' : 'phase class'
+    if (!s.categories[catKey(kind, category)]) return fail(`Category ${category} does not exist`)
+    const from = kind === 'unit' ? s.unitClasses[source] : s.phaseClasses[source]
+    if (!from) return fail(`Browse for an existing ${label} to start from`)
+    if (!isNameValid(name)) return fail(NAME_RULE)
+    if (batchNameTaken(s, name)) return fail(`The name ${name} is already used in the library`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create ${kind === 'unit' ? 'unit class' : 'phase class'} ${name} from ${source}`)) return fail('Requires the Can Configure key')
+    const copy = { ...structuredClone(from), name, category }
+    if (kind === 'unit') set({ unitClasses: { ...s.unitClasses, [name]: copy as UnitClass } })
+    else set({ phaseClasses: { ...s.phaseClasses, [name]: { ...(copy as PhaseClass), revision: 1 } } })
+    log(name, `${kind === 'unit' ? 'Unit' : 'Phase'} Class created in ${category} from existing ${source}`)
     return ok(name)
   },
   renameClass: (kind, name, next) => {

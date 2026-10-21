@@ -32,24 +32,45 @@ function Row({ label, children }: { label: string; children: ReactNode }): JSX.E
   return <div className="dvd-row"><span className="dvd-k">{label}</span><span className="dvd-v">{children}</span></div>
 }
 
+/** Start From Existing ▸ Browse...: the existing objects of the same type to copy from. */
+function ExistingPicker({ enabled, value, options, onPick }: { enabled: boolean; value: string; options: string[]; onPick: (v: string) => void }): JSX.Element {
+  const [browse, setBrowse] = useState(false)
+  return <>
+    <div className="dvd-inline"><input disabled={!enabled} readOnly aria-label="Existing object" value={value} onClick={() => enabled && setBrowse(true)} />
+      <button className="tbtn sm" disabled={!enabled} onClick={() => setBrowse(v => !v)}>Browse...</button></div>
+    {enabled && browse && <div className="lib-browse" role="listbox" aria-label="Browse existing objects">
+      {options.length ? options.map(o => <button key={o} role="option" aria-selected={o === value} className="ctx-item"
+        onClick={() => { onPick(o); setBrowse(false) }}>{o}</button>) : <span className="exp-hint">No existing objects of this type.</span>}
+    </div>}
+  </>
+}
+
 /** "New" object dialog (course p4-11 / p4-14): Object name, Object type, Start From Existing / Create New. */
-export function NewObjectDialog({ objectType, algorithm, onOk, onClose }: {
-  objectType: string; algorithm: string; onOk: (name: string) => string | null; onClose: () => void
+export function NewObjectDialog({ objectType, algorithm, existing, onOk, onCopy, onClose }: {
+  objectType: string; algorithm: string; existing: string[]
+  onOk: (name: string) => string | null; onCopy: (source: string, name: string) => string | null; onClose: () => void
 }): JSX.Element {
   const [name, setName] = useState('')
+  const [fromExisting, setFromExisting] = useState(false)
+  const [source, setSource] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const submit = (): void => { const e = onOk(name.trim().toUpperCase()); if (e) setError(e); else onClose() }
+  const submit = (): void => {
+    const n = name.trim().toUpperCase()
+    const e = fromExisting ? onCopy(source, n) : onOk(n)
+    if (e) setError(e); else onClose()
+  }
   return <SimulatorDialog className="module-download-dialog dvd" label="New" onClose={onClose}>
     <div className="dvd-split">
       <div className="lib-dlg-fields">
         <label>Object name:<input aria-label="Object name" autoFocus value={name} onChange={e => setName(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
-        <label>Object type:<select aria-label="Object type" disabled value={objectType}><option>{objectType}</option></select></label>
-        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" disabled /> Start From Existing</label></legend>
-          <div className="dvd-inline"><input disabled aria-label="Existing object" /><button className="tbtn sm" disabled>Browse...</button></div>
+        <label title="Fixed by the item you right-clicked (as in DeltaV)">Object type:<select aria-label="Object type" disabled value={objectType}><option>{objectType}</option></select></label>
+        <fieldset className="lib-dlg-props">
+          <legend><label className="lib-dlg-check"><input type="radio" name="new-object-mode" aria-label="Start From Existing" checked={fromExisting} onChange={() => setFromExisting(true)} /> Start From Existing</label></legend>
+          <ExistingPicker enabled={fromExisting} value={source} options={existing} onPick={setSource} />
         </fieldset>
-        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" checked readOnly /> Create New</label></legend>
-          <label>Algorithm type:<select disabled aria-label="Algorithm type"><option>{algorithm}</option></select></label>
+        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" name="new-object-mode" aria-label="Create New" checked={!fromExisting} onChange={() => setFromExisting(false)} /> Create New</label></legend>
+          <label title="Fixed for this object type (greyed in DeltaV too)">Algorithm type:<select disabled aria-label="Algorithm type"><option>{algorithm}</option></select></label>
         </fieldset>
       </div>
       <div className="lib-dlg-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
@@ -372,12 +393,16 @@ export function BatchDialogHost(): JSX.Element | null {
   const b = useBatch.getState()
   if (!d) return null
   switch (d.t) {
-    case 'newUnitClass': return <NewObjectDialog objectType="Unit Class" algorithm="<None>" onClose={close} onOk={n => asErr(b.newUnitClass(d.category, n))} />
-    case 'newPhaseClass': return <NewObjectDialog objectType="Phase Class" algorithm="Sequential Function Chart" onClose={close} onOk={n => {
-      const r = useBatch.getState().newPhaseClass(d.category, n)
-      if (r.ok) void askConfirm(`Phase class ${r.value} created. Open it with Control Studio now?`).then(ok => { if (ok) { useUi.getState().openPhaseStudio(r.value) } })
-      return asErr(r)
-    }} />
+    case 'newUnitClass': return <NewObjectDialog objectType="Unit Class" algorithm="<None>" existing={Object.keys(b.unitClasses).sort()} onClose={close}
+      onOk={n => asErr(b.newUnitClass(d.category, n))} onCopy={(src, n) => asErr(useBatch.getState().copyClass('unit', d.category, src, n))} />
+    case 'newPhaseClass': {
+      const created = (r: ReturnType<typeof b.newPhaseClass>): string | null => {
+        if (r.ok) void askConfirm(`Phase class ${r.value} created. Open it with Control Studio now?`).then(ok => { if (ok) { useUi.getState().openPhaseStudio(r.value) } })
+        return asErr(r)
+      }
+      return <NewObjectDialog objectType="Phase Class" algorithm="Phase Algorithm" existing={Object.keys(b.phaseClasses).sort()} onClose={close}
+        onOk={n => created(useBatch.getState().newPhaseClass(d.category, n))} onCopy={(src, n) => created(useBatch.getState().copyClass('phase', d.category, src, n))} />
+    }
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
     case 'alias': return <AliasResolveDialog unit={d.unit} alias={d.alias} onClose={close} />
     case 'param': return <PhaseParamDialog phaseClass={d.phaseClass} kind={d.kind} original={d.original} onClose={close} />
@@ -412,13 +437,16 @@ export function BatchDialogHost(): JSX.Element | null {
 /** New ▸ Equipment Module Class (p5-12): Object name, Create New ▸ Algorithm type, Named Set name ▸ Browse. */
 function NewEmClassDialog({ category, onClose }: { category: string; onClose: () => void }): JSX.Element {
   const [name, setName] = useState('')
+  const [fromExisting, setFromExisting] = useState(false)
+  const [source, setSource] = useState('')
   const [algorithm, setAlgorithm] = useState<EmAlgorithm>('Command driven')
   const [namedSet, setNamedSet] = useState('')
   const [browse, setBrowse] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sets = useStore(s => s.namedSets.configured)
+  const existing = useEm(s => Object.keys(s.classes).sort())
   const submit = (): void => {
-    const r = useEm.getState().newClass(category, name, algorithm, namedSet)
+    const r = fromExisting ? useEm.getState().copyClass(category, source, name) : useEm.getState().newClass(category, name, algorithm, namedSet)
     if (!r.ok) { setError(r.error); return }
     onClose()
     void askConfirm(`Equipment module class ${r.value} created. Open it with Control Studio now?`).then(ok => { if (ok) { useUi.getState().openEmStudio(r.value) } })
@@ -427,11 +455,13 @@ function NewEmClassDialog({ category, onClose }: { category: string; onClose: ()
     <div className="dvd-split">
       <div className="lib-dlg-fields">
         <label>Object name:<input aria-label="Object name" autoFocus value={name} onChange={e => setName(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
-        <label>Object type:<select aria-label="Object type" disabled value="Equipment Module Class"><option>Equipment Module Class</option></select></label>
-        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" disabled /> Start From Existing</label></legend>
-          <div className="dvd-inline"><input disabled aria-label="Existing object" /><button className="tbtn sm" disabled>Browse...</button></div>
+        <label title="Fixed by the item you right-clicked (as in DeltaV)">Object type:<select aria-label="Object type" disabled value="Equipment Module Class"><option>Equipment Module Class</option></select></label>
+        <fieldset className="lib-dlg-props">
+          <legend><label className="lib-dlg-check"><input type="radio" name="new-em-mode" aria-label="Start From Existing" checked={fromExisting} onChange={() => setFromExisting(true)} /> Start From Existing</label></legend>
+          <ExistingPicker enabled={fromExisting} value={source} options={existing} onPick={setSource} />
         </fieldset>
-        <fieldset className="lib-dlg-props"><legend><label className="lib-dlg-check"><input type="radio" checked readOnly /> Create New</label></legend>
+        <fieldset className="lib-dlg-props" disabled={fromExisting}>
+          <legend><label className="lib-dlg-check"><input type="radio" name="new-em-mode" aria-label="Create New" checked={!fromExisting} onChange={() => setFromExisting(false)} /> Create New</label></legend>
           <label>Algorithm type:<select aria-label="Algorithm type" value={algorithm} onChange={e => setAlgorithm(e.target.value as EmAlgorithm)}>
             {EM_ALGORITHMS.map(a => <option key={a} value={a}>{a}</option>)}</select></label>
           <p className="exp-hint">{EM_ALGORITHM_NOTE[algorithm]}{SUPPORTED_EM_ALGORITHMS.includes(algorithm) ? '' : ' (not modeled in BatchLiveTrainer)'}</p>

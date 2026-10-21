@@ -4,6 +4,7 @@ import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { useBatch, activeKey, type ActivePhase } from '../engine/batchStore'
 import { COMMANDS_FOR, COMMAND_LABEL, STATE_LABEL, stepIndex, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
+import { askValue } from './AppNotices'
 
 // DeltaV Operate unit and phase faceplates (course 7016 pp 4-34/4-35): the unit faceplate lists up to
 // ten active phases and loads phases by name; the phase faceplate ("Faceplate FB") shows phase state,
@@ -119,9 +120,10 @@ export function PhaseFaceplate({ unit, phase }: { unit: string; phase: string })
   const send = (cmd: PhaseCommand): void => { if (alertResult(useBatch.getState().command(unit, phase, cmd))) setSelector(false) }
   const current = rt.lastCommand ? COMMAND_LABEL[rt.lastCommand] : 'Reset'
   const editParam = (p: PhaseParamDef): void => {
-    const v = window.prompt(`${p.name} (${p.low} to ${p.high} ${p.units})`, String(rt.params[p.name] ?? p.defaultValue))
-    if (v === null) return
-    alertResult(useBatch.getState().setOnlineParam(unit, phase, p.name, p.type === 'String' ? v : Number(v)))
+    void askValue(`${p.name} (${p.low} to ${p.high} ${p.units})`, String(rt.params[p.name] ?? p.defaultValue)).then(v => {
+      if (v === null) return
+      alertResult(useBatch.getState().setOnlineParam(unit, phase, p.name, p.type === 'String' ? v : Number(v)))
+    })
   }
   return <div className="fp-body bfp-body" data-phase-faceplate={`${unit}/${phase}`}>
     <div className="bfp-title">{unit}/P{slot}</div>
@@ -176,9 +178,10 @@ export function BatchHelpDisplay(): JSX.Element {
   const time = useStore(s => s.time)
   const names = Object.keys(units).sort()
   const edit = (unit: string, phase: string, p: PhaseParamDef, current: string): void => {
-    const v = window.prompt(`${unit}/${phase} ${p.name} (${p.low} to ${p.high} ${p.units})`, current)
-    if (v === null) return
-    alertResult(useBatch.getState().setOnlineParam(unit, phase, p.name, p.type === 'String' ? v : Number(v)))
+    void askValue(`${unit}/${phase} ${p.name} (${p.low} to ${p.high} ${p.units})`, current).then(v => {
+      if (v === null) return
+      alertResult(useBatch.getState().setOnlineParam(unit, phase, p.name, p.type === 'String' ? v : Number(v)))
+    })
   }
   return <div className="display batchhelp-display" data-display="BatchHelp" data-time={time}>
     <div className="bh-head">

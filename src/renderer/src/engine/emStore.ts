@@ -231,6 +231,8 @@ interface EmState {
   renameCategory: (name: string, next: string) => Result<string>
   deleteCategory: (name: string) => Result<string>
   newClass: (category: string, name: string, algorithm: EmAlgorithm, namedSet: string) => Result<string>
+  /** New ▸ Start From Existing: copy a saved equipment module class into category under a new name. */
+  copyClass: (category: string, source: string, name: string) => Result<string>
   renameClass: (name: string, next: string) => Result<string>
   deleteClass: (name: string) => Result<string>
   setClassProps: (name: string, patch: { description?: string; namedSet?: string }) => Result<string>
@@ -317,6 +319,19 @@ export const useEm = create<EmState>((set, get) => ({
     if (!requireUnlockedLock('CAN_CONFIGURE', `Create equipment module class ${name}`)) return fail('Requires the Can Configure key')
     set({ classes: { ...s.classes, [name]: cls } })
     log(name, `Equipment Module Class created in ${category} (${algorithm}, named set ${cls.namedSet})`)
+    return ok(name)
+  },
+  copyClass: (category, source, raw) => {
+    const s = get()
+    const name = raw.trim().toUpperCase()
+    if (!s.categories[category]) return fail(`Category ${category} does not exist`)
+    const from = s.classes[source]
+    if (!from) return fail('Browse for an existing equipment module class to start from')
+    if (!isNameValid(name)) return fail(NAME_RULE)
+    if (emNameTaken(name)) return fail(`The name ${name} is already used in the library`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create equipment module class ${name} from ${source}`)) return fail('Requires the Can Configure key')
+    set({ classes: { ...s.classes, [name]: { ...structuredClone(from), name, category, revision: 1 } } })
+    log(name, `Equipment Module Class created in ${category} from existing ${source} (${from.algorithm}, named set ${from.namedSet})`)
     return ok(name)
   },
   renameClass: (name, raw) => {

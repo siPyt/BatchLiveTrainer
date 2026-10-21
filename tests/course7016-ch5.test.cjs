@@ -370,3 +370,18 @@ test('7016 ch2/ch5 Verify you can run the process: base transfer at 90 GPM, colo
   assert.deepEqual(pending(runChecks.filter(c => ['7016-5r-1', '7016-5r-2', '7016-5r-3', '7016-5r-4', '7016-5r-5'].includes(c.id))), [])
   assert.equal(runChecks.find(c => c.id === '7016-5r-6').verdict, 'pending')
 }))
+
+test('New Equipment Module Class Start From Existing copies the algorithm, named set, children and commands', () => fixture(() => {
+  levelIndicators()
+  emClasses()
+  assert.equal(value(E().copyClass('CommandDriven', 'BLENDER_COLOR', 'blender_color2')), 'BLENDER_COLOR2')
+  const src = E().classes.BLENDER_COLOR, copy = E().classes.BLENDER_COLOR2
+  assert.equal(copy.category, 'CommandDriven')
+  assert.equal(copy.algorithm, src.algorithm)
+  assert.equal(copy.namedSet, src.namedSet)
+  assert.deepEqual(copy.children, src.children)
+  assert.deepEqual(copy.commands, src.commands)
+  assert.equal(copy.revision, 1)
+  assert.match(E().copyClass('CommandDriven', 'NOPE', 'X2').error, /Browse for an existing equipment module class/)
+  assert.match(E().copyClass('CommandDriven', 'BLENDER_COLOR', 'BLENDER_OUTLET').error, /already used/)
+}))
