@@ -124,6 +124,15 @@ export function EmStudio(): JSX.Element {
   const selStep = sel?.k === 'step' && sfc ? sfc.steps[sel.i] : undefined
   const set = namedSetOf(cls.namedSet)
   const stateCols = (set?.entries ?? []).filter(e => e.value !== IDLE)
+  // Contents of the EM in the hierarchy's right pane (p5-14 / p5-23), alphabetical as in DeltaV.
+  type Content = { name: string; kind: 'module'; className: string } | { name: string; kind: 'command' | 'generated' }
+  const contents: Content[] = [
+    ...Object.values(cls.children).map(ch => ({ name: ch.name, kind: 'module' as const, className: ch.className })),
+    ...(commandDriven
+      ? Object.values(cls.commands).map(c => ({ name: c.block, kind: 'command' as const }))
+      : [...['DRIVE', 'READBACK', 'TARGET', 'TARGET_REACHED'], ...stateCols.map(s => `STATE_${String(s.value).padStart(5, '0')}`)].map(name => ({ name, kind: 'generated' as const }))),
+    { name: 'MONITOR', kind: 'generated' as const }
+  ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
   return <div className="display studio class-studio em-studio" data-em-studio={className} data-em-instance={instance ?? ''} data-command-block={block ?? ''}>
     <div className="ribbon">
@@ -187,12 +196,12 @@ export function EmStudio(): JSX.Element {
         {/* Split hierarchy (p5-14): composites in the tree on the left, contents of the selected item on the right. */}
         <div className="ps-hier-split">
           <div className="studio-tree ps-tree ps-tree-left" role="tree" aria-label="Equipment module hierarchy">
-            <div className={'studio-tree-root' + (!block ? ' cs-sel' : '')} role="treeitem" aria-selected={!block} aria-expanded={commandDriven ? rootOpen : undefined} onClick={() => drill(null)}>
-              {commandDriven && <span className="tv-box" aria-label={rootOpen ? 'Collapse' : 'Expand'} onClick={e => { e.stopPropagation(); setRootOpen(o => !o) }}>{rootOpen ? '−' : '+'}</span>}
+            <div className={'studio-tree-root' + (!block ? ' cs-sel' : '')} role="treeitem" aria-selected={!block} aria-expanded={rootOpen} onClick={() => drill(null)}>
+              <span className="tv-box" aria-label={rootOpen ? 'Collapse' : 'Expand'} onClick={e => { e.stopPropagation(); setRootOpen(o => !o) }}>{rootOpen ? '−' : '+'}</span>
               <ModuleIcon kind="equipment" /> {instance ?? className}
             </div>
-            {commandDriven && rootOpen && <>
-              {Object.values(cls.commands).map(c => <button key={c.block} type="button" role="treeitem" aria-selected={c.block === block} data-command-node={c.block}
+            {rootOpen && <>
+              {commandDriven && Object.values(cls.commands).map(c => <button key={c.block} type="button" role="treeitem" aria-selected={c.block === block} data-command-node={c.block}
                 className={'studio-tree-node studio-block-select' + (c.block === block ? ' active' : '') + (online && status(c.block) === 'Running' ? ' ps-live' : '')}
                 title={c.block} onClick={() => drill(c.block)}><BatchIcon kind="composite" />{c.block}</button>)}
               {/* MONITOR is not simulated, so expanding it finds nothing and the box clears. */}
@@ -202,14 +211,16 @@ export function EmStudio(): JSX.Element {
             </>}
           </div>
           <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${block ?? instance ?? className}`}>
-            {!block ? <>
-              {Object.values(cls.children).map(ch => <div key={ch.name} role="listitem" className="studio-tree-node ps-tree-item" data-module-block={ch.name} title={`Module block (${ch.className})`}>
-                <ModuleIcon kind="control" />{childTag(ch.name) ? `${childTag(ch.name)} (${ch.name})` : ch.name}</div>)}
-              {commandDriven && Object.values(cls.commands).map(c => <button key={c.block} type="button" role="listitem" data-content-node={c.block}
-                className={'studio-tree-node ps-tree-item' + (online && status(c.block) === 'Running' ? ' ps-live' : '')}
-                title={`${c.block} — double-click to drill down`} onDoubleClick={() => drill(c.block)}><BatchIcon kind="composite" />{c.block}</button>)}
-              {commandDriven && <div role="listitem" className="studio-tree-node ps-tree-item disabled" title="MONITOR is not executed by the simulator"><BatchIcon kind="composite" />MONITOR</div>}
-            </> : sfc?.steps.map((s, i) => <div key={s.id}>
+            {!block ? contents.map(it => it.kind === 'module'
+              ? <div key={it.name} role="listitem" className="studio-tree-node ps-tree-item" data-module-block={it.name} title={`Module block (${it.className})`}>
+                <ModuleIcon kind="control" />{childTag(it.name) ? `${childTag(it.name)} (${it.name})` : it.name}</div>
+              : it.kind === 'command'
+                ? <button key={it.name} type="button" role="listitem" data-content-node={it.name}
+                  className={'studio-tree-node ps-tree-item' + (online && status(it.name) === 'Running' ? ' ps-live' : '')}
+                  title={`${it.name} — double-click to drill down`} onDoubleClick={() => drill(it.name)}><BatchIcon kind="composite" />{it.name}</button>
+                : <div key={it.name} role="listitem" className="studio-tree-node ps-tree-item disabled" data-content-node={it.name}
+                  title={`${it.name} is generated by DeltaV for the ${cls.algorithm.toLowerCase()} algorithm and is not shown in detail by the simulator`}><BatchIcon kind="composite" />{it.name}</div>)
+            : sfc?.steps.map((s, i) => <div key={s.id}>
               <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '') + (liveStep === s.name ? ' ps-live' : '')}
                 onClick={() => setSel({ k: 'step', i })} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
               {sfc.transitions[i] && <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i ? ' active' : '')}
