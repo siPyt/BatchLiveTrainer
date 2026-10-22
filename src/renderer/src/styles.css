@@ -4804,12 +4804,18 @@ button {
 .dvd.dvd-wide { min-width: 620px; max-width: 860px; }
 .dvd-split { display: flex; gap: 14px; align-items: flex-start; }
 .dvd-split > div { flex: 1; min-width: 0; }
+/* OK / Cancel column beside the fields stays button-width (DeltaV "New" / "Add Module Class" dialogs). */
+.dvd-split > .lib-dlg-buttons { flex: 0 0 84px; }
+.dvd-split > .lib-dlg-buttons .tbtn { width: 100%; }
 .dvd-panel { border: 1px solid var(--dv-border); background: var(--dv-panel-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .dvd-tabs { display: flex; gap: 2px; margin-bottom: -1px; }
 .dvd-tabs button { background: var(--dv-bg-3); border: 1px solid var(--dv-border); border-bottom: none; padding: 3px 12px; font-size: 12px; color: var(--dv-text-dim); cursor: pointer; }
 .dvd-tabs button.on { background: var(--dv-panel-2); color: var(--dv-text); font-weight: 700; }
 .dvd-buttons { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .dvd-inline { display: flex; gap: 8px; align-items: flex-end; }
+.dvd-inline > label { min-width: 0; }
+.dvd-inline > label input { width: 100%; box-sizing: border-box; }
+.dvd-inline > button { flex: none; }
 .dvd-row { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; }
 .dvd-k { min-width: 150px; color: var(--dv-text-dim); }
 .dvd-v { flex: 1; color: var(--dv-text); }

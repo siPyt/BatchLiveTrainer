@@ -372,6 +372,8 @@ export function ExplorerDisplay(): JSX.Element {
       {ems.filter((em) => !em.unit || !units[em.unit]).map((em) => renderEm(em, depth + 1))}
       <ProcessCellRows area={area} depth={depth + 1} sel={libSel?.kind === 'batch' ? libSel.sel : null}
         onSelect={s => { setNode(null); select(null); setLibSel({ kind: 'batch', sel: s }) }}
+        onModuleSelect={tag => { setNode(null); setLibSel(null); setSetupView('modules'); select(tag) }}
+        moduleSelected={moduleSelected}
         renderModule={(tag, d) => modules[tag] ? renderModuleRow(modules[tag], d) : null} />
       {[
         ...unassigned.map(m => ({ key: m.tag, el: renderModuleRow(m, depth + 1) })),

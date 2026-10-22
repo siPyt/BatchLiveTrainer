@@ -152,7 +152,11 @@ export function DeviceClassRows({ category, depth, sel, onSelect }: { category: 
 }
 
 /** Module instances under a unit module: "AGIT-503 (AGITATOR)", equipment modules with their module blocks (p5-34). */
-export function ModuleInstanceRows({ unit, depth, sel, onSelect }: { unit: string; depth: number; sel: BatchSel | null; onSelect: (s: BatchSel) => void }): JSX.Element {
+export function ModuleInstanceRows({ unit, depth, sel, onSelect, onModuleSelect, moduleSelected }: {
+  unit: string; depth: number; sel: BatchSel | null; onSelect: (s: BatchSel) => void
+  onModuleSelect?: (tag: string) => void; moduleSelected?: (tag: string) => boolean
+}): JSX.Element {
+  const pickModule = (tag: string): void => (onModuleSelect ? onModuleSelect(tag) : useUi.getState().select(tag))
   const em = useEm()
   const b = useBatch()
   const lib = useLibrary()
@@ -173,6 +177,7 @@ export function ModuleInstanceRows({ unit, depth, sel, onSelect }: { unit: strin
   const moduleMenu = (tag: string, isEm: boolean, e: React.MouseEvent): void => {
     e.preventDefault()
     if (isEm) onSelect({ t: 'emInstance', tag })
+    else pickModule(tag)
     setMenu({ x: e.clientX, y: e.clientY, label: tag, items: [
       { label: 'Explore', onClick: () => (isEm ? onSelect({ t: 'emInstance', tag }) : useUi.getState().select(tag)) },
       { label: 'Open with Control Studio', onClick: () => (isEm ? useUi.getState().openEmStudio(em.instances[tag].className, tag) : useUi.getState().openStudio(tag)) },
@@ -211,8 +216,8 @@ export function ModuleInstanceRows({ unit, depth, sel, onSelect }: { unit: strin
           onContextMenu={e => moduleMenu(tag, true, e)}>
           {Object.entries(inst.children).map(([cb, ct]) => <TreeRow key={ct} depth={depth + 1} icon={<ModuleIcon kind="control" size={16} />}
             dataAttr={{ 'data-module': ct }} label={label(ct, cb)} sub={`${modules[ct]?.description ?? ''}`}
-            drag={{ type: DRAG_MODULE, value: ct }}
-            onClick={() => useUi.getState().select(ct)}
+            drag={{ type: DRAG_MODULE, value: ct }} selected={moduleSelected?.(ct)}
+            onClick={() => pickModule(ct)}
             onDoubleClick={() => useUi.getState().openFaceplate(ct)}
             onKeyDown={e => { if (e.key === 'F2') ui.setRenaming({ kind: 'module', name: ct }) }}
             onContextMenu={e => moduleMenu(ct, false, e)} />)}
@@ -220,8 +225,8 @@ export function ModuleInstanceRows({ unit, depth, sel, onSelect }: { unit: strin
       }
       if (!modules[tag]) return null
       return <TreeRow key={tag} depth={depth} icon={<ModuleIcon kind="control" size={16} />} dataAttr={{ 'data-module': tag }}
-        label={label(tag, block)} sub={modules[tag].description} drag={{ type: DRAG_MODULE, value: tag }}
-        onClick={() => useUi.getState().select(tag)}
+        label={label(tag, block)} sub={modules[tag].description} drag={{ type: DRAG_MODULE, value: tag }} selected={moduleSelected?.(tag)}
+        onClick={() => pickModule(tag)}
         onDoubleClick={() => useUi.getState().openFaceplate(tag)}
         onKeyDown={e => { if (e.key === 'F2') ui.setRenaming({ kind: 'module', name: tag }) }}
         onContextMenu={e => moduleMenu(tag, false, e)} />
