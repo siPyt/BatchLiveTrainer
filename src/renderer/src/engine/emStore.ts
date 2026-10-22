@@ -49,13 +49,19 @@ export const EM_PARAMS: [string, string][] = [
   ['A_ABT_ON_NEW_CMD', 'False'], ['A_COMMAND', 'Idle'], ['A_ERROR', 'False'], ['A_INITIALIZED', 'False'], ['A_MAX_TIME', 'False'],
   ['A_PV', 'Idle'], ['A_STATE', 'Idle'], ['A_TARGET', 'Idle'], ['A_TIME', '0'], ['ABNORM_ACTIVE', 'False'], ['MONITOR_ON', 'True']
 ]
+/** Parameter type column. Boolean / Named Set follow from the default (True/False or a named state); A_TIME is left blank because its type is not documented. */
+export const emParamType = (name: string, def: string): string => (def === 'True' || def === 'False' ? 'Boolean' : name === 'A_TIME' ? '' : 'Named Set')
 export const MODE_CHOICES = ['Cascade', 'Auto', 'Manual', 'Out of Service']
 const MODE_WORD: Record<string, string> = { CASCADE: 'CAS', AUTO: 'AUTO', MANUAL: 'MAN', 'OUT OF SERVICE': 'OOS' }
 
 export interface EmCategory { name: string; parent: string | null }
 export interface EmChild { name: string; className: string }
 export interface EmCommand { value: number; block: string; state: string; maxTime: number; enabled: boolean; sfc: PhaseSfc }
-export interface EmItem { name: string; write: string; readback: string }
+export interface EmItem { name: string; write: string; readback: string; /** Items grid Sequence column (DeltaV shows 0 by default). Stored only; all items are driven together. */ sequence?: number }
+/** State Parameters tab: one column per named-set state (ENABLED, CFM_MAX_TIME, CFM_MIN_TIME). */
+export interface EmStateParams { enabled: boolean; cfmMaxTime: number; cfmMinTime: number }
+export const DEFAULT_STATE_PARAMS: EmStateParams = { enabled: true, cfmMaxTime: 0, cfmMinTime: 0 }
+export const stateParamsOf = (cls: EmClass, value: number): EmStateParams => ({ ...DEFAULT_STATE_PARAMS, ...(cls.stateParams?.[String(value)] ?? {}) })
 export interface EmClass {
   name: string
   category: string
@@ -68,6 +74,8 @@ export interface EmClass {
   /** State-driven: item rows and the value of every item for each named-set state. */
   items: EmItem[]
   states: Record<string, Record<string, string>>
+  /** State-driven: State Parameters per named-set value (missing entries use DEFAULT_STATE_PARAMS). */
+  stateParams?: Record<string, EmStateParams>
   revision: number
 }
 export interface EmInstance { tag: string; className: string; area: string; unit: string | null; block: string | null; children: Record<string, string>; description: string }
@@ -455,6 +463,7 @@ export const useEm = create<EmState>((set, get) => ({
     if (!entry) return fail(`${String(command)} is not a state of named set ${dep.cls.namedSet}`)
     if (entry.value === IDLE || entry.userSelectable === false) return fail(`${entry.name} is not user selectable`)
     if (dep.cls.algorithm === 'Command driven' && dep.cls.commands[String(entry.value)]?.enabled === false) return fail(`${dep.cls.commands[String(entry.value)].block} is disabled`)
+    if (dep.cls.algorithm === 'State driven' && !stateParamsOf(dep.cls, entry.value).enabled) return fail(`STATE_${String(entry.value).padStart(5, '0')} (${entry.name}) is disabled (ENABLED = False)`)
     if (!requireUnlockedLock('CONTROL', `Command equipment module ${tag}`)) return fail('Requires the Control key')
     const rt = { ...(s.runtime[tag] ?? freshRuntime()), command: entry.value }
     log(tag, `A_COMMAND := ${entry.name}`, 'BATCH')

@@ -129,7 +129,7 @@ export function checkCourse7016BlenderOutlet(s: Ch5State): StepCheck[] {
     v('7016-5o-7', (c?.items.length ?? 0) > 0, `${c?.items.length ?? 0} item(s) in the Items area`, 'Right-click in the Items area → Add'),
     v('7016-5o-8', itemsOk(c), 'PRODUCT_MODE, WASTE_MODE, PRODUCT_SP and WASTE_SP items configured', 'Add the four items with their write and readback parameter paths'),
     v('7016-5o-9', statesOk(c), 'State values configured for Closed, Draining Waste, Releasing Product and Auto Mode',
-      'States view: CAS + CLOSE/CLOSE, CAS + CLOSE/OPEN (waste), CAS + OPEN/CLOSE (product), Auto/Auto'),
+      'Items grid (right-click a state cell → Modify Value): CAS + CLOSE/CLOSE, CAS + CLOSE/OPEN (waste), CAS + OPEN/CLOSE (product), Auto/Auto'),
     v('7016-5o-10', !!saved && !s.emDrafts.BLENDER_OUTLET && itemsOk(saved) && statesOk(saved), 'BLENDER_OUTLET saved', 'File → Save in Control Studio')
   ]
 }

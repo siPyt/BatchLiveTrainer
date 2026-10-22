@@ -255,7 +255,7 @@ export const COURSE: WModule[] = [
         id: '7016-ch5-blender-outlet',
         title: 'Workshop – BLENDER_OUTLET (State Driven EM Class)',
         objective: 'Create the state-driven Equipment Module Class BLENDER_OUTLET with named set EM_Outlet_State, children PRODUCT_VLV and WASTE_VLV, its items and the state values (Course 7016 pp 5-19 to 5-24).',
-        note: 'Only module level parameters are available for the write and readback paths. In the States view each column is a named set state: Closed - CAS (both Cascade, CLOSE/CLOSE), Draining Waste - CAS (Cascade, PRODUCT CLOSE, WASTE OPEN), Releasing Product - CAS (Cascade, PRODUCT OPEN, WASTE CLOSE), Auto Mode (both Auto).',
+        note: 'Only module level parameters are available for the write and readback paths. In the Items grid each state column is a named set state (right-click a cell → Modify Value...): Closed - CAS (both Cascade, CLOSE/CLOSE), Draining Waste - CAS (Cascade, PRODUCT CLOSE, WASTE OPEN), Releasing Product - CAS (Cascade, PRODUCT OPEN, WASTE CLOSE), Auto Mode (both Auto).',
         steps: [
           { id: '7016-5o-1', text: 'Step 1. Right-click Equipment Module Classes → New Category: StateDriven.', goto: 'explorer' },
           { id: '7016-5o-2', text: 'Step 2. Right-click StateDriven → New Equipment Module Class: BLENDER_OUTLET (Algorithm type State driven).' },
@@ -265,7 +265,7 @@ export const COURSE: WModule[] = [
           { id: '7016-5o-6', text: 'Step 6. Open BLENDER_OUTLET with Control Studio.' },
           { id: '7016-5o-7', text: 'Step 7. Right-click in the Items area → Add.' },
           { id: '7016-5o-8', text: 'Step 8. Items: PRODUCT_MODE (PRODUCT_VLV/MODE.TARGET, PRODUCT_VLV/MODE.ACTUAL), WASTE_MODE (WASTE_VLV/MODE.TARGET, WASTE_VLV/MODE.ACTUAL), PRODUCT_SP (PRODUCT_VLV/CAS_SP.CV, PRODUCT_VLV/PV.CV), WASTE_SP (WASTE_VLV/CAS_SP.CV, WASTE_VLV/PV.CV).' },
-          { id: '7016-5o-9', text: 'Step 9. Modify the state values as needed (States view).' },
+          { id: '7016-5o-9', text: 'Step 9. Modify the state values as needed (right-click a state cell in the Items grid → Modify Value..., or double-click it).' },
           { id: '7016-5o-10', text: 'Step 10. Save and close Control Studio.' }
         ]
       },

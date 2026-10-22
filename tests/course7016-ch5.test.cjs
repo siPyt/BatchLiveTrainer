@@ -304,6 +304,17 @@ test('7016 ch5 Verify Equipment Modules: command-driven BL_500_COLOR_IN and stat
   assert.deepEqual(pending(verify.filter(c => !['7016-5v-6', '7016-5v-11'].includes(c.id))), [])
 }))
 
+test('State Parameters: a state with ENABLED = False cannot be commanded; the others still run', () => fixture(() => {
+  levelIndicators()
+  emClasses()
+  blendersUnitClass()
+  run(2)
+  const dep = E().deployed.BL_500_OUTLET
+  useEm.setState({ deployed: { ...E().deployed, BL_500_OUTLET: { ...dep, cls: { ...dep.cls, stateParams: { 3: { enabled: false, cfmMaxTime: 0, cfmMinTime: 0 } } } } } })
+  assert.match(E().setCommand('BL_500_OUTLET', 'Releasing Product - CAS').error, /STATE_00003 \(Releasing Product - CAS\) is disabled/)
+  value(E().setCommand('BL_500_OUTLET', 'Draining Waste - CAS'))
+}))
+
 test('7016 ch2/ch5 Verify you can run the process: base transfer at 90 GPM, color dump, agitate and drain are logged', () => fixture(() => {
   run(2)
   const s = M()

@@ -5,7 +5,7 @@ import type { AnyModule } from '../engine/types'
 import { useLibrary } from '../engine/libraryStore'
 import { insertSequence, deleteStep, QUALIFIER_LABEL, type PhaseSfc } from '../engine/batchConfig'
 import {
-  DEVICE_PARAMS, EM_PARAMS, IDLE, emCheckEnv, emDisplay, emDownloadState, itemChoices, itemError, namedSetOf, stateName, useEm,
+  DEVICE_PARAMS, EM_PARAMS, IDLE, emCheckEnv, emDisplay, emDownloadState, emParamType, itemChoices, itemError, namedSetOf, stateName, stateParamsOf, useEm,
   type EmClass, type EmItem
 } from '../engine/emStore'
 import { SimulatorDialog } from '../components/SimulatorDialog'
@@ -19,11 +19,18 @@ import { askConfirm } from '../components/AppNotices'
 
 // Control Studio on an Equipment Module Class (course 7016 pp 5-14..5-24) and on-line on an
 // equipment module instance (pp 5-40..5-50): command-driven COMMAND_0000n sequences or the
-// state-driven Items / States table, the A_COMMAND / A_PV parameters and the module blocks.
+// state-driven Items / State Parameters grids, the A_COMMAND / A_PV parameters and the module blocks.
+// The State Parameters grid, the parameter pane following the selected block, the Items grid columns
+// and the alarm pane follow screenshots of a current DeltaV system (state-driven EM class).
 
 type Menu = { x: number; y: number; label: string; items: { label: string; onClick?: () => void; danger?: boolean; disabled?: string; separator?: boolean }[] }
 type Sel = { k: 'step' | 'transition'; i: number } | null
+type ParamRow = { name: string; value: string; type: string }
 const DRAG_SFC = 'application/x-bl-em-sfc'
+const ALARM_COLUMNS = ['Alarm', 'Word', 'State', 'Parameter', 'Limit value', 'Enable', 'Inverted', 'Priority', '%P1 parameter', '%P2 parameter', 'Functional Classification', 'Alarm Help', 'Alarm Description']
+const isModePath = (path: string): boolean => /\/MODE\./.test(path)
+/** Items grid value text: "= CLOSE", and "= Cascade/" for mode items (p5-24). */
+const itemValueText = (it: EmItem, v: string): string => (v ? `= ${v}${isModePath(it.write) ? '/' : ''}` : '')
 
 /** Status bar word for a module block's instance: two stage valves report CLOSED / DRIBBLE / BULK. */
 function childState(m: AnyModule | undefined, className: string): string {
@@ -58,7 +65,7 @@ export function EmStudio(): JSX.Element {
   const assigned = useLibrary(s => (instance ? s.assignments[instance] : undefined))
   const modules = useStore(s => s.modules)
   const [tab, setTab] = useState('Home')
-  const [view, setView] = useState<'Items' | 'States'>('Items')
+  const [view, setView] = useState<'Items' | 'State Parameters'>('Items')
   const [sel, setSel] = useState<Sel>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   const [panes, setPanes] = useState({ hierarchy: true, palette: true, parameters: true })
@@ -68,6 +75,10 @@ export function EmStudio(): JSX.Element {
   const [actionDlg, setActionDlg] = useState<{ step: number; index: number | null } | null>(null)
   const [itemDlg, setItemDlg] = useState<{ index: number | null } | null>(null)
   const [commandDlg, setCommandDlg] = useState(false)
+  const [contentSel, setContentSel] = useState<string | null>(null)
+  const [itemSel, setItemSel] = useState<number | null>(null)
+  const [valueDlg, setValueDlg] = useState<{ item: number; state: number } | null>(null)
+  const [orderDlg, setOrderDlg] = useState<number | null>(null)
   const [rootOpen, setRootOpen] = useState(true)
   const [monitorOpened, setMonitorOpened] = useState(false)
   // New key for the split tree/contents layout so the old single-tree width (240) is not reused.
@@ -109,7 +120,7 @@ export function EmStudio(): JSX.Element {
       leave()
     })()
   }
-  const drill = (b: string | null): void => useUi.getState().openEmStudio(className, instance, b)
+  const drill = (b: string | null): void => { setContentSel(null); useUi.getState().openEmStudio(className, instance, b) }
   const afterIndex = (): number => (sel ? sel.i : sfc ? sfc.steps.length - 1 : 0)
   const addPair = (after: number): void => { if (sfc && editSfc(s => insertSequence(s, after, 1))) setSel({ k: 'step', i: Math.min(after + 1, sfc.steps.length) }) }
   const paletteAction = (item: string, after: number): void => {
@@ -118,6 +129,32 @@ export function EmStudio(): JSX.Element {
     else window.alert('Every command sequence terminates after its last transition; the termination is already drawn.')
   }
   const status = (b: string): string => rt?.blocks[b] ?? 'Idle'
+  const setStateParam = (value: number, patch: Partial<{ enabled: boolean; cfmMaxTime: number; cfmMinTime: number }>): boolean =>
+    edit(d => { d.stateParams = { ...(d.stateParams ?? {}), [String(value)]: { ...stateParamsOf(d, value), ...patch } } })
+  const moveItem = (dir: -1 | 1): void => {
+    if (itemSel === null) return
+    const j = itemSel + dir
+    if (j < 0 || j >= cls.items.length) return
+    const from = itemSel
+    if (edit(d => { const [x] = d.items.splice(from, 1); d.items.splice(j, 0, x) })) setItemSel(j)
+  }
+  /** Items right-click menu (p5-23): Add, Modify Value, Set Operator, Delete, Rename, Set Order, What's This. */
+  const itemMenu = (e: React.MouseEvent, i: number | null, stateValue: number | null): void => {
+    e.preventDefault(); e.stopPropagation()
+    if (online) return
+    if (i !== null) setItemSel(i)
+    const it = i === null ? undefined : cls.items[i]
+    const none = 'Right-click an item first'
+    setMenu({ x: e.clientX, y: e.clientY, label: it?.name ?? 'Items', items: [
+      { label: 'Add...', onClick: () => setItemDlg({ index: null }) },
+      { label: 'Modify Value...', onClick: it && stateCols.length ? () => setValueDlg({ item: i!, state: stateValue ?? stateCols[0].value }) : undefined, disabled: it ? (stateCols.length ? undefined : 'The named set has no states') : none },
+      { label: 'Set Operator...', disabled: it ? 'Only the = operator is simulated' : none },
+      { label: 'Delete', danger: true, disabled: it ? undefined : none, onClick: it ? () => { if (edit(d => { d.items.splice(i!, 1); for (const row of Object.values(d.states)) delete row[it.name] })) setItemSel(null) } : undefined },
+      { label: 'Rename...', onClick: it ? () => setItemDlg({ index: i }) : undefined, disabled: it ? undefined : none },
+      { label: 'Set Order...', onClick: it ? () => setOrderDlg(i) : undefined, disabled: it ? undefined : none },
+      { label: "What's This?", onClick: () => window.alert('Items: each item writes its Written to Path parameter to the value in the column of the requested state and confirms it through the Readback Path. Right-click a state cell and select Modify Value to change it.') }
+    ] })
+  }
   const liveStep = online && rt?.running && cmd && rt.running.value === cmd.value && rt.running.seq ? cmd.sfc.steps[rt.running.seq.step]?.name ?? null : null
   const title = online ? `${inst?.area ?? ''}/${inst?.unit ?? ''}/${instance}` : `Advanced Definitions/Equipment Module Classes/${cls.category}/${className}`
   const dl = online ? emDownloadState(instance!, assigned) : null
@@ -133,6 +170,25 @@ export function EmStudio(): JSX.Element {
       : [...['DRIVE', 'READBACK', 'TARGET', 'TARGET_REACHED'], ...stateCols.map(s => `STATE_${String(s.value).padStart(5, '0')}`)].map(name => ({ name, kind: 'generated' as const }))),
     { name: 'MONITOR', kind: 'generated' as const }
   ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  // Parameter pane follows the selected block (DeltaV): the EM's own parameters, a STATE_0000n block's
+  // state parameters plus one value per item, or READBACK's item readback references.
+  const picked = !block && contentSel && contents.some(c => c.name === contentSel) ? contentSel : null
+  const stateOf = (name: string): number | null => (/^STATE_\d{5}$/.test(name) ? Number(name.slice(6)) : null)
+  const paramRows: ParamRow[] | null = (() => {
+    if (!picked) return EM_PARAMS.map(([n, d]) => ({ name: n, value: online ? emDisplay(dep, rt, n) : d, type: emParamType(n, d) }))
+    const sv = commandDriven ? null : stateOf(picked)
+    if (sv !== null) {
+      const sp = stateParamsOf(cls, sv)
+      return [
+        { name: 'CFM_MAX_TIME', value: String(sp.cfmMaxTime), type: 'Floating point' },
+        { name: 'CFM_MIN_TIME', value: String(sp.cfmMinTime), type: 'Floating point' },
+        { name: 'ENABLED', value: sp.enabled ? 'True' : 'False', type: 'Boolean' },
+        ...cls.items.map(it => ({ name: it.name, value: cls.states[String(sv)]?.[it.name] ?? '', type: isModePath(it.write) ? '' : 'Named Set' }))
+      ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    }
+    if (!commandDriven && picked === 'READBACK') return cls.items.map(it => ({ name: it.name, value: `'^/${it.readback.replace(/\.CV$/, '')}'`, type: 'Internal Reference' }))
+    return null
+  })()
 
   return <div className="display studio class-studio em-studio" data-em-studio={className} data-em-instance={instance ?? ''} data-command-block={block ?? ''}>
     <div className="ribbon">
@@ -164,7 +220,7 @@ export function EmStudio(): JSX.Element {
                 <Btn glyph="stateItem" label="Step" size="small" onClick={sfc && !online ? () => addPair(afterIndex()) : undefined} unavailable={online ? 'On-line view' : sfc ? undefined : 'Drill down into a command block first'} />
                 <Btn glyph="logic" label="Action" size="small" onClick={selStep && !online ? () => setActionDlg({ step: sel!.i, index: null }) : undefined} unavailable={selStep && !online ? undefined : 'Select a step first'} />
               </Stack>
-            </> : <Btn glyph="new" label="Item" onClick={!online ? () => setItemDlg({ index: null }) : undefined} unavailable={online ? 'On-line view' : undefined} />}
+            </> : <Btn glyph="new" label="State Item" onClick={!online ? () => setItemDlg({ index: null }) : undefined} unavailable={online ? 'On-line view' : undefined} />}
           </Group>
           <Group label="Algorithm">
             <Btn glyph="drillDown" label="Drill Down" onClick={commandDriven && !block ? () => drill(Object.values(cls.commands)[0]?.block ?? null) : undefined} unavailable={commandDriven && !block ? undefined : 'Select a command block in the hierarchy'} />
@@ -196,7 +252,7 @@ export function EmStudio(): JSX.Element {
         {/* Split hierarchy (p5-14): composites in the tree on the left, contents of the selected item on the right. */}
         <div className="ps-hier-split">
           <div className="studio-tree ps-tree ps-tree-left" role="tree" aria-label="Equipment module hierarchy">
-            <div className={'studio-tree-root' + (!block ? ' cs-sel' : '')} role="treeitem" aria-selected={!block} aria-expanded={rootOpen} onClick={() => drill(null)}>
+            <div className={'studio-tree-root' + (!block && !picked ? ' cs-sel' : '')} role="treeitem" aria-selected={!block} aria-expanded={rootOpen} onClick={() => drill(null)}>
               <span className="tv-box" aria-label={rootOpen ? 'Collapse' : 'Expand'} onClick={e => { e.stopPropagation(); setRootOpen(o => !o) }}>{rootOpen ? '−' : '+'}</span>
               <ModuleIcon kind="equipment" /> {instance ?? className}
             </div>
@@ -212,14 +268,15 @@ export function EmStudio(): JSX.Element {
           </div>
           <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${block ?? instance ?? className}`}>
             {!block ? contents.map(it => it.kind === 'module'
-              ? <div key={it.name} role="listitem" className="studio-tree-node ps-tree-item" data-module-block={it.name} title={`Module block (${it.className})`}>
-                <ModuleIcon kind="control" />{childTag(it.name) ? `${childTag(it.name)} (${it.name})` : it.name}</div>
+              ? <button key={it.name} type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (picked === it.name ? ' active' : '')} data-module-block={it.name}
+                title={`Module block (${it.className})`} onClick={() => setContentSel(it.name)}>
+                <ModuleIcon kind="control" />{childTag(it.name) ? `${childTag(it.name)} (${it.name})` : it.name}</button>
               : it.kind === 'command'
                 ? <button key={it.name} type="button" role="listitem" data-content-node={it.name}
-                  className={'studio-tree-node ps-tree-item' + (online && status(it.name) === 'Running' ? ' ps-live' : '')}
-                  title={`${it.name} — double-click to drill down`} onDoubleClick={() => drill(it.name)}><BatchIcon kind="composite" />{it.name}</button>
-                : <div key={it.name} role="listitem" className="studio-tree-node ps-tree-item disabled" data-content-node={it.name}
-                  title={`${it.name} is generated by DeltaV for the ${cls.algorithm.toLowerCase()} algorithm and is not shown in detail by the simulator`}><BatchIcon kind="composite" />{it.name}</div>)
+                  className={'studio-tree-node ps-tree-item' + (picked === it.name ? ' active' : '') + (online && status(it.name) === 'Running' ? ' ps-live' : '')}
+                  title={`${it.name} — double-click to drill down`} onClick={() => setContentSel(it.name)} onDoubleClick={() => drill(it.name)}><BatchIcon kind="composite" />{it.name}</button>
+                : <button key={it.name} type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (picked === it.name ? ' active' : '')} data-content-node={it.name}
+                  title={`${it.name} is generated by DeltaV for the ${cls.algorithm.toLowerCase()} algorithm`} onClick={() => setContentSel(it.name)}><BatchIcon kind="composite" />{it.name}</button>)
             : sfc?.steps.map((s, i) => <div key={s.id}>
               <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '') + (liveStep === s.name ? ' ps-live' : '')}
                 onClick={() => setSel({ k: 'step', i })} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
@@ -230,13 +287,17 @@ export function EmStudio(): JSX.Element {
         </div>
         {panes.parameters && <div className="ps-params">
           <div className="cs-params-filter">Filtered by: <span className="ps-filter-boxes">☑☑☑ ☑☑☑☑☑</span></div>
+          <div className="cs-tabs" role="tablist" aria-label="Parameter sort">
+            <button type="button" role="tab" aria-selected className="on">Alphabetic</button>
+            <button type="button" role="tab" aria-selected={false} disabled title="The Categorized view is not simulated">Categorized</button>
+          </div>
           <div className="ps-param-scroll">
-            <table className="studio-param-table" aria-label="Equipment module parameters">
-              <thead><tr><th>Parameter</th><th>{online ? 'Value' : 'Default'}</th><th>Connection</th></tr></thead>
-              <tbody>{EM_PARAMS.map(([n, d]) => <tr key={n} data-param={n} className={n === 'A_COMMAND' || n === 'A_PV' ? 'ps-user-param' : undefined}
-                onDoubleClick={online && n === 'A_COMMAND' ? () => setCommandDlg(true) : online && n === 'A_ABT_ON_NEW_CMD' ? () => useEm.getState().setAbortOnNew(instance!, !rt?.abortOnNew) : undefined}>
-                <td>{n}</td><td>{online ? emDisplay(dep, rt, n) : d}</td><td>Internal</td></tr>)}</tbody>
-            </table>
+            {paramRows ? <table className="studio-param-table" aria-label={`${picked ?? 'Equipment module'} parameters`}>
+              <thead><tr><th>Parameter</th><th>{online && !picked ? 'Value' : 'Default'}</th><th>Linked</th><th>Connection type</th><th>Parameter type</th></tr></thead>
+              <tbody>{paramRows.map(r => <tr key={r.name} data-param={r.name} className={!picked && (r.name === 'A_COMMAND' || r.name === 'A_PV') ? 'ps-user-param' : undefined}
+                onDoubleClick={picked ? undefined : online && r.name === 'A_COMMAND' ? () => setCommandDlg(true) : online && r.name === 'A_ABT_ON_NEW_CMD' ? () => useEm.getState().setAbortOnNew(instance!, !rt?.abortOnNew) : undefined}>
+                <td>{r.name}</td><td>{r.value}</td><td></td><td>Internal</td><td>{r.type}</td></tr>)}</tbody>
+            </table> : <p className="exp-hint em-param-note">The parameters of {picked} are not shown: the course material does not document them.</p>}
           </div>
         </div>}
         <div className="studio-pane-label">Hierarchy View</div>
@@ -265,29 +326,41 @@ export function EmStudio(): JSX.Element {
                 {online && <td data-status={status(c.block)}>{status(c.block)}</td>}
               </tr>)}</tbody>
             </table> : <div className="em-state-driven">
-              <div className="dvd-tabs" role="tablist">{(['Items', 'States'] as const).map(t => <button key={t} role="tab" aria-selected={t === view} className={t === view ? 'on' : ''} onClick={() => setView(t)}>{t}</button>)}</div>
-              {view === 'Items' ? <div className="em-items-area" data-items-area
-                onContextMenu={e => { e.preventDefault(); if (!online) setMenu({ x: e.clientX, y: e.clientY, label: 'Items', items: [{ label: 'Add', onClick: () => setItemDlg({ index: null }) }] }) }}>
+              <div className="em-tabbar">
+                <div className="dvd-tabs" role="tablist">{(['Items', 'State Parameters'] as const).map(t => <button key={t} role="tab" aria-selected={t === view} className={t === view ? 'on' : ''} onClick={() => setView(t)}>{t}</button>)}</div>
+                {view === 'Items' && <span className="em-order-arrows">
+                  <button type="button" className="tbtn sm" aria-label="Move item up" title="Move the selected item up" disabled={online || itemSel === null || itemSel === 0} onClick={() => moveItem(-1)}>↑</button>
+                  <button type="button" className="tbtn sm" aria-label="Move item down" title="Move the selected item down" disabled={online || itemSel === null || itemSel >= cls.items.length - 1} onClick={() => moveItem(1)}>↓</button>
+                </span>}
+              </div>
+              {view === 'Items' ? <div className="em-items-area" data-items-area onContextMenu={e => itemMenu(e, null, null)}>
               <table className="studio-param-table em-items" aria-label="Items">
-                <thead><tr><th>Item</th><th>Write parameter path</th><th>Readback parameter path</th>{stateCols.map(s => <th key={s.value}>{s.name} ({s.value})</th>)}</tr></thead>
-                <tbody>{cls.items.map((it, i) => <tr key={it.name} data-item={it.name}
-                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!online) setMenu({ x: e.clientX, y: e.clientY, label: it.name, items: [
-                    { label: 'Add', onClick: () => setItemDlg({ index: null }) }, { label: 'Modify...', onClick: () => setItemDlg({ index: i }) },
-                    { label: 'Delete', danger: true, onClick: () => edit(d => { d.items.splice(i, 1); for (const row of Object.values(d.states)) delete row[it.name] }) }] }) }}
-                  onDoubleClick={() => !online && setItemDlg({ index: i })}>
-                  <td>{it.name}</td><td>{it.write}</td><td>{it.readback}</td>
-                  {stateCols.map(s => { const v = cls.states[String(s.value)]?.[it.name] ?? ''; return <td key={s.value}>{online ? (v ? `= ${v}/` : '') :
-                    <select aria-label={`${it.name} ${s.name}`} value={v} onChange={e => edit(d => { d.states[String(s.value)] = { ...(d.states[String(s.value)] ?? {}), [it.name]: e.target.value } })}>
-                      <option value="">(no change)</option>{itemChoices(cls, it).map(c => <option key={c} value={c}>= {c}</option>)}</select>}</td> })}
+                <thead><tr><th>Item</th><th>Sequence</th><th>Written to Path</th><th>Readback Path</th>{stateCols.map(s => <th key={s.value}>{s.name} ({s.value})</th>)}</tr></thead>
+                <tbody>{cls.items.map((it, i) => <tr key={it.name} data-item={it.name} className={itemSel === i ? 'em-item-sel' : undefined}
+                  onClick={() => setItemSel(i)} onContextMenu={e => itemMenu(e, i, null)} onDoubleClick={() => !online && setItemDlg({ index: i })}>
+                  <td>{it.name}</td><td>{it.sequence ?? 0}</td><td>{it.write}</td><td>{it.readback}</td>
+                  {stateCols.map(s => { const v = cls.states[String(s.value)]?.[it.name] ?? ''; return <td key={s.value} aria-label={`${it.name} ${s.name}`} data-value={v}
+                    onContextMenu={e => itemMenu(e, i, s.value)} onDoubleClick={e => { e.stopPropagation(); if (!online) { setItemSel(i); setValueDlg({ item: i, state: s.value }) } }}>{itemValueText(it, v)}</td> })}
                 </tr>)}
-                {!cls.items.length && <tr><td colSpan={3 + stateCols.length}>Right-click in the Items area and select Add.</td></tr>}</tbody>
-              </table></div> : <table className="studio-param-table" aria-label="States">
-                <thead><tr><th>State</th><th>Value</th><th>User selectable</th>{online && <th>Status</th>}</tr></thead>
-                <tbody>{(set?.entries ?? []).map(s => <tr key={s.value}><td>{s.name}</td><td>{s.value}</td><td>{s.userSelectable === false ? 'No' : 'Yes'}</td>
-                  {online && <td>{rt?.pv === s.value ? 'Current (A_PV)' : rt?.running?.value === s.value ? 'Driving' : ''}</td>}</tr>)}</tbody>
+                {!cls.items.length && <tr><td colSpan={4 + stateCols.length}>Right-click in the Items area and select Add.</td></tr>}</tbody>
+              </table></div> : <table className="studio-param-table em-state-params" aria-label="State Parameters">
+                <thead><tr><th>Parameter</th>{stateCols.map(s => <th key={s.value}>{s.name} ({s.value})</th>)}</tr></thead>
+                <tbody>
+                  <tr data-state-param="ENABLED"><td>ENABLED</td>{stateCols.map(s => { const sp = stateParamsOf(cls, s.value); return <td key={s.value}>{online ? (sp.enabled ? 'True' : 'False') :
+                    <select aria-label={`ENABLED ${s.name}`} value={sp.enabled ? 'True' : 'False'} onChange={e => setStateParam(s.value, { enabled: e.target.value === 'True' })}><option>True</option><option>False</option></select>}</td> })}</tr>
+                  {([['CFM_MAX_TIME', 'cfmMaxTime'], ['CFM_MIN_TIME', 'cfmMinTime']] as const).map(([label, key]) => <tr key={label} data-state-param={label}><td>{label}</td>
+                    {stateCols.map(s => { const sp = stateParamsOf(cls, s.value); return <td key={s.value}>{online ? sp[key] :
+                      <input aria-label={`${label} ${s.name}`} type="number" min={0} value={sp[key]} className="em-cell-input"
+                        onChange={e => setStateParam(s.value, { [key]: Math.max(0, Number(e.target.value) || 0) })} />}</td> })}</tr>)}
+                </tbody>
               </table>}
             </div>}
         </div>
+        {!sfc && <div className="studio-bottom em-alarm-pane" style={{ height: 120, flex: '0 0 120px' }}>
+          <div className="studio-pane">
+            <table className="studio-param-table" aria-label="Alarms"><thead><tr>{ALARM_COLUMNS.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody /></table>
+          </div>
+        </div>}
         {sfc && <div className="studio-bottom ps-bottom" style={{ height: 150, flex: '0 0 150px' }}>
           <div className="studio-pane ps-expr-pane">
             <table className="studio-param-table" aria-label="Actions">
@@ -345,6 +418,10 @@ export function EmStudio(): JSX.Element {
       })) setItemDlg(null)
     }} />}
     {commandDlg && instance && dep && <CommandDialog tag={instance} namedSet={dep.cls.namedSet} current={rt?.command ?? IDLE} onClose={() => setCommandDlg(false)} />}
+    {valueDlg && cls.items[valueDlg.item] && <ModifyValueDialog cls={cls} item={cls.items[valueDlg.item]} state={valueDlg.state} onClose={() => setValueDlg(null)}
+      onOk={(state, value) => { const name = cls.items[valueDlg.item].name; if (edit(d => { d.states[String(state)] = { ...(d.states[String(state)] ?? {}), [name]: value } })) setValueDlg(null) }} />}
+    {orderDlg !== null && cls.items[orderDlg] && <SetOrderDialog item={cls.items[orderDlg]} onClose={() => setOrderDlg(null)}
+      onOk={n => { const i = orderDlg; if (edit(d => { d.items[i] = { ...d.items[i], sequence: n } })) setOrderDlg(null) }} />}
   </div>
 }
 
@@ -354,7 +431,7 @@ function ItemDialog({ cls, index, onOk, onClose }: { cls: EmClass; index: number
   const [error, setError] = useState<string | null>(null)
   const paths = Object.values(cls.children).flatMap(ch => DEVICE_PARAMS.slice(0, 6).map(p => `${ch.name}/${p}`))
   const submit = (): void => {
-    const item = { name: v.name.trim().toUpperCase(), write: v.write.trim().toUpperCase(), readback: v.readback.trim().toUpperCase() }
+    const item: EmItem = { name: v.name.trim().toUpperCase(), write: v.write.trim().toUpperCase(), readback: v.readback.trim().toUpperCase(), ...(cur?.sequence !== undefined ? { sequence: cur.sequence } : {}) }
     const err = itemError(cls, item, cls.items.filter((_, j) => j !== index))
     if (err) { setError(err); return }
     onOk(item)
@@ -369,6 +446,35 @@ function ItemDialog({ cls, index, onOk, onClose }: { cls: EmClass; index: number
     </div>
     <div className="dvd-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
+  </SimulatorDialog>
+}
+
+/** Items ▸ Modify Value (p5-23): the value an item is driven to for one named-set state. */
+function ModifyValueDialog({ cls, item, state, onOk, onClose }: { cls: EmClass; item: EmItem; state: number; onOk: (state: number, value: string) => void; onClose: () => void }): JSX.Element {
+  const stateCols = (namedSetOf(cls.namedSet)?.entries ?? []).filter(e => e.value !== IDLE)
+  const [st, setSt] = useState(state)
+  const [v, setV] = useState(cls.states[String(state)]?.[item.name] ?? '')
+  const pick = (s: number): void => { setSt(s); setV(cls.states[String(s)]?.[item.name] ?? '') }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`Modify Value - ${item.name}`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>State:<select aria-label="State" value={st} onChange={e => pick(Number(e.target.value))}>{stateCols.map(s => <option key={s.value} value={s.value}>{s.name} ({s.value})</option>)}</select></label>
+      <label>Value:<select aria-label="Value" autoFocus value={v} onChange={e => setV(e.target.value)}>
+        <option value="">(no change)</option>{itemChoices(cls, item).map(c => <option key={c} value={c}>= {c}</option>)}</select></label>
+      <p className="exp-hint">Written to {item.write}, confirmed through {item.readback}.</p>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={() => onOk(st, v)}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+  </SimulatorDialog>
+}
+
+/** Items ▸ Set Order: the item's Sequence number (stored; the simulator drives all items together). */
+function SetOrderDialog({ item, onOk, onClose }: { item: EmItem; onOk: (n: number) => void; onClose: () => void }): JSX.Element {
+  const [n, setN] = useState(item.sequence ?? 0)
+  return <SimulatorDialog className="module-download-dialog dvd" label={`Set Order - ${item.name}`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Sequence:<input aria-label="Sequence" type="number" min={0} step={1} autoFocus value={n} onChange={e => setN(Math.max(0, Math.floor(Number(e.target.value) || 0)))} /></label>
+      <p className="exp-hint">BatchLiveTrainer stores the sequence number but drives every item of a state together.</p>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={() => onOk(n)}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
   </SimulatorDialog>
 }
 

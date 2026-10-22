@@ -4974,6 +4974,13 @@ button {
 .em-state-driven { display: flex; flex-direction: column; gap: 6px; min-height: 100%; overflow: auto; }
 /* The whole Items area (not just the rows) takes the right-click Add menu, as in DeltaV. */
 .em-items-area { flex: 1 1 auto; min-height: 120px; }
+.em-tabbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.em-order-arrows { display: inline-flex; gap: 2px; padding-bottom: 2px; }
+.em-items tr.em-item-sel td { background: #d3e5f7; }
+.em-items td[aria-label] { cursor: default; white-space: nowrap; }
+.em-alarm-pane .studio-pane { height: 100%; overflow: auto; background: #fff; }
+.em-alarm-pane th { white-space: nowrap; }
+.em-param-note { padding: 6px 8px; }
 .em-items th { white-space: nowrap; }
 .em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }.fp-mode-select { font: inherit; padding: 0 2px; cursor: pointer; }
 
