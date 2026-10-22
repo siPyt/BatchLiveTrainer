@@ -56,6 +56,14 @@ const MAX_ITEMS = 127
 const STEP_W = 130
 const STEP_H = 34
 const PITCH = 116
+const ACTION_LINE = 11
+// Action lines that fit beside a step before the chart needs to grow taller.
+const ACTION_LINES_FIT = 8
+const stepPitch = (s: { actions: unknown[] }): number => PITCH + Math.max(0, s.actions.length - ACTION_LINES_FIT) * ACTION_LINE
+function stepTops(sfc: PhaseSfc): number[] {
+  let y = 30
+  return sfc.steps.map(s => { const top = y; y += stepPitch(s); return top })
+}
 const CX = 260
 
 const STATE_COMPOSITE: Partial<Record<PhaseState, CompositeName>> = {
@@ -179,7 +187,7 @@ export function PhaseStudio(): JSX.Element {
     e.preventDefault()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = (e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop) / zoom
-    const after = Math.max(0, Math.min(sfc.steps.length - 1, Math.floor((y - 30) / PITCH)))
+    const after = Math.max(0, stepTops(sfc).filter(top => top <= y).length - 1)
     paletteAction(item, after)
   }
   const paletteAction = (item: string, after: number): void => {
@@ -488,14 +496,17 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
   onSelect: (s: Sel) => void; onStepOpen: (i: number) => void; onTrOpen: (i: number) => void
   onStepMenu: (i: number, e: React.MouseEvent) => void; onTrMenu: (i: number, e: React.MouseEvent) => void
 }): JSX.Element {
-  const height = 60 + sfc.steps.length * PITCH + 40
+  const tops = stepTops(sfc)
+  const last = sfc.steps.length - 1
+  const height = last < 0 ? 100 : tops[last] + stepPitch(sfc.steps[last]) + 70
   const W = 720
   const clip = (s: string): string => (s.length > 64 ? s.slice(0, 61) + '...' : s)
   return <svg className="cs-diagram ps-sfc" width={W * zoom} height={height * zoom} viewBox={`0 0 ${W} ${height}`} role="img" aria-label="Sequential function chart">
     <defs><pattern id="psGrid2" width={20} height={20} patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} /></pattern></defs>
     <rect width={W} height={height} fill="url(#psGrid2)" />
     {sfc.steps.map((s, i) => {
-      const y = 30 + i * PITCH
+      const y = tops[i]
+      const pitch = stepPitch(s)
       const tr = sfc.transitions[i]
       const ty = y + STEP_H + 38
       const stepSel = sel?.k === 'step' && sel.i === i
@@ -508,10 +519,10 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
           {i === 0 && <rect x={CX - STEP_W / 2 + 4} y={y + 4} width={STEP_W - 8} height={STEP_H - 8} className="ps-step-inner" />}
           <text x={CX} y={y + 21} textAnchor="middle" className="ps-step-label">{s.name}</text>
           {s.actions.length > 0 && <text x={CX + STEP_W / 2 + 8} y={y + 14} className="ps-step-actions">{s.actions.length} action{s.actions.length === 1 ? '' : 's'}</text>}
-          {s.actions.slice(0, 3).map((a, ai) => <text key={a.name} x={CX + STEP_W / 2 + 8} y={y + 26 + ai * 11} className="ps-step-action-text">{clip(`${a.name}: ${a.expression}`)}</text>)}
+          {s.actions.map((a, ai) => <text key={a.name} x={CX + STEP_W / 2 + 8} y={y + 26 + ai * ACTION_LINE} className="ps-step-action-text">{clip(`${a.name}: ${a.expression}`)}</text>)}
         </g>
         {tr && <>
-          <line x1={CX} y1={y + STEP_H} x2={CX} y2={y + PITCH - 30 + (i === sfc.steps.length - 1 ? 10 : 30)} className="ps-link" />
+          <line x1={CX} y1={y + STEP_H} x2={CX} y2={y + pitch - 30 + (i === sfc.steps.length - 1 ? 10 : 30)} className="ps-link" />
           <g data-transition={tr.name} onMouseDown={e => { e.stopPropagation(); onSelect({ k: 'transition', i }) }} onDoubleClick={() => onTrOpen(i)} onContextMenu={e => onTrMenu(i, e)}>
             <rect x={CX - 26} y={ty - 9} width={52} height={18} fill="transparent" />
             <line x1={CX - 16} y1={ty} x2={CX + 16} y2={ty} className={'ps-trans' + (trSel ? ' sel' : '')} />
@@ -520,8 +531,8 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
           </g>
         </>}
         {i === sfc.steps.length - 1 && <g className="ps-termination" aria-label="Termination">
-          <line x1={CX - 12} y1={y + PITCH - 20 + 10} x2={CX + 12} y2={y + PITCH - 20 + 10} className="ps-term" />
-          <line x1={CX - 7} y1={y + PITCH - 16 + 10} x2={CX + 7} y2={y + PITCH - 16 + 10} className="ps-term" />
+          <line x1={CX - 12} y1={y + pitch - 20 + 10} x2={CX + 12} y2={y + pitch - 20 + 10} className="ps-term" />
+          <line x1={CX - 7} y1={y + pitch - 16 + 10} x2={CX + 7} y2={y + pitch - 16 + 10} className="ps-term" />
         </g>}
       </g>
     })}
