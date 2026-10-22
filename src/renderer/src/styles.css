@@ -4981,6 +4981,9 @@ button {
 .em-alarm-pane .studio-pane { height: 100%; overflow: auto; background: #fff; }
 .em-alarm-pane th { white-space: nowrap; }
 .em-param-note { padding: 6px 8px; }
+/* Parameter pane: five DeltaV columns stay on one line and scroll sideways instead of being cut off. */
+.em-studio .ps-param-scroll .studio-param-table { width: max-content; min-width: 100%; }
+.em-studio .ps-param-scroll .studio-param-table th, .em-studio .ps-param-scroll .studio-param-table td { white-space: nowrap; }
 .em-items th { white-space: nowrap; }
 .em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }.fp-mode-select { font: inherit; padding: 0 2px; cursor: pointer; }
 

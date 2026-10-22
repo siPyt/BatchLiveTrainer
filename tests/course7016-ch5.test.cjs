@@ -228,6 +228,10 @@ test('7016 ch5 screens render: EM Control Studio (class and on-line), Process pi
     const online = render(EmStudio)
     assert.match(online, /data-em-instance="BL_500_COLOR_IN"/)
     assert.match(online, /Running/)
+    // State-driven on-line (pp 5-48..5-50): Items grid values as text, State Parameters tab, A_COMMAND in the parameter pane.
+    ui.getState().openEmStudio('BLENDER_OUTLET', 'BL_500_OUTLET')
+    const outletOnline = render(EmStudio)
+    for (const s of ['data-em-instance="BL_500_OUTLET"', 'Written to Path', 'Readback Path', 'State Parameters', '= OPEN', '= Cascade/', 'A_COMMAND', 'STATE_00003', 'READBACK']) assert.ok(outletOnline.includes(s), s)
   } finally { ui.setState(before, true) }
   const proc = render(ProcessDisplay)
   for (const s of ['data-dynamo="FIC-404"', 'data-dynamo="LI-401"', 'MTR-403', 'Base 400', 'data-stage="XV-502"']) assert.ok(proc.includes(s), s)
