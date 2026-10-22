@@ -62,6 +62,16 @@ function tokenize(src: string): Tok[] {
   return out
 }
 
+/** Like DeltaV, add the closing ';' after the last token when it is missing (trailing comments stay after it). */
+export function ensureTrailingSemicolon(src: string): string {
+  let toks: Tok[]
+  try { toks = tokenize(src) } catch { return src }
+  const last = toks[toks.length - 1]
+  if (!last || (last.t === 'op' && last.v === ';')) return src
+  const end = last.pos + last.v.length + (last.t === 'quoted' || last.t === 'str' ? 2 : 0)
+  return src.slice(0, end) + ';' + src.slice(end)
+}
+
 class Parser {
   private i = 0
   constructor(private toks: Tok[]) {}

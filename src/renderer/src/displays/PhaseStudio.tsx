@@ -15,6 +15,7 @@ import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm } from '../components/AppNotices'
+import { ensureTrailingSemicolon } from '../engine/phaseExpr'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
 // one Sequential Function Chart per composite state, the "All SFC Items" palette with the
@@ -724,9 +725,10 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
     requestAnimationFrame(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + ins.length } })
   }
   const submit = (): void => {
-    const problems = text.trim() ? checkExpression(text, kind, ctx.check) : []
-    if (!problems.length) { onOk(text); return }
-    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`).then(ok => { if (ok) onOk(text) })
+    const final = ensureTrailingSemicolon(text)
+    const problems = final.trim() ? checkExpression(final, kind, ctx.check) : []
+    if (!problems.length) { onOk(final); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`).then(ok => { if (ok) onOk(final) })
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide ps-expr-dialog" label={title} onClose={onClose}>
     <div className="ps-expr-body">
