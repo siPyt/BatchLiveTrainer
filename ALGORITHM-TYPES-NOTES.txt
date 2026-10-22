@@ -1,6 +1,6 @@
 ALGORITHM TYPES IN THE "NEW" CLASS DIALOGS - WHAT IS KNOWN, WHAT IS NEEDED, WHERE TO GET IT
 =========================================================================================
-Last updated: 2026-10-21
+Last updated: 2026-10-22
 
 Rule used: only behavior backed by a source is simulated. Nothing below is guessed.
 Sources used:
@@ -214,13 +214,17 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
      copy of 7009 Module 9 (165261423-Delta-v-Course-7009-9.pdf) was used instead.
 
 
-8. CURRENT BATCHLIVETRAINER STATUS (2026-10-21)
+8. CURRENT BATCHLIVETRAINER STATUS (2026-10-22)
 -----------------------------------------------
    New class dialogs (Library -> Advanced Definitions):
    - New Phase Class: Algorithm type "Phase Algorithm", greyed (matches 7016 slide 4-14).
    - New Unit Class: Algorithm type "<None>", greyed (matches 7016 slide 4-11).
    - New Equipment Module Class: all seven algorithm types listed with the course definition;
      Command driven and State driven are simulated; the other five show "not yet simulated".
+   - State driven Control Studio (2026-10-22): Items grid (Item / Sequence / Written to Path /
+     Readback Path / state columns) and State Parameters tab (ENABLED, CFM_MAX_TIME, CFM_MIN_TIME
+     per state), matched to screenshots of a current DeltaV system; ENABLED = False refuses that
+     state. Details and restore point: COURSE-7016-PROGRESS.txt section 5 and the 2026-10-22 log.
    - Start From Existing + Browse works in all three dialogs (copies the saved class; revision 1).
    - Greyed controls have hover text explaining why.
    Engines:
@@ -258,3 +262,11 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
      PDF p191; CHG_COLOR/DUMP Step 8, PDF p248). Counter-evidence: slide 4-28 screenshot shows
      Controller with "Aliases Resolved? No" (lecture image, may have been set already). No PDF states
      the default explicitly.
+   2026-10-22
+   - f835efc: State-driven EM Control Studio follows a current DeltaV system (user's screenshots,
+     site-specific content excluded): the BatchLive-only "States" list was replaced by the State
+     Parameters grid; STATE_0000n confirmed numbered by named-set value and holding that state's item
+     values; READBACK confirmed holding '^/<readback path>' per item. Restore point before this
+     change: tag before-em-studio-deltav-match (f5eeec6).
+   - Still unknown (ask the user's DeltaV system): full name of "A_MIN_TIME..."; contents of DRIVE,
+     TARGET, TARGET_REACHED and a new class's MONITOR; behaviour of item Sequence and CFM times.
