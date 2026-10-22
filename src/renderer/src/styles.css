@@ -4819,11 +4819,15 @@ button {
 .dvd-big-input { display: block; width: 100%; min-width: 380px; box-sizing: border-box; margin-top: 10px; font-size: 14px; padding: 4px 6px; }
 
 /* ===== Phase Control Studio (pp 4-16..4-21) ===== */
-.phase-studio .ps-hier { display: flex; flex-direction: column; }
-.phase-studio .ps-tree { flex: 1 1 50%; overflow: auto; min-height: 120px; }
-/* p4-17: the hierarchy is split into a tree (left) and the contents of the selected item (right). */
-.phase-studio .ps-hier-split { display: flex; flex: 1 1 50%; min-height: 120px; gap: 3px; padding: 3px; overflow: hidden; }
-.phase-studio .ps-hier-split .ps-tree { flex: 1 1 50%; min-width: 0; min-height: 0; background: #fff; border: 1px solid var(--dv-border); }
+.phase-studio .ps-hier, .em-studio .ps-hier { display: flex; flex-direction: column; }
+.phase-studio .ps-tree, .em-studio .ps-tree { flex: 1 1 50%; overflow: auto; min-height: 120px; }
+/* p4-17 / p5-14: the hierarchy is split into a tree (left) and the contents of the selected item (right). */
+.phase-studio .ps-hier-split, .em-studio .ps-hier-split { display: flex; flex: 1 1 50%; min-height: 120px; gap: 3px; padding: 3px; overflow: hidden; }
+.phase-studio .ps-hier-split .ps-tree, .em-studio .ps-hier-split .ps-tree { flex: 1 1 50%; min-width: 0; min-height: 0; background: #fff; border: 1px solid var(--dv-border); }
+.em-studio .ps-tree-left .studio-tree-root, .em-studio .ps-tree-left .studio-tree-node { display: flex; align-items: center; }
+.em-studio .ps-tree-left .studio-tree-node .tv-box { margin-left: -14px; }
+.em-studio .ps-tree-right .ps-tree-item { display: flex; align-items: center; background: transparent; border: 1px solid transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.em-studio .ps-tree-right .ps-tree-item.active { background: #d3e5f7; border-color: #9caebf; }
 .ps-tree-left .studio-tree-node { padding-left: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ps-tree-left .studio-tree-node, .ps-tree-right .studio-tree-node { width: 100%; }
 .ps-tree-right .studio-tree-node { padding-left: 8px; white-space: nowrap; }
@@ -4967,7 +4971,9 @@ button {
 .em-cmd-table tr { cursor: pointer; }
 .em-cmd-table tr.em-running td { background: #dff3e3; color: #1f5f2e; font-weight: 700; }
 .em-cell-input { width: 100%; min-width: 52px; box-sizing: border-box; font: inherit; padding: 1px 3px; border: 1px solid var(--dv-border); background: #ffffff; }
-.em-state-driven { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; }
+.em-state-driven { display: flex; flex-direction: column; gap: 6px; min-height: 100%; overflow: auto; }
+/* The whole Items area (not just the rows) takes the right-click Add menu, as in DeltaV. */
+.em-items-area { flex: 1 1 auto; min-height: 120px; }
 .em-items th { white-space: nowrap; }
 .em-items td { font-family: Consolas, 'Courier New', monospace; font-size: 11px; }.fp-mode-select { font: inherit; padding: 0 2px; cursor: pointer; }
 

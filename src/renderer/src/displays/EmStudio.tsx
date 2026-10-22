@@ -68,7 +68,10 @@ export function EmStudio(): JSX.Element {
   const [actionDlg, setActionDlg] = useState<{ step: number; index: number | null } | null>(null)
   const [itemDlg, setItemDlg] = useState<{ index: number | null } | null>(null)
   const [commandDlg, setCommandDlg] = useState(false)
-  const [hierWidth, setHierWidth] = usePersistentSize('emStudio.hierWidth', 240)
+  const [rootOpen, setRootOpen] = useState(true)
+  const [monitorOpened, setMonitorOpened] = useState(false)
+  // New key for the split tree/contents layout so the old single-tree width (240) is not reused.
+  const [hierWidth, setHierWidth] = usePersistentSize('emStudio.splitHierWidth', 320)
   const [paletteWidth, setPaletteWidth] = usePersistentSize('emStudio.paletteWidth', 170)
 
   const online = !!instance
@@ -181,14 +184,38 @@ export function EmStudio(): JSX.Element {
 
     <div className="studio-main">
       {panes.hierarchy && <div className="studio-pane studio-hier ps-hier" style={{ width: hierWidth, minWidth: hierWidth, flex: `0 0 ${hierWidth}px` }}>
-        <div className="studio-tree ps-tree" role="tree" aria-label="Equipment module hierarchy">
-          <div className={'studio-tree-root' + (!block ? ' cs-sel' : '')} role="treeitem" onClick={() => drill(null)}><ModuleIcon kind="equipment" /> {instance ?? className}</div>
-          {commandDriven && Object.values(cls.commands).map(c => <button key={c.block} type="button" role="treeitem" data-command-node={c.block}
-            className={'studio-tree-node studio-block-select' + (c.block === block ? ' active' : '') + (online && status(c.block) === 'Running' ? ' ps-live' : '')}
-            onClick={() => drill(c.block)}><BatchIcon kind="composite" />{c.block}</button>)}
-          {commandDriven && <div className="studio-tree-node disabled" title="MONITOR is not executed by the simulator"><BatchIcon kind="composite" />MONITOR</div>}
-          {Object.values(cls.children).map(ch => <div key={ch.name} className="studio-tree-node" data-module-block={ch.name}>
-            <ModuleIcon kind="control" />{childTag(ch.name) ? `${childTag(ch.name)} (${ch.name})` : ch.name}<span className="ps-pick-note"> {ch.className}</span></div>)}
+        {/* Split hierarchy (p5-14): composites in the tree on the left, contents of the selected item on the right. */}
+        <div className="ps-hier-split">
+          <div className="studio-tree ps-tree ps-tree-left" role="tree" aria-label="Equipment module hierarchy">
+            <div className={'studio-tree-root' + (!block ? ' cs-sel' : '')} role="treeitem" aria-selected={!block} aria-expanded={commandDriven ? rootOpen : undefined} onClick={() => drill(null)}>
+              {commandDriven && <span className="tv-box" aria-label={rootOpen ? 'Collapse' : 'Expand'} onClick={e => { e.stopPropagation(); setRootOpen(o => !o) }}>{rootOpen ? '−' : '+'}</span>}
+              <ModuleIcon kind="equipment" /> {instance ?? className}
+            </div>
+            {commandDriven && rootOpen && <>
+              {Object.values(cls.commands).map(c => <button key={c.block} type="button" role="treeitem" aria-selected={c.block === block} data-command-node={c.block}
+                className={'studio-tree-node studio-block-select' + (c.block === block ? ' active' : '') + (online && status(c.block) === 'Running' ? ' ps-live' : '')}
+                title={c.block} onClick={() => drill(c.block)}><BatchIcon kind="composite" />{c.block}</button>)}
+              {/* MONITOR is not simulated, so expanding it finds nothing and the box clears. */}
+              <div className="studio-tree-node disabled" role="treeitem" data-monitor-node title="MONITOR is not executed by the simulator">
+                {!monitorOpened && <span className="tv-box" aria-label="Expand MONITOR" onClick={() => setMonitorOpened(true)}>+</span>}
+                <BatchIcon kind="composite" />MONITOR</div>
+            </>}
+          </div>
+          <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${block ?? instance ?? className}`}>
+            {!block ? <>
+              {Object.values(cls.children).map(ch => <div key={ch.name} role="listitem" className="studio-tree-node ps-tree-item" data-module-block={ch.name} title={`Module block (${ch.className})`}>
+                <ModuleIcon kind="control" />{childTag(ch.name) ? `${childTag(ch.name)} (${ch.name})` : ch.name}</div>)}
+              {commandDriven && Object.values(cls.commands).map(c => <button key={c.block} type="button" role="listitem" data-content-node={c.block}
+                className={'studio-tree-node ps-tree-item' + (online && status(c.block) === 'Running' ? ' ps-live' : '')}
+                title={`${c.block} — double-click to drill down`} onDoubleClick={() => drill(c.block)}><BatchIcon kind="composite" />{c.block}</button>)}
+              {commandDriven && <div role="listitem" className="studio-tree-node ps-tree-item disabled" title="MONITOR is not executed by the simulator"><BatchIcon kind="composite" />MONITOR</div>}
+            </> : sfc?.steps.map((s, i) => <div key={s.id}>
+              <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '') + (liveStep === s.name ? ' ps-live' : '')}
+                onClick={() => setSel({ k: 'step', i })} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
+              {sfc.transitions[i] && <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i ? ' active' : '')}
+                onClick={() => setSel({ k: 'transition', i })} onDoubleClick={() => setTrDlg(i)}><span className="ps-ico-tr" />{sfc.transitions[i].name}</button>}
+            </div>)}
+          </div>
         </div>
         {panes.parameters && <div className="ps-params">
           <div className="cs-params-filter">Filtered by: <span className="ps-filter-boxes">☑☑☑ ☑☑☑☑☑</span></div>
@@ -228,8 +255,9 @@ export function EmStudio(): JSX.Element {
               </tr>)}</tbody>
             </table> : <div className="em-state-driven">
               <div className="dvd-tabs" role="tablist">{(['Items', 'States'] as const).map(t => <button key={t} role="tab" aria-selected={t === view} className={t === view ? 'on' : ''} onClick={() => setView(t)}>{t}</button>)}</div>
-              {view === 'Items' ? <table className="studio-param-table em-items" aria-label="Items"
+              {view === 'Items' ? <div className="em-items-area" data-items-area
                 onContextMenu={e => { e.preventDefault(); if (!online) setMenu({ x: e.clientX, y: e.clientY, label: 'Items', items: [{ label: 'Add', onClick: () => setItemDlg({ index: null }) }] }) }}>
+              <table className="studio-param-table em-items" aria-label="Items">
                 <thead><tr><th>Item</th><th>Write parameter path</th><th>Readback parameter path</th>{stateCols.map(s => <th key={s.value}>{s.name} ({s.value})</th>)}</tr></thead>
                 <tbody>{cls.items.map((it, i) => <tr key={it.name} data-item={it.name}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!online) setMenu({ x: e.clientX, y: e.clientY, label: it.name, items: [
@@ -242,7 +270,7 @@ export function EmStudio(): JSX.Element {
                       <option value="">(no change)</option>{itemChoices(cls, it).map(c => <option key={c} value={c}>= {c}</option>)}</select>}</td> })}
                 </tr>)}
                 {!cls.items.length && <tr><td colSpan={3 + stateCols.length}>Right-click in the Items area and select Add.</td></tr>}</tbody>
-              </table> : <table className="studio-param-table" aria-label="States">
+              </table></div> : <table className="studio-param-table" aria-label="States">
                 <thead><tr><th>State</th><th>Value</th><th>User selectable</th>{online && <th>Status</th>}</tr></thead>
                 <tbody>{(set?.entries ?? []).map(s => <tr key={s.value}><td>{s.name}</td><td>{s.value}</td><td>{s.userSelectable === false ? 'No' : 'Yes'}</td>
                   {online && <td>{rt?.pv === s.value ? 'Current (A_PV)' : rt?.running?.value === s.value ? 'Driving' : ''}</td>}</tr>)}</tbody>
