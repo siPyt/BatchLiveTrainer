@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { SimulatorDialog } from './SimulatorDialog'
 import { useBatchUi } from '../ui/batchUi'
 import { useUi } from '../ui/uiStore'
@@ -491,7 +491,8 @@ function NewEmClassDialog({ category, onClose }: { category: string; onClose: ()
   const [browse, setBrowse] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sets = useStore(s => s.namedSets.configured)
-  const existing = useEm(s => Object.keys(s.classes).sort())
+  const classes = useEm(s => s.classes)
+  const existing = useMemo(() => Object.keys(classes).sort(), [classes])
   const submit = (): void => {
     const r = fromExisting ? useEm.getState().copyClass(category, source, name) : useEm.getState().newClass(category, name, algorithm, namedSet)
     if (!r.ok) { setError(r.error); return }
