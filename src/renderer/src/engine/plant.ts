@@ -135,6 +135,8 @@ export const BUILTIN_TAGS = new Set([
   // Process Waste Neutralization (3WT-0001) — equalization + pH treatment skid
   ...PWASTE_TAGS
 ])
+/** The pharma baseline's protected tags only apply to that database: the DV_School course reuses names such as XV-501 / XV-601 for its own deletable modules (p5-30). */
+export const isBuiltinTag = (tag: string, courseDatabase: boolean): boolean => !courseDatabase && BUILTIN_TAGS.has(tag)
 function pid(
   p: Partial<PidModule> & Pick<PidModule, 'tag' | 'description' | 'area' | 'unit'>,
   splitRange = false

@@ -3,7 +3,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleAlarm, fmt, priorityRank } from '../utils/format'
 import { alarmFieldPath } from '../engine/alarmFields'
-import { BUILTIN_TAGS, type NewModuleSpec } from '../engine/plant'
+import { isBuiltinTag, type NewModuleSpec } from '../engine/plant'
 import type { AnyModule, AlarmPriority, ModuleType, FbBlockType } from '../engine/types'
 import { ModuleIcon } from '../components/EngineeringIcons'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
@@ -690,7 +690,7 @@ export function ExplorerDisplay(): JSX.Element {
               >
                 Open Faceplate
               </button>
-              {!BUILTIN_TAGS.has(menu.target) && (
+              {!isBuiltinTag(menu.target, Object.keys(sims).length > 0) && (
                 <button
                   className="ctx-item danger"
                   onClick={() => {
@@ -725,7 +725,8 @@ function ModuleProperties({
   const equipment = useStore((s) => s.equipment)
   const setModuleEquipment = useStore((s) => s.setModuleEquipment)
   const select = useUi((s) => s.select)
-  const builtin = BUILTIN_TAGS.has(m.tag)
+  const courseDatabase = useLibrary((s) => Object.keys(s.sims).length > 0)
+  const builtin = isBuiltinTag(m.tag, courseDatabase)
   const emsInArea = Object.values(equipment).filter((em) => em.area === m.area)
   const rows: [string, string][] = [
     ['Tag', m.tag],
