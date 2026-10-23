@@ -126,7 +126,7 @@ export function ClassStudio(): JSX.Element {
 
   useEffect(() => {
     const key = (e: KeyboardEvent): void => {
-      if (readOnly) return
+      if (readOnly || useUi.getState().display !== 'studio') return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save() }
       if (e.key === 'Delete' && selectedWire !== null && !(e.target instanceof HTMLInputElement)) {
         e.preventDefault(); deleteWire(selectedWire)

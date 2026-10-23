@@ -107,6 +107,7 @@ export function PhaseStudio(): JSX.Element {
   useEffect(() => { setSel(null) }, [composite])
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      if (useUi.getState().display !== 'studio') return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save() }
     }
     window.addEventListener('keydown', onKey)

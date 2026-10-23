@@ -16,11 +16,6 @@ import { FaceplateHost } from './faceplates/FaceplateHost'
 import { AlarmSummary } from './displays/AlarmSummary'
 import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
-import { ExplorerDisplay } from './displays/ExplorerDisplay'
-import { ControlStudioDisplay } from './displays/ControlStudioDisplay'
-import { ClassStudio } from './displays/ClassStudio'
-import { PhaseStudio } from './displays/PhaseStudio'
-import { EmStudio } from './displays/EmStudio'
 import { BatchDialogHost } from './components/BatchDialogs'
 import { NoticeHost } from './components/AppNotices'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
@@ -32,15 +27,17 @@ import { UserManagerDisplay } from './displays/UserManagerDisplay'
 import { SystemPreferencesDisplay } from './displays/SystemPreferencesDisplay'
 import { ApplicationsDisplay } from './displays/ApplicationsDisplay'
 import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
+import { AppWindows } from './components/AppWindows'
+import { isWindowId, useWindows } from './ui/windowStore'
 
 export function App(): JSX.Element {
   const tick = useStore((s) => s.tick)
-  const display = useUi((s) => s.display)
+  const activeDisplay = useUi((s) => s.display)
+  const base = useWindows((s) => s.base)
+  // DeltaV Explorer and Control Studio are windows over the main area; the main area keeps showing the display behind them.
+  const display = isWindowId(activeDisplay) ? base : activeDisplay
   const navigationOpen = useUi((s) => s.navigationOpen)
   const processViewRevision = useUi((s) => s.processViewRevision)
-  const studioClass = useUi((s) => s.studioClass)
-  const studioPhase = useUi((s) => s.studioPhase)
-  const studioEm = useUi((s) => s.studioEm)
   const last = useRef<number>(performance.now())
 
   // Fixed-rate simulation loop (~10 Hz) decoupled from render.
@@ -87,8 +84,6 @@ export function App(): JSX.Element {
           {display === 'alarms' && <AlarmSummary />}
           {display === 'journal' && <EventJournalDisplay />}
           {display === 'trend' && <TrendDisplay />}
-          {display === 'explorer' && <ExplorerDisplay />}
-          {display === 'studio' && (studioEm ? <EmStudio key={`${studioEm.className}/${studioEm.instance ?? ''}`} /> : studioPhase ? <PhaseStudio key={studioPhase} /> : studioClass ? <ClassStudio key={studioClass} /> : <ControlStudioDisplay />)}
           {display === 'process' && <ProcessDisplay key={processViewRevision} />}
           {display === 'batchhelp' && <BatchHelpDisplay />}
           {display === 'sfc' && <SfcDisplay />}
@@ -98,6 +93,7 @@ export function App(): JSX.Element {
           {display === 'system' && <SystemPreferencesDisplay />}
           {display === 'applications' && <ApplicationsDisplay />}
           {display === 'hardware' && <PhysicalNetworkDisplay />}
+          <AppWindows />
         </div>
       </div>
       <AlarmBanner />

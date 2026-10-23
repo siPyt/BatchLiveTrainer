@@ -180,6 +180,8 @@ export function FbdCanvas({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
+      // Explorer and Control Studio can both be open now: only the active Control Studio window reacts to Delete.
+      if (useUi.getState().display !== 'studio') return
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return

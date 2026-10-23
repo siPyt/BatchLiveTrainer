@@ -61,6 +61,12 @@ test('DV09-003 every launch target in the top bar and the display union is a rea
   const launched = new Set(DELTAV_APPLICATIONS.map(a => a.display))
   assert.deepEqual(menu.filter(t => t !== 'applications' && !launched.has(t)), [], 'every Utilities item is a catalogued application')
   const app = src('App.tsx')
-  for (const nav of navIds.filter(n => !n.operator)) assert.match(app, new RegExp(`display === '${nav.id}'`), `${nav.id} is rendered`)
+  // DeltaV Explorer and Control Studio are rendered as windows (components/AppWindows.tsx) over the main-area display.
+  const windowed = ['explorer', 'studio']
+  const windows = src('components', 'AppWindows.tsx')
+  for (const nav of navIds.filter(n => !n.operator)) {
+    if (windowed.includes(nav.id)) assert.ok(windows.includes(`'${nav.id}'`) && app.includes('<AppWindows />'), `${nav.id} is rendered as a window`)
+    else assert.match(app, new RegExp(`display === '${nav.id}'`), `${nav.id} is rendered`)
+  }
   assert.deepEqual(displayIds.filter(d => !navIds.some(n => n.id === d)), [], 'every display id is in the navigation list')
 })

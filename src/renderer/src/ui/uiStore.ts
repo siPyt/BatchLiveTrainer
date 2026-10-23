@@ -102,6 +102,9 @@ interface UiState {
 let cascade = 0
 let faceTop = 0
 
+/** Late-bound by windowStore (which imports this module): the in-studio Close closes the Control Studio window. */
+export const windowHooks = { onStudioClosed: (): void => {} }
+
 export const useUi = create<UiState>((set, get) => ({
   navigationOpen: false,
   toggleNavigation: () => set(s => ({ navigationOpen: !s.navigationOpen })),
@@ -127,7 +130,7 @@ export const useUi = create<UiState>((set, get) => ({
       return { studioClass: className, studioInstance: instance ?? null, studioPhase: null, studioEm: null, selectedTag: instance ?? s.selectedTag,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
-  closeClassStudio: () => set({ studioClass: null, studioInstance: null }),
+  closeClassStudio: () => { set({ studioClass: null, studioInstance: null }); windowHooks.onStudioClosed() },
   studioPhase: null,
   studioComposite: null,
   openPhaseStudio: (phaseClass, composite) =>
@@ -137,7 +140,7 @@ export const useUi = create<UiState>((set, get) => ({
       return { studioPhase: phaseClass, studioComposite: composite ?? null, studioClass: null, studioInstance: null, studioEm: null,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
-  closePhaseStudio: () => set({ studioPhase: null, studioComposite: null }),
+  closePhaseStudio: () => { set({ studioPhase: null, studioComposite: null }); windowHooks.onStudioClosed() },
   studioEm: null,
   openEmStudio: (className, instance, block) =>
     set((s) => {
@@ -146,7 +149,7 @@ export const useUi = create<UiState>((set, get) => ({
       return { studioEm: { className, instance: instance ?? null, block: block ?? null }, studioPhase: null, studioComposite: null, studioClass: null, studioInstance: null,
         display: 'studio', history, pictureHistory, histIndex: history.length - 1 }
     }),
-  closeEmStudio: () => set({ studioEm: null }),
+  closeEmStudio: () => { set({ studioEm: null }); windowHooks.onStudioClosed() },
   sfcName: null,
   studioLayout: {},
   setStudioLayout: (tag, x, y) => set((s) => ({ studioLayout: { ...s.studioLayout, [tag]: { x, y } } })),

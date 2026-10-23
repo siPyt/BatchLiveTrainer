@@ -515,7 +515,9 @@ function start(tag: string, dep: EmDeployment, rt: EmRuntime, value: number): Em
   if (dep.cls.algorithm === 'Command driven') {
     const cmd = dep.cls.commands[String(value)]
     if (!cmd) return { ...next, running: null, error: `No command block for ${value}` }
-    return { ...next, running: { value, seq: { step: 0, stepTime: 0, executed: [], done: false } }, blocks: { ...rt.blocks, [cmd.block]: 'Running' } }
+    // A new A_COMMAND resets the command blocks that completed earlier: only the running block shows a status.
+    const blocks = Object.fromEntries(Object.entries(rt.blocks).map(([b, st]) => [b, st === 'Complete' ? 'Idle' : st])) as Record<string, BlockStatus>
+    return { ...next, running: { value, seq: { step: 0, stepTime: 0, executed: [], done: false } }, blocks: { ...blocks, [cmd.block]: 'Running' } }
   }
   // State driven: write every item's value for the state, then confirm the readbacks.
   try {
