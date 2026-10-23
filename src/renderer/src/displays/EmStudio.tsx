@@ -74,7 +74,8 @@ export function EmStudio(): JSX.Element {
   const [trDlg, setTrDlg] = useState<number | null>(null)
   const [actionDlg, setActionDlg] = useState<{ step: number; index: number | null } | null>(null)
   const [itemDlg, setItemDlg] = useState<{ index: number | null } | null>(null)
-  const [commandDlg, setCommandDlg] = useState(false)
+  const [commandDlg, setCommandDlg] = useState<string | null>(null)
+  const [paramSel, setParamSel] = useState<string | null>(null)
   const [contentSel, setContentSel] = useState<string | null>(null)
   const [itemSel, setItemSel] = useState<number | null>(null)
   const [valueDlg, setValueDlg] = useState<{ item: number; state: number } | null>(null)
@@ -155,6 +156,18 @@ export function EmStudio(): JSX.Element {
       { label: "What's This?", onClick: () => window.alert('Items: each item writes its Written to Path parameter to the value in the column of the requested state and confirms it through the Readback Path. Right-click a state cell and select Modify Value to change it.') }
     ] })
   }
+  /** On-line parameter list right-click (p5-44): Force Input..., Remove Forced Input, Set Value... */
+  const paramMenu = (e: React.MouseEvent, name: string): void => {
+    e.preventDefault(); e.stopPropagation()
+    setParamSel(name)
+    const writable = WRITABLE_PARAMS.includes(name)
+    setMenu({ x: e.clientX, y: e.clientY, label: name, items: [
+      { label: 'Force Input...', disabled: 'Forcing is not simulated for equipment module parameters' },
+      { label: 'Remove Forced Input', disabled: 'Nothing is forced' },
+      { label: 'Set Value...', onClick: writable && dep ? () => setCommandDlg(name) : undefined,
+        disabled: !dep ? 'Download the equipment module first' : writable ? undefined : `${name} is a read-only parameter` }
+    ] })
+  }
   const liveStep = online && rt?.running && cmd && rt.running.value === cmd.value && rt.running.seq ? cmd.sfc.steps[rt.running.seq.step]?.name ?? null : null
   const title = online ? `${inst?.area ?? ''}/${inst?.unit ?? ''}/${instance}` : `Advanced Definitions/Equipment Module Classes/${cls.category}/${className}`
   const dl = online ? emDownloadState(instance!, assigned) : null
@@ -230,11 +243,6 @@ export function EmStudio(): JSX.Element {
             <Btn glyph="onlineDebug" label="On-Line" active={online} unavailable={online ? undefined : 'Open an equipment module instance (Explorer ▸ unit module ▸ equipment module ▸ Open with Control Studio) to go on-line'} />
             <Btn glyph="edit" label="Edit" active={!online} onClick={online ? () => useUi.getState().openEmStudio(className, null, block) : undefined} />
           </Group>
-          {online && <Group label="Equipment Module">
-            <Btn glyph="configure" label="Set A_COMMAND" onClick={() => setCommandDlg(true)} unavailable={dep ? undefined : 'Download the equipment module first'} />
-            <Btn glyph="properties" label={`A_ABT_ON_NEW_CMD ${rt?.abortOnNew ? 'True' : 'False'}`}
-              onClick={dep ? () => { const r = useEm.getState().setAbortOnNew(instance!, !rt?.abortOnNew); if (!r.ok) window.alert(r.error) } : undefined} unavailable={dep ? undefined : 'Download the equipment module first'} />
-          </Group>}
           <Group label="Class">
             <Btn glyph="namedSet" label="Named Set" unavailable={`Named set ${cls.namedSet}; change it in Explorer ▸ class ▸ Properties`} />
           </Group>
@@ -294,8 +302,10 @@ export function EmStudio(): JSX.Element {
           <div className="ps-param-scroll">
             {paramRows ? <table className="studio-param-table" aria-label={`${picked ?? 'Equipment module'} parameters`}>
               <thead><tr><th>Parameter</th><th>{online && !picked ? 'Value' : 'Default'}</th><th>Linked</th><th>Connection type</th><th>Parameter type</th></tr></thead>
-              <tbody>{paramRows.map(r => <tr key={r.name} data-param={r.name} className={!picked && (r.name === 'A_COMMAND' || r.name === 'A_PV') ? 'ps-user-param' : undefined}
-                onDoubleClick={picked ? undefined : online && r.name === 'A_COMMAND' ? () => setCommandDlg(true) : online && r.name === 'A_ABT_ON_NEW_CMD' ? () => useEm.getState().setAbortOnNew(instance!, !rt?.abortOnNew) : undefined}>
+              <tbody>{paramRows.map(r => <tr key={r.name} data-param={r.name} className={(!picked && (r.name === 'A_COMMAND' || r.name === 'A_PV') ? 'ps-user-param' : '') + (paramSel === r.name ? ' sel' : '') || undefined}
+                onClick={() => setParamSel(r.name)}
+                onContextMenu={picked || !online ? undefined : e => paramMenu(e, r.name)}
+                onDoubleClick={picked || !online || !WRITABLE_PARAMS.includes(r.name) ? undefined : () => setCommandDlg(r.name)}>
                 <td>{r.name}</td><td>{r.value}</td><td></td><td>Internal</td><td>{r.type}</td></tr>)}</tbody>
             </table> : <p className="exp-hint em-param-note">The parameters of {picked} are not shown: the course material does not document them.</p>}
           </div>
@@ -417,7 +427,7 @@ export function EmStudio(): JSX.Element {
         }
       })) setItemDlg(null)
     }} />}
-    {commandDlg && instance && dep && <CommandDialog tag={instance} namedSet={dep.cls.namedSet} current={rt?.command ?? IDLE} onClose={() => setCommandDlg(false)} />}
+    {commandDlg && instance && dep && <ParamPropertiesDialog tag={instance} param={commandDlg} namedSet={dep.cls.namedSet} current={rt?.command ?? IDLE} abortOnNew={!!rt?.abortOnNew} onClose={() => setCommandDlg(null)} />}
     {valueDlg && cls.items[valueDlg.item] && <ModifyValueDialog cls={cls} item={cls.items[valueDlg.item]} state={valueDlg.state} onClose={() => setValueDlg(null)}
       onOk={(state, value) => { const name = cls.items[valueDlg.item].name; if (edit(d => { d.states[String(state)] = { ...(d.states[String(state)] ?? {}), [name]: value } })) setValueDlg(null) }} />}
     {orderDlg !== null && cls.items[orderDlg] && <SetOrderDialog item={cls.items[orderDlg]} onClose={() => setOrderDlg(null)}
@@ -478,19 +488,36 @@ function SetOrderDialog({ item, onOk, onClose }: { item: EmItem; onOk: (n: numbe
   </SimulatorDialog>
 }
 
-function CommandDialog({ tag, namedSet, current, onClose }: { tag: string; namedSet: string; current: number; onClose: () => void }): JSX.Element {
-  const set = namedSetOf(namedSet)
-  const choices = (set?.entries ?? []).filter(e => e.value !== IDLE && e.userSelectable !== false)
-  const [v, setV] = useState(choices.find(c => c.value === current)?.name ?? choices[0]?.name ?? '')
+const WRITABLE_PARAMS = ['A_COMMAND', 'A_ABT_ON_NEW_CMD']
+
+/** "A_COMMAND Properties" (p5-44): Set Value... on an on-line equipment module parameter. */
+export function ParamPropertiesDialog({ tag, param, namedSet, current, abortOnNew, onClose }: {
+  tag: string; param: string; namedSet: string; current: number; abortOnNew: boolean; onClose: () => void
+}): JSX.Element {
+  const isCommand = param === 'A_COMMAND'
+  const entries = namedSetOf(namedSet)?.entries ?? []
+  const [v, setV] = useState(isCommand ? stateName(namedSet, current) : abortOnNew ? 'True' : 'False')
   const [error, setError] = useState<string | null>(null)
-  const submit = (): void => { const r = useEm.getState().setCommand(tag, v); if (r.ok) onClose(); else setError(r.error) }
-  return <SimulatorDialog className="module-download-dialog dvd" label={`${tag}/A_COMMAND`} onClose={onClose}>
+  const submit = (): void => {
+    if (isCommand && v === stateName(namedSet, current)) { onClose(); return }
+    const r = isCommand ? useEm.getState().setCommand(tag, v) : useEm.getState().setAbortOnNew(tag, v === 'True')
+    if (r.ok) onClose(); else setError(r.error)
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`${param} Properties`} onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
-      <span>Current value: <b>{stateName(namedSet, current)}</b></span>
-      <label>New value:<select aria-label="A_COMMAND value" autoFocus value={v} onChange={e => setV(e.target.value)}>{choices.map(c => <option key={c.value} value={c.name}>{c.name}</option>)}</select></label>
-      <p className="exp-hint">Named set {namedSet}. Idle (255) is not user selectable.</p>
+      <label>Parameter name:<input aria-label="Parameter name" value={param} disabled readOnly /></label>
+      <label>Parameter type:<select aria-label="Parameter type" value={isCommand ? 'Named Set' : 'Boolean'} disabled><option>{isCommand ? 'Named Set' : 'Boolean'}</option></select></label>
+      <label>Parameter category:<select aria-label="Parameter category" value="Operating" disabled><option>Operating</option></select></label>
+      <label className="lib-dlg-check"><input type="checkbox" disabled /> Restore parameter value after restart</label>
+      <fieldset className="dvd-group">
+        <legend>Properties</legend>
+        {isCommand && <label>Named set:<span className="dvd-inline"><input aria-label="Named set" value={namedSet} disabled readOnly /><button type="button" className="tbtn sm" disabled>Browse...</button></span></label>}
+        <label>{isCommand ? 'Named state:' : 'Value:'}<select aria-label={isCommand ? 'Named state' : 'Value'} autoFocus value={v} onChange={e => setV(e.target.value)}>
+          {isCommand ? entries.map(e => <option key={e.value} value={e.name}>{e.name}</option>) : ['False', 'True'].map(b => <option key={b}>{b}</option>)}</select></label>
+      </fieldset>
     </div>
-    <div className="dvd-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button>
+      <button className="tbtn sm" disabled>Filter...</button></div>
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
   </SimulatorDialog>
 }

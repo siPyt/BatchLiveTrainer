@@ -202,7 +202,7 @@ test('7016 ch5 screens render: EM Control Studio (class and on-line), Process pi
   const emMod = require('../src/renderer/src/engine/emStore.ts')
   const uiMod = require('../src/renderer/src/ui/uiStore.ts')
   const batchUiMod = require('../src/renderer/src/ui/batchUi.ts')
-  const { EmStudio } = require('../src/renderer/src/displays/EmStudio.tsx')
+  const { EmStudio, ParamPropertiesDialog } = require('../src/renderer/src/displays/EmStudio.tsx')
   const { ProcessDisplay } = require('../src/renderer/src/displays/ProcessDisplay.tsx')
   const { ValveFaceplate } = require('../src/renderer/src/faceplates/ValveFaceplate.tsx')
   const render = (C, props) => {
@@ -228,6 +228,10 @@ test('7016 ch5 screens render: EM Control Studio (class and on-line), Process pi
     const online = render(EmStudio)
     assert.match(online, /data-em-instance="BL_500_COLOR_IN"/)
     assert.match(online, /Running/)
+    assert.ok(!online.includes('Set A_COMMAND'), 'A_COMMAND is set from the parameter list (right-click ▸ Set Value...), as in DeltaV, not from a ribbon button')
+    const dlg = render(ParamPropertiesDialog, { tag: 'BL_500_COLOR_IN', param: 'A_COMMAND', namedSet: 'EM-vlvnc-2stage', current: 255, abortOnNew: false, onClose() {} })
+    for (const s of ['A_COMMAND Properties', 'Parameter name', 'Parameter type', 'Named Set', 'Parameter category', 'Operating', 'Restore parameter value after restart',
+      'Named set', 'EM-vlvnc-2stage', 'Browse...', 'Named state', 'Close', 'Dribble', 'Bulk', 'Auto Mode', 'Idle', 'Filter...']) assert.ok(dlg.includes(s), s)
     // State-driven on-line (pp 5-48..5-50): Items grid values as text, State Parameters tab, A_COMMAND in the parameter pane.
     ui.getState().openEmStudio('BLENDER_OUTLET', 'BL_500_OUTLET')
     const outletOnline = render(EmStudio)

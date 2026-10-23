@@ -5027,6 +5027,11 @@ button {
 .cs-pal-glyph { flex: 0 0 auto; }
 .studio-pal-toggle { display: flex; align-items: center; gap: 4px; width: 100%; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .studio-pal-caret { width: 10px; display: inline-block; }
+.studio-param-table tr.sel td { background: #0a246a; color: #fff; }
+.dvd-group { border: 1px solid var(--dv-border); margin: 6px 0 0; padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.dvd-group legend { padding: 0 4px; font-size: 12px; }
+.dvd-inline { display: flex; gap: 6px; align-items: center; }
+.dvd-inline input { flex: 1; }
 
 /* DeltaV Explorer / Control Studio windows over the main area */
 .app-window-layer { position: absolute; inset: 0; z-index: 30; pointer-events: none; isolation: isolate; overflow: hidden; }

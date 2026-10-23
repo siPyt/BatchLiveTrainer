@@ -320,7 +320,7 @@ export const COURSE: WModule[] = [
         id: '7016-ch5-verify-ems',
         title: 'Workshop – Verify Equipment Modules',
         objective: 'Command BL_500_COLOR_IN / BL_600_COLOR_IN and BL_500_OUTLET / BL_600_OUTLET from Control Studio On-line and verify A_PV, the command block status and the child valves (Course 7016 pp 5-40 to 5-50).',
-        note: 'Right-click an equipment module under UM_BL_500 → Open with Control Studio, then On-line. Set A_COMMAND from the parameter list; A_PV shows Idle (255) while a command runs, then the command name. A_ABT_ON_NEW_CMD False (default) finishes the running command before the new one; True aborts it. Open XV-502 / XV-503 / XV-504 faceplates from the Process picture to see the mode and position.',
+        note: 'Right-click an equipment module under UM_BL_500 → Open with Control Studio, then On-line. Set A_COMMAND from the parameter list (right-click A_COMMAND → Set Value..., pick the Named state, OK; p5-44); A_PV shows Idle (255) while a command runs, then the command name. A_ABT_ON_NEW_CMD False (default) finishes the running command before the new one; True aborts it. Open XV-502 / XV-503 / XV-504 faceplates from the Process picture to see the mode and position.',
         steps: [
           { id: '7016-5v-1', text: 'Step 1. Open BL_500_COLOR_IN with Control Studio On-line.', goto: 'explorer' },
           { id: '7016-5v-2', text: 'Steps 2–4. Set A_COMMAND to Dribble; COMMAND_00002 is Complete and A_PV is Dribble; COLOR_IN_VLV is CAS and DRIBBLE.' },
