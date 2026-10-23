@@ -15,6 +15,7 @@ import { CM_DEVICE_CLASSES, useEm } from '../engine/emStore'
 import { controllerIsDown, type Controller } from '../engine/hardware'
 import { fmt } from '../utils/format'
 import { useBatch, unitDownloadState } from '../engine/batchStore'
+import { useDownloadPending } from './useDownloadPending'
 import { useBatchUi } from '../ui/batchUi'
 import { BatchClassTree, BatchDetail, BatchIcon, DRAG_CM_DEVICE, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
 import { askConfirm } from './AppNotices'
@@ -337,6 +338,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   const controllers = useStore(s => s.hardware.controllers)
   const lib = useLibrary()
   const batch = useBatch()
+  const dp = useDownloadPending()
   const { batch: batchOn } = useBatchEnabled()
   const [open, setOpen] = useState<Record<string, boolean>>({ network: true, ctlnet: true })
   const [menu, setMenu] = useMenu()
@@ -352,8 +354,8 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
     if (r && alertResult(r)) { onSelect({ kind: 'controller', tag: controller }); setOpen(o => ({ ...o, [controller]: true })) }
   }
   const unitsOn = (tag: string): string[] => Object.entries(batch.unitAssignments).filter(([, c]) => c === tag).map(([u]) => u).sort()
-  const pendingFor = (tag: string): boolean => Object.entries(lib.assignments).some(([t, c]) => c === tag && lib.instances[t] && downloadState(lib, t) !== 'current') ||
-    unitsOn(tag).some(u => unitDownloadState(batch, u) !== 'current')
+  const pendingFor = (tag: string): boolean => dp.controller(tag)
+  const tri = <span className="tv-pending" title="Download required">▲</span>
   const all = Object.values(controllers)
   const node = (c: Controller, d: number): JSX.Element => {
     const count = Object.values(lib.assignments).filter(x => x === c.tag).length
@@ -373,6 +375,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         { label: 'Properties', onClick: () => onSelect({ kind: 'controller', tag: c.tag }) }
       ] }) }}>
       <Row depth={d + 1} icon={<DvIcon kind="folder" />} label={<span>Assigned Modules</span>} sub={`${count} module(s)`}
+        pending={pendingFor(c.tag) ? tri : undefined}
         selected={selection?.kind === 'controller' && selection.tag === c.tag && !!selection.assigned}
         onClick={() => onSelect({ kind: 'controller', tag: c.tag, assigned: true })} />
       {unitsOn(c.tag).map(u => <Row key={u} depth={d + 1} icon={<BatchIcon kind="unit" />} label={<span>{u}</span>} sub="Assigned unit module"
@@ -384,14 +387,14 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   }
   return <div data-library="network">
     <Row depth={depth} open={!!open.network} onToggle={() => toggle('network')} selected={selection?.kind === 'network'}
-      icon={<DvIcon kind="network" />} label={<span>Physical Network</span>} onClick={() => onSelect({ kind: 'network' })}>
+      icon={<DvIcon kind="network" />} pending={dp.anyController ? tri : undefined} label={<span>Physical Network</span>} onClick={() => onSelect({ kind: 'network' })}>
       <Row depth={depth + 1} open={!!open.decom} onToggle={all.some(c => !c.commissioned) ? () => toggle('decom') : undefined}
         selected={selection?.kind === 'decom'} icon={<DvIcon kind="decom" />} label={<span>Decommissioned Nodes</span>}
         onClick={() => onSelect({ kind: 'decom' })}>
         {all.filter(c => !c.commissioned).map(c => node(c, depth + 2))}
       </Row>
       <Row depth={depth + 1} open={!!open.ctlnet} onToggle={() => toggle('ctlnet')} selected={selection?.kind === 'ctlnet'}
-        icon={<DvIcon kind="ctlnet" />} label={<span>Control Network</span>} onClick={() => onSelect({ kind: 'ctlnet' })}>
+        icon={<DvIcon kind="ctlnet" />} pending={dp.anyController ? tri : undefined} label={<span>Control Network</span>} onClick={() => onSelect({ kind: 'ctlnet' })}>
         {onWorkstation && <Row depth={depth + 2} selected={workstationSelected} icon={<DvIcon kind="workstation" />}
           open={batchOn ? open.proplus !== false : undefined} onToggle={batchOn ? () => setOpen(o => ({ ...o, proplus: o.proplus === false })) : undefined}
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}
@@ -431,8 +434,9 @@ export function ControllerDownloadDialog({ controller, tag, onClose }: { control
         <button className="tbtn sm" onClick={onClose}>Cancel</button>
       </div>
     </> : <>
-      <p role="status">Download of {report.target} completed: {report.downloaded.length} module(s). No upload is needed.</p>
-      {report.warnings.length ? <ul className="lib-download-warnings">{report.warnings.map(w => <li key={w}>⚠ {w}</li>)}</ul> : <p>No warnings.</p>}
+      <p role="status">Download of {report.target} completed: {report.downloaded.length} module(s) downloaded, 0 Error(s) and {report.warnings.length} Warning(s).</p>
+      {report.warnings.length > 0 && <ul className="lib-download-warnings">{report.warnings.map(w => <li key={w}>⚠ {w}</li>)}</ul>}
+      <p className="exp-hint">The configuration database already holds these values, so no upload is required.</p>
       <div className="traditional-channel-form"><button className="tbtn sm" onClick={onClose}>OK</button></div>
     </>}
   </SimulatorDialog>

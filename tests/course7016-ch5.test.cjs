@@ -400,3 +400,28 @@ test('New Equipment Module Class Start From Existing copies the algorithm, named
   assert.match(E().copyClass('CommandDriven', 'NOPE', 'X2').error, /Browse for an existing equipment module class/)
   assert.match(E().copyClass('CommandDriven', 'BLENDER_COLOR', 'BLENDER_OUTLET').error, /already used/)
 }))
+
+test('7016 ch5 download triangles: assigning an area assigns its unit modules; changes light the triangle up the tree until downloaded', () => fixture(() => {
+  const { computeDownloadPending } = require('../src/renderer/src/engine/downloadPending.ts')
+  levelIndicators()
+  emClasses()
+  blendersUnitClass()
+  assert.equal(B().unitAssignments.UM_BL_500, 'CTLR1')
+  assert.equal(B().unitAssignments.UM_BL_600, 'CTLR1')
+  assert.ok(B().deployedUnits.UM_BL_500, 'Download Controller downloads the unit modules of the assigned area')
+  let p = computeDownloadPending()
+  assert.deepEqual([p.unit('UM_BL_500'), p.cell('PAINT_PRODUCTION'), p.area('ED_CENTER_BATCH'), p.controller('CTLR1'), p.anyArea, p.anyController], [false, false, false, false, false, false])
+  // Changing an alias after the download flags the unit and every container up to the controller
+  value(B().resolveAlias('UM_BL_500', 'TANK_LEVEL', { path: 'LI-604/AI1/PV.CV', ignore: false, description: '' }))
+  p = computeDownloadPending()
+  assert.deepEqual([p.unit('UM_BL_500'), p.unit('UM_BL_600'), p.cell('PAINT_PRODUCTION'), p.area('ED_CENTER_BATCH'), p.area('FEED_TANK_AREA'), p.controller('CTLR1'), p.anyArea, p.anyController],
+    [true, false, true, true, false, true, true, true])
+  value(L().downloadController('CTLR1'))
+  p = computeDownloadPending()
+  assert.deepEqual([p.unit('UM_BL_500'), p.area('ED_CENTER_BATCH'), p.controller('CTLR1')], [false, false, false])
+  // An equipment module class change after the download flags the equipment module, its unit and the area
+  value(E().editDraft('BLENDER_OUTLET', d => { d.description = 'changed' }))
+  value(E().saveClass('BLENDER_OUTLET'))
+  p = computeDownloadPending()
+  assert.deepEqual([p.tag('BL_500_OUTLET'), p.unit('UM_BL_500'), p.area('ED_CENTER_BATCH'), p.controller('CTLR1')], [true, true, true, true])
+}))

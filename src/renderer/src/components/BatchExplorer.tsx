@@ -10,6 +10,7 @@ import {
   type BatchClassKind, type CompositeName
 } from '../engine/batchConfig'
 import { TreeRow, ContextMenu, ContentsList, alertResult, type ContentsRow } from './LibraryExplorer'
+import { useDownloadPending } from './useDownloadPending'
 import { ModuleIcon } from './EngineeringIcons'
 import { EmDetail, ModuleInstanceRows } from './EmExplorer'
 import { useEm } from '../engine/emStore'
@@ -291,6 +292,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule, onMo
   const b = useBatch()
   const ui = useBatchUi()
   const lib = useLibrary()
+  const dp = useDownloadPending()
   const openPhaseStudio = useUi(s => s.openPhaseStudio)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [menu, setMenu] = useMenu()
@@ -346,6 +348,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule, onMo
       const members = Object.entries(b.cellMembers).filter(([, c]) => c === cell.name).map(([t]) => t).sort()
       return <TreeRow key={cell.name} depth={depth} open={open[ck] !== false} onToggle={() => setOpen(o => ({ ...o, [ck]: o[ck] === false }))}
         selected={same(sel, { t: 'cell', name: cell.name })} icon={<BatchIcon kind="pcell" />}
+        pending={dp.cell(cell.name) ? <span className="tv-pending" title="Download required">▲</span> : undefined}
         dataAttr={{ 'data-process-cell': cell.name }}
         label={ui.renaming?.kind === 'cell' && ui.renaming.name === cell.name ? <InlineName label="Process cell name" value={cell.name} onCommit={commit} onCancel={() => ui.setRenaming(null)} /> : <span>{cell.name}</span>}
         sub={`Process Cell (${cell.className})`}
@@ -381,7 +384,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule, onMo
           const dl = unitDownloadState(b, u.name)
           return <TreeRow key={u.name} depth={depth + 1} open={!!open[uk]} onToggle={() => toggle(uk)} selected={same(sel, { t: 'unit', name: u.name })}
             icon={<BatchIcon kind="unit" />} dataAttr={{ 'data-unit-module': u.name }}
-            pending={dl === 'not-downloaded' || dl === 'pending' ? <span className="tv-pending" title={dl === 'pending' ? 'Configuration changed — download required' : 'Not downloaded'}>▲</span> : undefined}
+            pending={dp.unit(u.name) ? <span className="tv-pending" title={dl === 'not-downloaded' ? 'Not downloaded' : 'Configuration changed — download required'}>▲</span> : undefined}
             label={ui.renaming?.kind === 'unit' && ui.renaming.name === u.name ? <InlineName label="Unit module name" value={u.name} onCommit={commit} onCancel={() => ui.setRenaming(null)} /> : <span>{u.name}</span>}
             sub={`Unit Module (${u.unitClass})${b.unitAssignments[u.name] ? ` · ${b.unitAssignments[u.name]}` : ''}`}
             drag={{ type: DRAG_UNIT, value: u.name }}

@@ -1372,6 +1372,11 @@ emClassRenamed.push((from, to) => useBatch.setState(s => ({ unitClasses: Object.
   { ...u, modules: Object.fromEntries(Object.entries(u.modules).map(([b, m]) => [b, m.kind === 'em' && m.className === from ? { ...m, className: to } : m])) } : u])) })))
 libraryHooks.reset.push(() => useEm.getState().resetEm())
 libraryHooks.areaTags.push(area => Object.values(useEm.getState().instances).filter(i => i.area === area).map(i => i.tag))
+libraryHooks.areaAssigned.push((area, controller) => {
+  const s = useBatch.getState()
+  const units = Object.values(s.units).filter(u => s.processCells[u.processCell]?.area === area).map(u => u.name)
+  if (units.length) useBatch.setState({ unitAssignments: { ...s.unitAssignments, ...Object.fromEntries(units.map(u => [u, controller])) } })
+})
 libraryHooks.controllerDownload.push(controller => {
   const lib = useLibrary.getState()
   const em = useEm.getState()

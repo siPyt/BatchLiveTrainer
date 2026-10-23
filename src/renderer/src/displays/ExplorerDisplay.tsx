@@ -38,6 +38,7 @@ import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, 
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
 import { useBatchUi } from '../ui/batchUi'
+import { useDownloadPending } from '../components/useDownloadPending'
 import { askConfirm } from '../components/AppNotices'
 
 /** Delete a control or equipment module; assigned modules must have their controller assignment deleted first (course p5-29). */
@@ -127,6 +128,8 @@ export function ExplorerDisplay(): JSX.Element {
   const [createArea, setCreateArea] = useState<string | null>(null)
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
   const [assignAreaName, setAssignAreaName] = useState<string | null>(null)
+  const dp = useDownloadPending()
+  const tri = <span className="tv-pending" title="Download required">▲</span>
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
   const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export' | 'hierarchy' | 'alarmPriorities'>('modules')
@@ -332,7 +335,7 @@ export function ExplorerDisplay(): JSX.Element {
       </TreeRow>
     }
     return <TreeRow key={area} depth={depth} open={!!open[area]} onToggle={() => toggle(area)} selected={containerSelected(areaKey)}
-      icon={<DvIcon kind="area" />}
+      icon={<DvIcon kind="area" />} pending={dp.area(area) ? tri : undefined}
       label={editingArea?.original === area ? <input aria-label="Area name" className="exp-area-editor" autoFocus value={editingArea.value}
         onFocus={e => e.target.select()} onClick={e => e.stopPropagation()}
         onChange={e => setEditingArea({ original: area, value: e.target.value })}
@@ -471,7 +474,7 @@ export function ExplorerDisplay(): JSX.Element {
           icon={<DvIcon kind="database" />} label={<span>{databaseName}</span>} dataAttr={{ 'data-database-root': databaseName }} onClick={() => pickNode('root')}>
           <LibraryTree depth={1} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }} />
           <TreeRow depth={1} open={open.SYSCONFIG !== false} onToggle={() => setOpen(o => ({ ...o, SYSCONFIG: o.SYSCONFIG === false }))} selected={containerSelected('sysconfig')}
-            icon={<DvIcon kind="sysconfig" />} label={<span>System Configuration</span>} onClick={() => pickNode('sysconfig')}>
+            icon={<DvIcon kind="sysconfig" />} pending={dp.anyArea || dp.anyController ? tri : undefined} label={<span>System Configuration</span>} onClick={() => pickNode('sysconfig')}>
             {batchOn && <TreeRow depth={2} selected={containerSelected('recipes')} icon={<DvIcon kind="recipes" />} label={<span>Recipes</span>}
               sub="Recipes are built in Recipe Studio (not used in Course 7016 Chapters 1 and 4)" onClick={() => pickNode('recipes')} />}
             <TreeRow depth={2} open={open.SETUP !== false} onToggle={() => toggle('SETUP')} selected={containerSelected('setup')}
@@ -514,7 +517,7 @@ export function ExplorerDisplay(): JSX.Element {
               {setupItem('export', 'Export / Import', 3)}
             </TreeRow>
             <TreeRow depth={2} open={open.STRATEGIES !== false} onToggle={() => setOpen(o => ({ ...o, STRATEGIES: o.STRATEGIES === false }))}
-              selected={containerSelected('strategies')} icon={<DvIcon kind="strategies" />} label={<span>Control Strategies</span>}
+              selected={containerSelected('strategies')} icon={<DvIcon kind="strategies" />} pending={dp.anyArea ? tri : undefined} label={<span>Control Strategies</span>}
               dataAttr={{ 'data-control-strategies': '' }}
               onClick={() => pickNode('strategies')}
               onContextMenu={e => { pickNode('strategies'); setMenu({ x: e.clientX, y: e.clientY, kind: 'strategies', target: 'Control Strategies' }) }}>

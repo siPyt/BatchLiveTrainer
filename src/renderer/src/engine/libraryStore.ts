@@ -40,7 +40,9 @@ export const libraryHooks = {
   /** Called after the Course 7016 project (or any project) is (re)installed. */
   reset: [] as ((course: boolean) => void)[],
   /** Extra objects (equipment modules) that belong to an area and are assigned with it. */
-  areaTags: [] as ((area: string) => string[])[]
+  areaTags: [] as ((area: string) => string[])[],
+  /** Assigning a plant area also assigns the unit modules of its process cells. */
+  areaAssigned: [] as ((area: string, controller: string) => void)[]
 }
 
 /** One path of the course process (BASE>BL500, TK100>BL500, BL500>PRODUCT, AGIT-503 RUN, TK100 FILL ...). */
@@ -569,6 +571,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       ...libraryHooks.areaTags.flatMap(fn => fn(area))]
     if (!requireUnlockedLock('CAN_CONFIGURE', `Assign area ${area} to controller ${controller}`)) return fail('Requires the Can Configure key')
     set({ assignments: { ...s.assignments, ...Object.fromEntries(tags.map(t => [t, controller])) } })
+    libraryHooks.areaAssigned.forEach(fn => fn(area, controller))
     log(controller, `Area ${area} assigned: ${tags.length} module(s) now assigned to ${controller}`)
     return ok(tags)
   },
