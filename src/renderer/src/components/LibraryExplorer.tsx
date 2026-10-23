@@ -35,7 +35,7 @@ export type LibrarySelection =
   | { kind: 'network' }
   | { kind: 'decom' }
   | { kind: 'ctlnet' }
-  | { kind: 'controller'; tag: string }
+  | { kind: 'controller'; tag: string; assigned?: boolean }
   | { kind: 'sim'; tag: string }
   | { kind: 'batch'; sel: BatchSel }
 
@@ -358,7 +358,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   const node = (c: Controller, d: number): JSX.Element => {
     const count = Object.values(lib.assignments).filter(x => x === c.tag).length
     return <Row key={c.tag} depth={d} open={!!open[c.tag]} onToggle={() => toggle(c.tag)}
-      selected={selection?.kind === 'controller' && selection.tag === c.tag} icon={<DvIcon kind="controller" />}
+      selected={selection?.kind === 'controller' && selection.tag === c.tag && !selection.assigned} icon={<DvIcon kind="controller" />}
       pending={pendingFor(c.tag) ? <span className="tv-pending" title="Download required">▲</span> : undefined}
       label={<span>{c.tag}</span>} sub={`${c.description} · ${controllerIsDown(c) ? 'not communicating' : 'commissioned'} · ${count} assigned module(s)`}
       dataAttr={{ 'data-controller': c.tag }}
@@ -373,9 +373,11 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         { label: 'Properties', onClick: () => onSelect({ kind: 'controller', tag: c.tag }) }
       ] }) }}>
       <Row depth={d + 1} icon={<DvIcon kind="folder" />} label={<span>Assigned Modules</span>} sub={`${count} module(s)`}
-        onClick={() => onSelect({ kind: 'controller', tag: c.tag })} />
+        selected={selection?.kind === 'controller' && selection.tag === c.tag && !!selection.assigned}
+        onClick={() => onSelect({ kind: 'controller', tag: c.tag, assigned: true })} />
       {unitsOn(c.tag).map(u => <Row key={u} depth={d + 1} icon={<BatchIcon kind="unit" />} label={<span>{u}</span>} sub="Assigned unit module"
         dataAttr={{ 'data-controller-unit': u }}
+        selected={selection?.kind === 'batch' && selection.sel.t === 'unit' && selection.sel.name === u}
         pending={unitDownloadState(batch, u) !== 'current' ? <span className="tv-pending" title="Download required">▲</span> : undefined}
         onClick={() => onSelect({ kind: 'batch', sel: { t: 'unit', name: u } })} />)}
     </Row>
@@ -447,12 +449,14 @@ export interface ContentsRow {
 
 /** Right-hand "Contents of" pane in Details view: Name / Type columns, as in Exploring DeltaV. */
 export function ContentsList({ rows, empty, extraColumn }: { rows: ContentsRow[]; empty?: ReactNode; extraColumn?: { title: string; value: (r: ContentsRow) => ReactNode } }): JSX.Element {
+  const [picked, setPicked] = useState<string | null>(null)
   return <table className="dvx-details" role="grid">
     <thead><tr><th>Name</th><th>Type</th>{extraColumn && <th>{extraColumn.title}</th>}</tr></thead>
     <tbody>
-      {rows.map(r => <tr key={r.key} className={r.selected ? 'sel' : undefined} draggable={!!r.drag} {...r.data}
+      {rows.map(r => <tr key={r.key} className={(r.selected ?? picked === r.key) ? 'sel' : undefined} draggable={!!r.drag} {...r.data}
         onDragStart={r.drag ? e => { e.dataTransfer.setData(r.drag!.type, r.drag!.value); e.dataTransfer.setData('text/plain', r.drag!.value) } : undefined}
-        onClick={r.onClick} onDoubleClick={r.onOpen} onContextMenu={r.onContextMenu ? e => { e.preventDefault(); r.onContextMenu!(e) } : undefined}>
+        onClick={() => { setPicked(r.key); r.onClick?.() }} onDoubleClick={r.onOpen}
+        onContextMenu={e => { setPicked(r.key); if (r.onContextMenu) { e.preventDefault(); r.onContextMenu(e) } }}>
         <td><span className="dvx-name">{r.icon}<span>{r.name}</span></span></td><td>{r.type}</td>
         {extraColumn && <td>{extraColumn.value(r)}</td>}
       </tr>)}

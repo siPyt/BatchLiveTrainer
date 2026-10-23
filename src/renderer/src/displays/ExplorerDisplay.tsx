@@ -120,11 +120,13 @@ export function ExplorerDisplay(): JSX.Element {
   const openFaceplate = useUi((s) => s.openFaceplate)
   const [open, setOpen] = useState<Record<string, boolean>>({
     CELL: true,
-    ED_CENTER_BATCH: true
+    ED_CENTER_BATCH: true,
+    SETUP: false
   })
   const [treeWidth, setTreeWidth] = usePersistentSize('explorer.treeWidth', 560)
   const [createArea, setCreateArea] = useState<string | null>(null)
   const [createEmArea, setCreateEmArea] = useState<string | null>(null)
+  const [assignAreaName, setAssignAreaName] = useState<string | null>(null)
   const [newModuleEm, setNewModuleEm] = useState<string | undefined>(undefined)
   const [editingArea, setEditingArea] = useState<{ original: string; value: string } | null>(null)
   const [setupView, setSetupView] = useState<'modules' | 'namedSets' | 'alarmTypes' | 'conditionAlarms' | 'licensing' | 'securityParameter' | 'securityField' | 'securityFunction' | 'signatures' | 'export' | 'hierarchy' | 'alarmPriorities'>('modules')
@@ -459,6 +461,7 @@ export function ExplorerDisplay(): JSX.Element {
       {createEmArea && (
         <NewEquipmentModuleForm initialArea={createEmArea} onDone={() => setCreateEmArea(null)} />
       )}
+      {assignAreaName && <AssignAreaDialog area={assignAreaName} onClose={() => setAssignAreaName(null)} />}
       <div className="dvx-panes">
       <div className="explorer-tree" style={{ width: treeWidth, minWidth: treeWidth, flex: `0 0 ${treeWidth}px` }}
         onMouseDownCapture={e => { if (!(e.target as HTMLElement).closest?.('[data-library]')) setLibSel(null) }}>
@@ -640,6 +643,10 @@ export function ExplorerDisplay(): JSX.Element {
                 }}
               >
                 Equipment Module…
+              </button>
+              <div className="ctx-parent">Assign... ▸</div>
+              <button className="ctx-item ctx-sub" onClick={() => { setAssignAreaName(menu.target); setMenu(null) }}>
+                Unit And All Contained Modules to Node
               </button>
             </>
           ) : menu.kind === 'sfc' ? (
@@ -1174,6 +1181,28 @@ function NewModuleForm({
       </div>
     </div>
   )
+}
+
+/** Assign ▸ Unit And All Contained Modules to Node for a plant area (p4-31). */
+function AssignAreaDialog({ area, onClose }: { area: string; onClose: () => void }): JSX.Element {
+  const controllers = Object.keys(useStore(s => s.hardware.controllers))
+  const [controller, setController] = useState(controllers[0] ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const submit = (): void => {
+    const r = useLibrary.getState().assignArea(area, controller)
+    if (r.ok) onClose()
+    else setError(r.error)
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`Assign ${area} to Node`} onClose={onClose}>
+    <div className="lib-dlg-fields">
+      <label>Node:<select aria-label="Node" value={controller} onChange={e => setController(e.target.value)}>{controllers.map(c => <option key={c}>{c}</option>)}</select></label>
+    </div>
+    <div className="dvd-buttons">
+      <button className="tbtn sm" onClick={submit} disabled={!controller}>OK</button>
+      <button className="tbtn sm" onClick={onClose}>Cancel</button>
+    </div>
+    {error && <p role="alert" className="lib-dlg-error">{error}</p>}
+  </SimulatorDialog>
 }
 
 function NewEquipmentModuleForm({

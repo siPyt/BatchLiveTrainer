@@ -403,11 +403,11 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule, onMo
                 { label: "What's this?", onClick: () => window.alert('Unit Phase — the instance of a Phase Class associated with a particular Unit Module.') },
                 { label: 'Properties', onClick: () => ui.openDialog({ t: 'phaseProps', unit: u.name, phase: ph.name }) }
               ] }) }} />)}
+            <ModuleInstanceRows unit={u.name} depth={depth + 2} sel={sel} onSelect={onSelect} onModuleSelect={onModuleSelect} moduleSelected={moduleSelected} />
+            {contained.map(t => renderModule(t, depth + 2))}
             <TreeRow depth={depth + 2} selected={same(sel, { t: 'aliases', unit: u.name })} icon={<BatchIcon kind="aliases" />}
               label={<span>Aliases</span>} sub={aliasesResolved(u) ? 'All aliases resolved' : 'Unresolved aliases'} dataAttr={{ 'data-aliases': u.name }}
               onClick={() => onSelect({ t: 'aliases', unit: u.name })} />
-            <ModuleInstanceRows unit={u.name} depth={depth + 2} sel={sel} onSelect={onSelect} onModuleSelect={onModuleSelect} moduleSelected={moduleSelected} />
-            {contained.map(t => renderModule(t, depth + 2))}
           </TreeRow>
         })}
         {members.map(t => lib.sims[t] ? <TreeRow key={t} depth={depth + 1} icon={<ModuleIcon kind="control" size={16} />} label={<span>{t}</span>}

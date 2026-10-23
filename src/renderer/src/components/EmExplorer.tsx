@@ -198,7 +198,7 @@ export function ModuleInstanceRows({ unit, depth, sel, onSelect, onModuleSelect,
     return undefined
   }
   return <>
-    {Object.entries(blocks).map(([block, tag]) => {
+    {Object.entries(blocks).sort(([a], [b2]) => a.localeCompare(b2)).map(([block, tag]) => {
       if (!tag) return <TreeRow key={block} depth={depth} icon={<ModuleIcon kind="control" size={16} />} label={<span>&lt;unbound&gt; ({block})</span>}
         sub="Shared module block — bind it to a module" dataAttr={{ 'data-unbound-block': `${unit}/${block}` }}
         onContextMenu={e => setMenu({ x: e.clientX, y: e.clientY, label: block, items: [{ label: 'Bind...', onClick: () => ui.openDialog({ t: 'bindBlock', unit, block }) }] })}
