@@ -377,6 +377,9 @@ Verification:
   actions, 8 FAIL_MONITOR blocks wired by dragging pins, HOLD/RESTART branches via Branch / Connect to / delete step,
   Ctrl+S). The saved class matched the course-diagram specification step for step, action for action, edge for edge,
   and then passed the both-blender runtime tests and every Chapter 6 live check.
+- Browser UI verification (2026-10-26, later): slides 6-14 / 6-15 Steps 1-6 (BlenderClasses, AGITATE, R_BLEND_TIME,
+  RPT_BLEND_TIME, Add Composite Block BLEND_TIMER -> TIMER_SEC) worked through the real dialogs; limits validation and
+  autosave across a reload confirmed; Ch6 verdict labels corrected (b83c4be). Typecheck and test:course6 clean.
 - Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
   desktop: npm run dev.
 
@@ -441,6 +444,33 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        branching Hold/Restart), DeltaV-style Control Studio editors (wired FBD for FAIL_MONITOR, drawn
                        alternate SFC branches, Add Composite Block), four Ch6 workshops with live checks, blender tanks
                        open their unit faceplates, 8 Ch6 tests. Pushed to origin/main.
+- 2026-10-26  b83c4be  Chapter 6 workshop display: verdicts no longer read "Verified - Verified: ..." / "Not yet - Not
+                       yet: ..." (course7016Ch6Checks.ts check() returns the plain detail; the UI adds the label);
+                       the phase parameter dialog's Engineering units suggestions now include "sec" (BatchDialogs.tsx).
+                       Pushed to origin/main.
+
+Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
+DV_School database, not the student's saved project):
+ - Prerequisite path exercised as a learner would: System Preferences -> Enable Batch -> Database Administrator "Close
+   all database clients" -> OK -> File -> Shutdown Server -> Connect to Server -> Explorer shows Process Cell / Unit /
+   Phase Classes. (Explorer must be closed first; the app says so.)
+ - Steps 1-2: Phase Classes -> New Category BlenderClasses (inline rename) -> New Phase Class AGITATE (Phase Algorithm,
+   greyed like DeltaV). A prompt offers Open with Control Studio; Cancel is fine.
+ - Step 3 (R_BLEND_TIME): Operating / Integer / Input / low 0 / default 30 / high 300 / sec. Saved, listed in Explorer as
+   "Batch input parameter (Operating) 30 sec", reopened with identical values after a page reload (autosave), and a
+   default of 301 is rejected ("Low limit <= Default value <= High limit").
+ - Step 4 (RPT_BLEND_TIME): Parameter category typed as Report, Integer, Category Report, sec. The Default value box is
+   greyed for Report. Explorer lists "Batch report parameter (Report) 0 sec".
+ - Steps 5-6: Open with Control Studio, drill into RUN_LOGIC, right-click the right side of the Hierarchy window ->
+   Add Composite Block..., name BLEND_TIMER linked to TIMER_SEC -> block shows ACTIVE, START, RESET, TIME_DURATION,
+   ELAPSED_TIME, OUT_D. After Save the workshop checks 7016-6-1 and 7016-6-2 show Verified.
+ - Found and fixed: the duplicated verdict label and the missing "sec" suggestion (see b83c4be). Not changed: the Ch6
+   checklist item 7016-6-1 covers slide steps 1-4 together (no separate Step 3 / Step 4 rows, unlike Chapters 4-5), and
+   the workshop's Open button only helps once Batch is enabled (Chapter 3).
+ - Checks run: npm run typecheck clean; npm run test:course6 8/8 pass.
+ - Gotcha: a maximized Control Studio / Explorer window sits over the main display (by design) and blocks clicks on the
+   Workshops page; minimize or close it first. The browser preview server must be restarted after it is stopped or the
+   page keeps stale code.
 
 Today's work (2026-10-26), in order:
  1. Read these .txt files and the Chapter 6 text; audited what the engine lacked; implemented the Ch6 capabilities,
@@ -456,6 +486,8 @@ Today's work (2026-10-26), in order:
  5. Committed and pushed (03fd3b7). Full suite 780/781 (dv09-audit only), typecheck and production build clean.
  The student's own saved project was never touched; all browser work used a separate origin (port 5201).
  The alarms seen blinking on that test page (LI-504/LI-604 HI) are leftovers of the test runs, not a code change.
+ 6. Later the same day: walked slides 6-14 / 6-15 (Steps 1-6) in the browser, fixed the duplicated verdict text and
+    added "sec" to the engineering units list, committed and pushed (b83c4be). Details in the walkthrough above.
 
 Reference screenshots (2026-10-22): the user shared photos of a current DeltaV system's Control Studio on a state-
 driven EM class (local only, not in the repository). Used for STANDARD DeltaV layout only. Confirmed: STATE_0000n is
