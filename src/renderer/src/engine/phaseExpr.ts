@@ -119,6 +119,8 @@ class Parser {
       this.i++
       return { k: 'if', condition, yes, no }
     }
+    if (t?.t === 'ident' && !KEYWORDS.includes(t.v.toUpperCase()) && this.toks[this.i + 1]?.t === 'op' && this.toks[this.i + 1].v === ':=')
+      throw new SyntaxError(`${t.v} must be a quoted parameter reference, for example '^/${t.v.toUpperCase()}.CV' := value;`)
     if (t?.t === 'quoted' && this.toks[this.i + 1]?.t === 'op' && this.toks[this.i + 1].v === ':=') {
       this.i += 2
       return { k: 'assign', target: t.v, expr: this.expr() }
@@ -242,7 +244,7 @@ export function checkExpression(src: string, kind: 'action' | 'condition', env: 
       if (n.k === 'ref') { const e = env.checkRef(n.v, false); if (e) errors.push(e) }
       else if (n.k === 'named') { const e = env.checkNamed(n.set, n.state); if (e) errors.push(e) }
       else if (n.k === 'call' && !FUNCTIONS.includes(n.fn)) errors.push(`Unknown function ${n.fn}`)
-      else if (n.k === 'ident' && !MODE_WORDS.includes(n.v)) errors.push(`Unknown identifier ${n.v}`)
+      else if (n.k === 'ident' && !MODE_WORDS.includes(n.v)) errors.push(`Unknown identifier ${n.v}. Parameter references go in single quotes, for example '^/${n.v}.CV'`)
   }
   for (const s of program.statements) {
     check(s)

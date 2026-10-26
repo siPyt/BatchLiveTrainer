@@ -177,6 +177,17 @@ test('Chapter 6: IF/THEN/ELSE validates both branches and executes only the sele
     { checkRef: ref => ref.includes('BAD') ? 'bad reference' : null, checkNamed: () => null }), ['bad reference'])
 })
 
+test('Chapter 6: slide 6-16 "Set STEP_INDEX to 1" is accepted quoted and explained when written bare', () => fixture(() => {
+  const check = phaseCheckEnv('AGITATE')
+  assert.deepEqual(expr.checkExpression("'^/STEP_INDEX.CV' := 1;", 'action', check), [])
+  assert.deepEqual(expr.checkExpression("'/STEP_INDEX.CV' := 1;", 'action', check), [])
+  const bare = expr.checkExpression('STEP_INDEX := 1;', 'action', check)
+  assert.equal(bare.length, 1)
+  assert.match(bare[0], /quoted parameter reference.*'\^\/STEP_INDEX\.CV' := value;/)
+  assert.match(expr.checkExpression("'STEP_INDEX' := 1;", 'action', check)[0], /write '\^\/STEP_INDEX\.CV'/)
+  assert.match(expr.checkExpression("STEP_INDEX = 1", 'condition', check)[0], /Parameter references go in single quotes/)
+}))
+
 test('Chapter 6: pulse delay, confirmation timeout and step timing have measurable semantics', () => {
   const pc = cfg.newPhaseClass('TEST', 'General')
   pc.logic.RUN_LOGIC = sequence([['WAIT', [act("'/VALUE.CV' := 1;", { time: 0.5, confirm: 'FALSE', confirmTimeout: 0.3 })], "'/WAIT/PENDING_CONFIRMS.CV' = 0"]])

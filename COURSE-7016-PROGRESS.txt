@@ -472,6 +472,19 @@ DV_School database, not the student's saved project):
    Workshops page; minimize or close it first. The browser preview server must be restarted after it is stopped or the
    page keeps stale code.
 
+Step 7 (slide 6-16) STEP_INDEX report (2026-10-26): typing the slide's "Set STEP_INDEX to 1" literally as
+`STEP_INDEX := 1;` in an action gave "Expected ';' at position 12" (and a "Save the action anyway?" prompt on OK).
+That is correct DeltaV syntax behaviour - parameter references are quoted paths - but the messages did not say what to
+type. The valid forms are `'^/STEP_INDEX.CV' := 1;` or `'/STEP_INDEX.CV' := 1;` (0 errors, action lands on S1).
+Changed: phaseExpr.ts now reports "STEP_INDEX must be a quoted parameter reference, for example '^/STEP_INDEX.CV' :=
+value;" for a bare name before :=, and "Unknown identifier X. Parameter references go in single quotes ..." in
+expressions; batchStore.ts classifyRef adds "write '^/NAME.CV'" for a quoted name with no path; the Ch6 workshop item
+7016-6-3 shows the exact syntax. New regression test in tests/course7016-ch6.test.cjs (9/9 pass). Typecheck clean;
+full suite 781/782 (dv09-audit only, as before). Verified live in the Action dialog's Parser output.
+The same quoting rule applies to every later action on slides 6-16..6-20; forms used by the passing tests:
+'^/COLOR_IN_VLV/MODE.TARGET' := CAS;  '^/RUN_LOGIC/BLEND_TIMER/RESET.CV' := 1;  alias form '//#NAME#/PARAM.CV';
+'/BLEND_TIMER/ELAPSED_TIME.CV' >= '^/R_BLEND_TIME.CV'  (condition).
+
 Today's work (2026-10-26), in order:
  1. Read these .txt files and the Chapter 6 text; audited what the engine lacked; implemented the Ch6 capabilities,
     workshops, live checks and tests (first version used table/form editors for blocks and branches).

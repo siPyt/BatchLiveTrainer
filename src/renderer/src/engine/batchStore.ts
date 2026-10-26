@@ -186,7 +186,10 @@ export function classifyRef(ref: string): RefKind | string {
   const r = ref.trim()
   if (r.startsWith('//')) return { k: 'external', path: r.slice(2) }
   const body = r.startsWith('/+/') ? r.slice(3) : r.startsWith('^/') ? r.slice(2) : r.startsWith('/') ? r.slice(1) : null
-  if (body === null) return `'${ref}' — external references begin with //, internal ones with / or ^/`
+  if (body === null) {
+    const hint = /^[A-Za-z_][A-Za-z0-9_$]*$/.test(r) ? `; for the phase parameter ${r.toUpperCase()} write '^/${r.toUpperCase()}.CV'` : ''
+    return `'${ref}' — external references begin with //, internal ones with / or ^/${hint}`
+  }
   const [name, field = 'CV'] = body.split('.')
   if (field.toUpperCase() === 'IGN' && r.startsWith('/') && !r.startsWith('^/')) return { k: 'ignore', alias: name.toUpperCase() }
   return { k: 'internal', name: name.toUpperCase(), field: field.toUpperCase() }
