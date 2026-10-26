@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useLibrary } from '../engine/libraryStore'
@@ -17,6 +18,8 @@ import { fmt } from '../utils/format'
 
 const W = 1040
 const H = 760
+/** The picture never spreads wider than this width-to-height ratio. */
+const MAX_ASPECT = 3.2
 const PIPE = 1.3
 const COLOR_CX = [190, 490, 790] as const
 const BLENDERS = [
@@ -112,75 +115,97 @@ function UnitLink({ n, cx, y = 91, h = 128 }: { n: number; cx: number; y?: numbe
 
 export function ProcessDisplay(): JSX.Element {
   const process = useLibrary(s => s.process)
+  const svg = useRef<SVGSVGElement>(null)
+  const [aspect, setAspect] = useState(W / H)
+  useEffect(() => {
+    const el = svg.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) setAspect(r.width / r.height)
+    })
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [process])
   if (!process) return <div className="graphic-empty" role="status">
     The Process picture belongs to the Course 7016 DV_School database. Choose File → New Course 7016 Project (DV_School) to load ED_CENTER_BATCH.
   </div>
   const level = (key: keyof CourseProcess, capacity: number): number => pct(process[key], capacity)
+  // A window wider than the picture spreads the equipment apart, equally left and right; symbols keep their size.
+  const width = Math.min(Math.max(W, H * aspect), H * MAX_ASPECT)
+  const f = width / W
+  const X = (v: number): number => Math.round(v * f * 10) / 10
+  const flagX = X(962)
+  const outX = X(960)
   return (
     <div className="plant-diagram" data-display="Process">
-      <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}
+      <svg ref={svg} width="100%" height="100%" viewBox={`0 0 ${width} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}
         role="img" aria-label="ED_CENTER_BATCH process">
-        <ClassicBackground w={W} h={H} />
-        <ClassicTitle x={W / 2} y={22} text="ED_CENTER_BATCH" />
+        <ClassicBackground w={width} h={H} />
+        <ClassicTitle x={width / 2} y={22} text="ED_CENTER_BATCH" />
         <ClassicNavButton x={14} y={10} w={84} h={24} text="Batch Help" onClick={() => useUi.getState().navigate('batchhelp')} />
 
         {/* ===== color tanks 100 / 200 / 300 with supply (XV-n01) and outlet (XV-n02) valves ===== */}
         {COLOR_CX.map((cx, i) => {
           const n = i + 1
+          const xc = X(cx)
           return <g key={n}>
-            <ClassicPipe d={`M${cx - 150},66 H${cx} V95`} width={PIPE} />
-            <Valve tag={`XV-${n}01`} x={cx - 80} y={66} labelPosition="above" />
-            <ClassicTank x={cx - 40} y={95} w={80} h={120} level={level(`tk${n}00` as keyof CourseProcess, COLOR_TANK_CAPACITY)} label="" />
-            <ClassicLabel x={cx} y={160} text={`Color ${n}00`} />
-            <LevelReadout tag={`LI-${n}04`} x={cx + 50} y={120} />
-            <ClassicPipe d={`M${cx},215 V300`} width={PIPE} />
-            <Valve tag={`XV-${n}02`} x={cx} y={258} orientation="vertical" labelPosition="right" />
-            <UnitLink n={n} cx={cx} />
+            <ClassicPipe d={`M${X(cx - 150)},66 H${xc} V95`} width={PIPE} />
+            <Valve tag={`XV-${n}01`} x={X(cx - 80)} y={66} labelPosition="above" />
+            <ClassicTank x={xc - 40} y={95} w={80} h={120} level={level(`tk${n}00` as keyof CourseProcess, COLOR_TANK_CAPACITY)} label="" />
+            <ClassicLabel x={xc} y={160} text={`Color ${n}00`} />
+            <LevelReadout tag={`LI-${n}04`} x={xc + 50} y={120} />
+            <ClassicPipe d={`M${xc},215 V300`} width={PIPE} />
+            <Valve tag={`XV-${n}02`} x={xc} y={258} orientation="vertical" labelPosition="right" />
+            <UnitLink n={n} cx={xc} />
           </g>
         })}
-        <ClassicPipe d={`M${COLOR_CX[0]},300 H${COLOR_CX[2]}`} width={PIPE} />
+        <ClassicPipe d={`M${X(COLOR_CX[0])},300 H${X(COLOR_CX[2])}`} width={PIPE} />
 
         {/* ===== base tank 400, transfer pump MTR-403 and flow loop FIC-404 (Chapter 5) ===== */}
-        <ClassicTank x={40} y={400} w={95} h={120} level={level('bs400', BASE_CAPACITY)} label="" />
-        <ClassicLabel x={87} y={470} text="Base 400" />
-        <LevelReadout tag="LI-401" x={39} y={372} />
-        <ClassicPipe d="M87,520 V570 H150" width={PIPE} />
-        <ClassicPipe d="M170,570 H180 V520" width={PIPE} />
-        <Running tag="MTR-403">{running => <ClassicPump x={160} y={570} running={running} tag="MTR-403" discharge="right" />}</Running>
-        <FlowReadout tag="FIC-404" x={36} y={610} />
+        <ClassicTank x={X(87) - 47} y={400} w={95} h={120} level={level('bs400', BASE_CAPACITY)} label="" />
+        <ClassicLabel x={X(87)} y={470} text="Base 400" />
+        <LevelReadout tag="LI-401" x={X(87) - 48} y={372} />
+        <ClassicPipe d={`M${X(87)},520 V570 H${X(160) - 10}`} width={PIPE} />
+        <ClassicPipe d={`M${X(160) + 10},570 H${X(180)} V520`} width={PIPE} />
+        <Running tag="MTR-403">{running => <ClassicPump x={X(160)} y={570} running={running} tag="MTR-403" discharge="right" />}</Running>
+        <FlowReadout tag="FIC-404" x={X(87) - 51} y={610} />
         {/* Base header tee (p2-5): XV-501 rises to its own Blender 500 inlet; XV-601 runs behind Blender 500 to Blender 600. */}
-        <ClassicPipe d="M180,520 V390 H330 V414" width={PIPE} />
-        <Valve tag="XV-501" x={180} y={450} orientation="vertical" labelPosition="right" />
-        <ClassicPipe d="M180,520 H570 V390 H660 V414" width={PIPE} />
-        <Valve tag="XV-601" x={245} y={520} />
+        <ClassicPipe d={`M${X(180)},520 V390 H${X(BLENDERS[0].cx) - 30} V414`} width={PIPE} />
+        <Valve tag="XV-501" x={X(180)} y={450} orientation="vertical" labelPosition="right" />
+        <ClassicPipe d={`M${X(180)},520 H${X(570)} V390 H${X(BLENDERS[1].cx) - 30} V414`} width={PIPE} />
+        <Valve tag="XV-601" x={X(245)} y={520} />
 
         {/* ===== blenders 500 / 600 ===== */}
-        {BLENDERS.map(b => <g key={b.n}>
-          <ClassicPipe d={`M${b.cx},300 V410`} width={PIPE} />
-          <Valve tag={`XV-${b.n === '500' ? '502' : '602'}`} x={b.cx} y={340} orientation="vertical" labelPosition="right" />
-          <StageLabel tag={`XV-${b.n === '500' ? '502' : '602'}`} x={b.cx + 14} y={362} />
-          <ClassicTank x={b.cx - 55} y={410} w={110} h={140} level={level(b.key, BLENDER_CAPACITY)} label="" />
-          <ClassicLabel x={b.cx} y={500} text={`Blender ${b.n}`} />
-          <UnitLink n={Number(b.n) / 100} cx={b.cx} y={414} h={124} />
-          <Running tag={b.agit}>{running => <ClassicAgitatorDrive x={b.cx + 30} y={413} running={running} tag={b.agit} />}</Running>
-          <LevelReadout tag={b.li} x={b.liX} y={470} />
-          <ClassicPipe d={`M${b.cx},534 V590`} width={PIPE} />
-          <Running tag={b.pump}>{running => <ClassicPump x={b.cx} y={590} running={running} tag={b.pump} discharge="right" />}</Running>
-        </g>)}
+        {BLENDERS.map(b => {
+          const xc = X(b.cx)
+          return <g key={b.n}>
+            <ClassicPipe d={`M${xc},300 V410`} width={PIPE} />
+            <Valve tag={`XV-${b.n === '500' ? '502' : '602'}`} x={xc} y={340} orientation="vertical" labelPosition="right" />
+            <StageLabel tag={`XV-${b.n === '500' ? '502' : '602'}`} x={xc + 14} y={362} />
+            <ClassicTank x={xc - 55} y={410} w={110} h={140} level={level(b.key, BLENDER_CAPACITY)} label="" />
+            <ClassicLabel x={xc} y={500} text={`Blender ${b.n}`} />
+            <UnitLink n={Number(b.n) / 100} cx={xc} y={414} h={124} />
+            <Running tag={b.agit}>{running => <ClassicAgitatorDrive x={xc + 30} y={413} running={running} tag={b.agit} />}</Running>
+            <LevelReadout tag={b.li} x={xc + (b.liX - b.cx)} y={470} />
+            <ClassicPipe d={`M${xc},534 V590`} width={PIPE} />
+            <Running tag={b.pump}>{running => <ClassicPump x={xc} y={590} running={running} tag={b.pump} discharge="right" />}</Running>
+          </g>
+        })}
 
         {/* ===== product / waste headers ===== */}
-        <ClassicPipe d="M705,590 H960" width={PIPE} />
-        <Valve tag="XV-603" x={850} y={590} labelPosition="above" />
-        <ClassicPipe d="M800,590 V630 H960" width={PIPE} />
-        <Valve tag="XV-604" x={880} y={630} />
-        <ClassicPipe d="M375,590 H420 V680 H960" width={PIPE} />
-        <Valve tag="XV-503" x={560} y={680} labelPosition="above" />
-        <ClassicPipe d="M460,680 V720 H960" width={PIPE} />
-        <Valve tag="XV-504" x={620} y={720} />
-        <ClassicFlag x={962} y={580} w={56} text="Product" />
-        <ClassicFlag x={962} y={620} w={56} text="Waste" />
-        <ClassicFlag x={962} y={670} w={56} text="Product" />
-        <ClassicFlag x={962} y={710} w={56} text="Waste" />
+        <ClassicPipe d={`M${X(BLENDERS[1].cx) + 15},590 H${outX}`} width={PIPE} />
+        <Valve tag="XV-603" x={X(850)} y={590} labelPosition="above" />
+        <ClassicPipe d={`M${X(800)},590 V630 H${outX}`} width={PIPE} />
+        <Valve tag="XV-604" x={X(880)} y={630} />
+        <ClassicPipe d={`M${X(BLENDERS[0].cx) + 15},590 H${X(420)} V680 H${outX}`} width={PIPE} />
+        <Valve tag="XV-503" x={X(560)} y={680} labelPosition="above" />
+        <ClassicPipe d={`M${X(460)},680 V720 H${outX}`} width={PIPE} />
+        <Valve tag="XV-504" x={X(620)} y={720} />
+        <ClassicFlag x={flagX} y={580} w={56} text="Product" />
+        <ClassicFlag x={flagX} y={620} w={56} text="Waste" />
+        <ClassicFlag x={flagX} y={670} w={56} text="Product" />
+        <ClassicFlag x={flagX} y={710} w={56} text="Waste" />
       </svg>
     </div>
   )
