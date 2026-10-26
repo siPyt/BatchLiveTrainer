@@ -907,9 +907,9 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       {v.type === 'Non-Boolean' && <p className="exp-hint">Use the linked composite block name as the action name (for example BLEND_TIMER). N activates it for this step; no assignment expression is required.</p>}
       {v.qualifier === 'P' && <>
         <div className="dvd-inline"><label style={{ flex: 1 }}>Pulse delay condition (optional):<input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} onChange={e => setV({ ...v, delayExpression: e.target.value })} /></label>
-          <button type="button" className="tbtn sm" onClick={() => setCondEditor('delay')}>Edit...</button></div>
+          <button type="button" className="tbtn sm" onClick={() => setCondEditor('delay')}>Expression Assistant...</button></div>
         <div className="dvd-inline"><label style={{ flex: 1 }}>Confirm expression (optional):<input aria-label="Confirm expression" value={v.confirm ?? ''} onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
-          <button type="button" className="tbtn sm" onClick={() => setCondEditor('confirm')}>Edit...</button></div>
+          <button type="button" className="tbtn sm" onClick={() => setCondEditor('confirm')}>Expression Assistant...</button></div>
         <label>Confirm timeout (s, 0 = no timeout):<input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
       </>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
