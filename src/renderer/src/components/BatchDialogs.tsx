@@ -223,7 +223,7 @@ export function PhaseParamDialog({ phaseClass, kind, original, onClose }: { phas
             <label>High limit:<input aria-label="High limit" type="number" value={d.high} onChange={e => setD({ ...d, high: Number(e.target.value) })} /></label>
           </div> : <label>Default value:<input aria-label="Default value" value={String(d.defaultValue)} onChange={e => setD({ ...d, defaultValue: e.target.value })} /></label>}
           {numeric && <label>Engineering units:<input aria-label="Engineering units" list="dvd-eu" value={d.units} onChange={e => setD({ ...d, units: e.target.value })} /></label>}
-          <datalist id="dvd-eu">{['gal', 'GPM', '%', 'degC', 'degF', 'kg', 'lb', 'min', 's'].map(u => <option key={u} value={u} />)}</datalist>
+          <datalist id="dvd-eu">{['gal', 'GPM', '%', 'degC', 'degF', 'kg', 'lb', 'min', 'sec', 's'].map(u => <option key={u} value={u} />)}</datalist>
         </fieldset>
         <p className="exp-hint">{KIND_TITLE[kind]}{kind === 'batch' ? ' — Input = information to the phase (green); Report = information from the phase (yellow). Batch parameters are uploaded/downloaded by the Batch Executive.' : ''}</p>
       </div>

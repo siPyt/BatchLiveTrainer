@@ -11,7 +11,7 @@ export interface Ch6State {
 }
 
 const check = (id: string, ok: boolean, detail: string): StepCheck => ({
-  id, verdict: ok ? 'verified' : 'pending', detail: ok ? 'Verified: ' + detail : 'Not yet: ' + detail
+  id, verdict: ok ? 'verified' : 'pending', detail
 })
 
 export function checkCourse7016Ch6(s: Ch6State, events: EventLogEntry[], namedSets: NamedSetState): StepCheck[] {
