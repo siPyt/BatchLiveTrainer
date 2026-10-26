@@ -872,6 +872,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
   const [v, setV] = useState<ActionDef>(action ?? { name: nextName(), description: '', type: 'Assignment', qualifier: 'N', time: 0, expression: '' })
   const [error, setError] = useState<string | null>(null)
   const [editor, setEditor] = useState(false)
+  const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | null>(null)
   const submit = (): void => {
     const name = v.name.trim().toUpperCase()
     if (!isNameValid(name)) { setError(NAME_RULE); return }
@@ -905,8 +906,10 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       </div>
       {v.type === 'Non-Boolean' && <p className="exp-hint">Use the linked composite block name as the action name (for example BLEND_TIMER). N activates it for this step; no assignment expression is required.</p>}
       {v.qualifier === 'P' && <>
-        <label>Pulse delay condition (optional):<input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} onChange={e => setV({ ...v, delayExpression: e.target.value })} /></label>
-        <label>Confirm expression (optional):<input aria-label="Confirm expression" value={v.confirm ?? ''} onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
+        <div className="dvd-inline"><label style={{ flex: 1 }}>Pulse delay condition (optional):<input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} onChange={e => setV({ ...v, delayExpression: e.target.value })} /></label>
+          <button type="button" className="tbtn sm" onClick={() => setCondEditor('delay')}>Edit...</button></div>
+        <div className="dvd-inline"><label style={{ flex: 1 }}>Confirm expression (optional):<input aria-label="Confirm expression" value={v.confirm ?? ''} onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
+          <button type="button" className="tbtn sm" onClick={() => setCondEditor('confirm')}>Edit...</button></div>
         <label>Confirm timeout (s, 0 = no timeout):<input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
       </>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
@@ -917,6 +920,9 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
     {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind="action" ctx={ctx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
+    {condEditor && <ExpressionDialog title={`${composite}/${step}/${v.name} ${condEditor === 'confirm' ? 'Confirm' : 'Pulse Delay'} Expression`} kind="condition" ctx={ctx}
+      value={(condEditor === 'confirm' ? v.confirm : v.delayExpression) ?? ''} onClose={() => setCondEditor(null)}
+      onOk={text => { const value = text.trim().replace(/;$/, ''); setV(condEditor === 'confirm' ? { ...v, confirm: value, confirmTimeout: v.confirmTimeout ?? 0 } : { ...v, delayExpression: value }); setCondEditor(null) }} />}
   </SimulatorDialog>
 }
 
@@ -1180,7 +1186,7 @@ function NamedStateBrowser({ onPick, onClose }: { onPick: (s: string) => void; o
   </SimulatorDialog>
 }
 
-const ALIAS_FIELDS = ['(alias path only)', 'MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV']
+const ALIAS_FIELDS = ['(alias path only)', 'MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']
 
 function AliasBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
   const aliases = ctx.aliases ?? []

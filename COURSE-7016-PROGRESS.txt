@@ -481,6 +481,11 @@ value;" for a bare name before :=, and "Unknown identifier X. Parameter referenc
 expressions; batchStore.ts classifyRef adds "write '^/NAME.CV'" for a quoted name with no path; the Ch6 workshop item
 7016-6-3 shows the exact syntax. New regression test in tests/course7016-ch6.test.cjs (9/9 pass). Typecheck clean;
 full suite 781/782 (dv09-audit only, as before). Verified live in the Action dialog's Parser output.
+Step 7g (slide 6-17, Stop OUT_PUMP with confirm DC1/PV_D.CV = stopped): action expression
+'//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP';  qualifier P - Pulse;  Confirm expression
+'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'  (confirm timeout as needed). The Confirm and Pulse delay boxes now have an
+Edit... button that opens the same expression helper (Insert Alias / Named State / operators), and Insert Alias lists
+DC1/MODE.TARGET, DC1/PV_D.CV and DC1/SP_D.CV. Ch6 test checks both expressions against a real BLENDERS build.
 Step 7d (slide 6-16, "BLEND_TIMER/RESET.CV := 1"): type '/BLEND_TIMER/RESET.CV' := 1;  (leading /; '^/RUN_LOGIC/BLEND_TIMER/RESET.CV'
 also works). Without the leading / the editor rejects it; the message now says "for a block in this composite write
 '/BLEND_TIMER/RESET.CV'". The BLEND_TIMER block must already exist (Step 6) or the reference is rejected.

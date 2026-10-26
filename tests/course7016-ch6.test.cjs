@@ -178,7 +178,10 @@ test('Chapter 6: IF/THEN/ELSE validates both branches and executes only the sele
 })
 
 test('Chapter 6: slide 6-16 "Set STEP_INDEX to 1" is accepted quoted and explained when written bare', () => fixture(() => {
+  blenders()
   const check = phaseCheckEnv('AGITATE')
+  assert.deepEqual(expr.checkExpression("'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'", 'condition', check), [])
+  assert.deepEqual(expr.checkExpression("'//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP';", 'action', check), [])
   assert.deepEqual(expr.checkExpression("'^/STEP_INDEX.CV' := 1;", 'action', check), [])
   assert.deepEqual(expr.checkExpression("'/STEP_INDEX.CV' := 1;", 'action', check), [])
   const bare = expr.checkExpression('STEP_INDEX := 1;', 'action', check)
