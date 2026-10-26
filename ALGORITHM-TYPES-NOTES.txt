@@ -278,7 +278,9 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
    - Verified against the user's local 7016 Rev 13 Chapter 6 text and rendered slides (including 6-5/6-6,
      6-10..6-12 and 6-35/6-37). CALC supports the conditional operator and LOG2 as well as IF/THEN/ENDIF.
    - Both blender instances pass timed operation, all five failure/clear/restart paths and save/restore tests.
-     The new editors use explicit connection/branch tables, not pixel-identical DeltaV FBD/branch graphics.
-     See COURSE-7016-PROGRESS.txt section 5A and tests/course7016-ch6.test.cjs.
+     UPDATE (same day): the first editors used connection/branch tables; after review they were replaced with a
+     DeltaV-style wired function block diagram for FAIL_MONITOR, drawn alternate SFC branches and a Hierarchy
+     "Add Composite Block" menu, and AGITATE was then built entirely through those screens and matched the spec.
+     See COURSE-7016-PROGRESS.txt section 5A and tests/course7016-ch6.test.cjs. Committed as 03fd3b7.
    - This does NOT add the five undocumented EM algorithm types. BCOMMAND/XCOMMAND dispatch and later recipe
      capabilities remain separate work; their presence in the parameter list is not a claim of execution support.

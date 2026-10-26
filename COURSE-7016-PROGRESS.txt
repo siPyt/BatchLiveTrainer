@@ -363,10 +363,20 @@ Verification:
 - tests/course7016-save.test.cjs    save -> fresh start -> restore keeps the configuration and the running plant;
                                     export/import round trip; Enable Batch reset.
 - tests/operator-ribbons.test.cjs   the Trainer shows only course displays (no site areas, presets or DV-09).
-- tests/course7016-ch6.test.cjs     Chapter 6 capabilities and both-blender workshop integration (npm run test:course6).
-- Full suite: 778 of 780 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
-  text, not in this repository) and fails at load, as it did before this work. The other failure was an intermittent
-  process-waste temperature assertion; the focused process-waste rerun passed all 21 tests. Typecheck is clean.
+- tests/course7016-ch6.test.cjs     Chapter 6 capabilities and both-blender workshop integration (npm run test:course6):
+                                    8 tests - expression/IF-THEN-ELSE, pulse delay and confirmation timing, both
+                                    blenders (retentive Hold/Restart, all five failures, Clear Failures, save/restore),
+                                    early Hold/Stop/Abort, DeltaV-style editors (function block wiring, branch drawing,
+                                    block/edge/composite dialogs), HOLD_LOGIC drawn from the course diagram, optional
+                                    holding-agitation loop, Process -> blender unit links.
+- Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
+  text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
+  build are clean.
+- Browser UI verification (2026-10-26, isolated test origin, scratch scripts not kept): AGITATE was built entirely in
+  Control Studio from a Chapter 5-only project (Hierarchy right-click Add Composite Block, 6 RUN_LOGIC steps / 27
+  actions, 8 FAIL_MONITOR blocks wired by dragging pins, HOLD/RESTART branches via Branch / Connect to / delete step,
+  Ctrl+S). The saved class matched the course-diagram specification step for step, action for action, edge for edge,
+  and then passed the both-blender runtime tests and every Chapter 6 live check.
 - Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
   desktop: npm run dev.
 
@@ -426,6 +436,26 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
 - 2026-10-22  fa20244  Unit class module blocks (BLENDERS -> BLNDR_COLOR ...) and CMs under unit modules select and
                        highlight on click (F2 renames a block); Module block / New EM Class dialogs: narrow OK/Cancel
                        column, Class name + Browse on one line.
+- 2026-10-26  03fd3b7  Chapter 6 (AGITATE unit phase): engine (delayed Pulse + Confirm, writable STEP_INDEX, numeric
+                       FAIL_INDEX, TIMER_SEC linked composite, executable CND/BFI/CALC FAIL_MONITOR, Clear Failures,
+                       branching Hold/Restart), DeltaV-style Control Studio editors (wired FBD for FAIL_MONITOR, drawn
+                       alternate SFC branches, Add Composite Block), four Ch6 workshops with live checks, blender tanks
+                       open their unit faceplates, 8 Ch6 tests. Pushed to origin/main.
+
+Today's work (2026-10-26), in order:
+ 1. Read these .txt files and the Chapter 6 text; audited what the engine lacked; implemented the Ch6 capabilities,
+    workshops, live checks and tests (first version used table/form editors for blocks and branches).
+ 2. User asked for real DeltaV function blocks, phases and look/feel. Rebuilt the authoring surfaces: PhaseFbd.tsx
+    (FAIL_MONITOR as a wired function block diagram: palette CND/BFI/CALC, block properties dialog, pin-to-pin
+    wiring, Delete wire, on-line pin values and parameter writes), phaseGraph.ts + SfcBranchDiagram (alternate
+    branches: Insert > Branch, Connect to, Add Sequence After, Termination), CompositeBlockDialog (Hierarchy
+    right-click). Removed the invented Composite Blocks / Selective Branches / SFC Chart buttons.
+ 3. Verified in a browser on an isolated test origin; then built the whole AGITATE phase through the Control Studio
+    UI and compared it with the specification (identical) and ran the both-blender runtime tests on it (pass).
+ 4. Chapter 5 re-checked against the slides (EM Control Studio, Items grid, unit-class dialogs): consistent.
+ 5. Committed and pushed (03fd3b7). Full suite 780/781 (dv09-audit only), typecheck and production build clean.
+ The student's own saved project was never touched; all browser work used a separate origin (port 5201).
+ The alarms seen blinking on that test page (LI-504/LI-604 HI) are leftovers of the test runs, not a code change.
 
 Reference screenshots (2026-10-22): the user shared photos of a current DeltaV system's Control Studio on a state-
 driven EM class (local only, not in the repository). Used for STANDARD DeltaV layout only. Confirmed: STATE_0000n is
@@ -475,7 +505,29 @@ material and the repository is public. bl-preview.vite.config.mjs (browser previ
 To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,
 ch5/*.png ...).
 
-WHERE WE LEFT OFF (2026-10-26):
+WHERE WE LEFT OFF (2026-10-26, end of day):
+- Chapter 6 (AGITATE unit phase) is implemented, tested, committed and pushed (03fd3b7). The Ch6 workshops are in
+  Course 7016 Workshops -> "7016 - Ch 6 AGITATE Unit Phase" (configuration/timed operation, Hold and Restart,
+  failure monitoring/recovery, optional Stop/Abort/held agitation). See section 5A for how each tool works.
+- The student's own project was never modified. Last recorded student position: Chapter 5 BLENDERS Unit Class,
+  Step 5 (add the EM and CM classes to BLENDERS). Finish Chapter 5 (steps 5-18, Verify the process, Verify Equipment
+  Modules), then do Chapter 6 by hand. No New Project/reset is needed; the database autosaves.
+- Chapter 6 order of work (the app enforces it, as DeltaV does - a reference to a missing block is rejected):
+  create BlenderClasses/AGITATE + R_BLEND_TIME/RPT_BLEND_TIME; RUN_LOGIC: Add Composite Block BLEND_TIMER (link TIMER_SEC)
+  then the steps/actions; FAIL_MONITOR blocks and wires; then go back to RUN_LOGIC to add the Enable/Disable condition
+  actions; HOLD_LOGIC and RESTART_LOGIC branches; add failure messages 4-8 to phase_failures and download Changed
+  Setup Data to BOTH workstation and controller; assign AGITATE to BLENDERS, phase type Controller, download both units.
+- Known gaps / simplifications: BFI RESET_IN is written by logic, not wired; only the TIMER_SEC linked template is
+  modeled; the optional STOP/ABORT/holding-agitation exercises are checked manually (no live check); a phase's block
+  rename does not rewrite references to it inside action expressions (re-enter them).
+- Not yet done: Chapter 7 (DRAIN, imports a prebuilt phase), Chapter 8 (DUMP and CHARGE COLOR, equipment arbitration,
+  phase requests). Neither is audited against the course text. The five undocumented EM algorithm types remain out
+  of scope (ALGORITHM-TYPES-NOTES.txt).
+- Tests: npm test = 780/781 (dv09-audit needs pdf_om.txt); npm run test:course6 = 8/8; typecheck and build clean.
+- Tooling note: when screenshotting through the VS Code browser tab, the viewport is tiny; use a separate headless
+  browser against the Vite preview (npx vite --config bl-preview.vite.config.mjs) with its own profile.
+
+WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and
   deliberate UI simplifications. The student's database is preserved, with no automatically completed workshop.
 - Last recorded student position was Chapter 5 BLENDERS Unit Class Step 5. Finish those prerequisites if still
