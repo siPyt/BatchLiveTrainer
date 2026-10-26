@@ -187,7 +187,9 @@ export function classifyRef(ref: string): RefKind | string {
   if (r.startsWith('//')) return { k: 'external', path: r.slice(2) }
   const body = r.startsWith('/+/') ? r.slice(3) : r.startsWith('^/') ? r.slice(2) : r.startsWith('/') ? r.slice(1) : null
   if (body === null) {
-    const hint = /^[A-Za-z_][A-Za-z0-9_$]*$/.test(r) ? `; for the phase parameter ${r.toUpperCase()} write '^/${r.toUpperCase()}.CV'` : ''
+    const name = r.toUpperCase()
+    const hint = /^[A-Za-z_][A-Za-z0-9_$]*$/.test(r) ? `; for the phase parameter ${name} write '^/${name}.CV'`
+      : /^[A-Za-z_][A-Za-z0-9_$]*\/[^/]/.test(r) ? `; for a block in this composite write '/${r}'` : ''
     return `'${ref}' — external references begin with //, internal ones with / or ^/${hint}`
   }
   const [name, field = 'CV'] = body.split('.')

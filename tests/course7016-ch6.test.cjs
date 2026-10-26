@@ -185,6 +185,7 @@ test('Chapter 6: slide 6-16 "Set STEP_INDEX to 1" is accepted quoted and explain
   assert.equal(bare.length, 1)
   assert.match(bare[0], /quoted parameter reference.*'\^\/STEP_INDEX\.CV' := value;/)
   assert.match(expr.checkExpression("'STEP_INDEX' := 1;", 'action', check)[0], /write '\^\/STEP_INDEX\.CV'/)
+  assert.match(expr.checkExpression("'BLEND_TIMER/RESET.CV' := 1;", 'action', check)[0], /write '\/BLEND_TIMER\/RESET\.CV'/)
   assert.match(expr.checkExpression("STEP_INDEX = 1", 'condition', check)[0], /Parameter references go in single quotes/)
 }))
 
