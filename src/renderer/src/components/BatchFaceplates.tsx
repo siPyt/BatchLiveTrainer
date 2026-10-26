@@ -3,7 +3,7 @@ import { useBatchUi, type BatchWindow } from '../ui/batchUi'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { useBatch, activeKey, type ActivePhase } from '../engine/batchStore'
-import { COMMANDS_FOR, COMMAND_LABEL, STATE_LABEL, stepIndex, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
+import { COMMANDS_FOR, COMMAND_LABEL, STATE_LABEL, stepIndex, phaseHasFailure, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
 import { askValue } from './AppNotices'
 
 // DeltaV Operate unit and phase faceplates (course 7016 pp 4-34/4-35): the unit faceplate lists up to
@@ -11,7 +11,7 @@ import { askValue } from './AppNotices'
 // time in state, step index and watchdog, the Phase Command selector and the Phase Owner toggle.
 // Drawn with BatchLive's standard faceplate chrome.
 
-const ALL_COMMANDS: PhaseCommand[] = ['START', 'HOLD', 'RESTART', 'STOP', 'ABORT', 'RESET']
+const ALL_COMMANDS: PhaseCommand[] = ['START', 'HOLD', 'RESTART', 'STOP', 'ABORT', 'RESET', 'CLEAR_FAILURES']
 
 function alertResult(r: { ok: boolean; error?: string }): boolean {
   if (!r.ok && r.error) window.alert(r.error)
@@ -78,7 +78,7 @@ export function UnitFaceplate({ unit }: { unit: string }): JSX.Element {
           <span className="bfp-slot-owner">{a.owner === 'EXTERNAL' ? 'EXT' : 'BATCH'}</span>
           <button className="bfp-slot-btn" title={`Open the ${a.phase} phase faceplate`} aria-label={`Open ${a.phase} phase faceplate`}
             onClick={() => useBatchUi.getState().openPhase(unit, a.phase)}>▥</button>
-          <span className={'bfp-slot-state' + (a.rt.failIndex !== 'OK' ? ' failed' : '')}>{STATE_LABEL[a.rt.state]}</span>
+          <span className={'bfp-slot-state' + (phaseHasFailure(a.rt) ? ' failed' : '')}>{STATE_LABEL[a.rt.state]}</span>
         </>}
       </div>)}
     </div>
@@ -121,7 +121,7 @@ export function PhaseFaceplate({ unit, phase }: { unit: string; phase: string })
     <Field label="Time in State" value={String(Math.floor(rt.stateTime))} tone="state" />
     <Field label="Step Index" value={String(stepIndex(rt))} tone="state" />
     <Field label="Watchdog State" value="OK" tone="state" />
-    {rt.failIndex !== 'OK' && <div className="bfp-warn" role="alert">Fail Index {rt.failIndex}{rt.message ? `: ${rt.message}` : ''}</div>}
+    {phaseHasFailure(rt) && <div className="bfp-warn" role="alert">Fail Index {rt.failIndex}{rt.message ? `: ${rt.message}` : ''}</div>}
     <div className="bfp-engraved">Phase Command</div>
     <div className="bfp-inline"><span className="bfp-black bfp-cmd">{current}</span>
       <button className="tbtn sm" aria-label="Phase command selections" onClick={() => setSelector(v => !v)}>...</button></div>

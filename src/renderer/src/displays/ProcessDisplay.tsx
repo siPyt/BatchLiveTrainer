@@ -2,7 +2,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useLibrary } from '../engine/libraryStore'
 import { useBatch } from '../engine/batchStore'
-import { STATE_LABEL } from '../engine/batchConfig'
+import { STATE_LABEL, phaseHasFailure } from '../engine/batchConfig'
 import { useBatchUi } from '../ui/batchUi'
 import { BASE_CAPACITY, BLENDER_CAPACITY, COLOR_TANK_CAPACITY, type CourseProcess } from '../engine/classLibrary'
 import {
@@ -89,8 +89,8 @@ function Running({ tag, children }: { tag: string; children: (running: boolean) 
 
 const pct = (value: number, capacity: number): number => (value / capacity) * 100
 
-/** Unit module that owns color tank n (contains its LI/XV modules); clicking the tank opens its unit faceplate (p4-34). */
-function UnitLink({ n, cx }: { n: number; cx: number }): JSX.Element | null {
+/** Clicking a tank opens the faceplate of the unit that contains its LI/XV modules. */
+function UnitLink({ n, cx, y = 91, h = 128 }: { n: number; cx: number; y?: number; h?: number }): JSX.Element | null {
   const unit = useBatch(s => s.contained[`LI-${n}04`] ?? s.contained[`XV-${n}01`] ?? null)
   const deployed = useBatch(s => (unit ? !!s.deployedUnits[unit] : false))
   const status = useBatch(s => {
@@ -98,12 +98,15 @@ function UnitLink({ n, cx }: { n: number; cx: number }): JSX.Element | null {
     const loaded = Object.values(s.active).filter(a => a.unit === unit)
     return loaded.map(a => `${a.phase} ${STATE_LABEL[a.rt.state]}`).join(', ')
   })
+  const failure = useBatch(s => Object.values(s.active).filter(a => a.unit === unit && phaseHasFailure(a.rt))
+    .map(a => `${a.phase}: ${a.rt.message || `Failure ${a.rt.failIndex}`}`).join(', '))
   if (!unit) return null
   return <g data-unit-link={unit} style={{ cursor: 'pointer' }} onClick={() => useBatchUi.getState().openUnit(unit)}>
     <title>{deployed ? `${unit} — open the unit faceplate` : `${unit} has not been downloaded yet`}</title>
-    <rect x={cx - 44} y={91} width={88} height={128} fill="transparent" stroke="transparent" />
-    <text x={cx} y={232} textAnchor="middle" fill={PALE_TEXT} fontSize={8.5} fontWeight={700}>{unit}</text>
-    {status && <text x={cx} y={243} textAnchor="middle" fill="#1f5fa8" fontSize={8} fontWeight={700}>{status}</text>}
+    <rect x={cx - 44} y={y} width={88} height={h} fill="transparent" stroke="transparent" />
+    <text x={cx} y={y + h + 13} textAnchor="middle" fill={PALE_TEXT} fontSize={8.5} fontWeight={700}>{unit}</text>
+    {status && <text x={cx} y={y + h + 24} textAnchor="middle" fill="#1f5fa8" fontSize={8} fontWeight={700}>{status}</text>}
+    {failure && <text x={cx} y={y + h + 35} textAnchor="middle" fill="#b00020" fontSize={8} fontWeight={700}>{failure}</text>}
   </g>
 }
 
@@ -158,6 +161,7 @@ export function ProcessDisplay(): JSX.Element {
           <StageLabel tag={`XV-${b.n === '500' ? '502' : '602'}`} x={b.cx + 14} y={362} />
           <ClassicTank x={b.cx - 55} y={410} w={110} h={140} level={level(b.key, BLENDER_CAPACITY)} label="" />
           <ClassicLabel x={b.cx} y={500} text={`Blender ${b.n}`} />
+          <UnitLink n={Number(b.n) / 100} cx={b.cx} y={414} h={124} />
           <Running tag={b.agit}>{running => <ClassicAgitatorDrive x={b.cx + 30} y={413} running={running} tag={b.agit} />}</Running>
           <LevelReadout tag={b.li} x={b.liX} y={470} />
           <ClassicPipe d={`M${b.cx},534 V590`} width={PIPE} />

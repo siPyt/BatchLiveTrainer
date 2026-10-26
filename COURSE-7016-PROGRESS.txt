@@ -273,6 +273,73 @@ the block rename box closed itself after the Module block dialog, EM child modul
 faceplates showed MAN instead of the CAS/AUTO mode the EM uses.
 
 
+5A. CHAPTER 6 - AGITATE Unit Phase (pp 6-1 .. 6-54)
+---------------------------------------------------
+Status: workshop capabilities implemented and tested (2026-10-26). This adds tools, not a prebuilt AGITATE
+class in the student's database. Complete Chapter 5's BLENDERS/UM_BL_500/UM_BL_600 configuration first.
+
+- Phase actions: Pulse time/condition delays, Confirm expression and timeout, per-step TIME, PENDING_CONFIRMS,
+  FAILED_CONFIRMS and CONFIRM_FAIL. Non-Boolean actions activate linked composites (name the action BLEND_TIMER;
+  qualifier N activates the timer composite while that step is active).
+- STEP_INDEX is now a writable phase parameter rather than the currently selected SFC step number. FAIL_INDEX is
+  numeric for new runtimes and failures; nonzero failures enter Holding from Running/Restarting. Evaluation errors
+  use index 255 with their diagnostic text. Legacy saved 'OK' values remain compatible.
+- Control Studio on the phase class (the same ribbon, hierarchy, parameters and palette panes as DeltaV):
+  * Hierarchy: right-click the right side of the Hierarchy window > Add Composite Block links a named block to
+    TIMER_SEC (BLEND_TIMER). Selecting a block shows START/RESET/TIME_DURATION/ELAPSED_TIME in the Parameters pane;
+    Hold stops START without losing elapsed time.
+  * FAIL_MONITOR is a real function block diagram: drag CND, BFI and CALC from the "Calculation/Logic" palette,
+    double-click for Properties (name, expression with the expression editor, DISABLE default), drag from an
+    output pin (OUT_D, FIRST_OUT, OUT_INT, OUT1) to an input pin (IN_D1..IN_D16, IN1) to wire, select a wire and
+    press Delete (or right-click) to remove it. Blocks can be moved; positions are saved. On-Line the pins show live
+    values, wires turn green when TRUE and double-clicking a parameter in the Parameters pane writes it (enable
+    conditions, BFI RESET_IN). FAIL_MONITOR executes conditions, the binary FIRST_OUT BFI and calculations while
+    the phase is active, not Idle.
+  * Hold/Restart/Stop/Abort sequences support alternate branches drawn as in DeltaV: select a step and use
+    Insert > Branch (or the palette Branch item, or right-click > Add Alternate Branch); double-click a transition
+    for its name, expression and Connect To step (or Termination); right-click > Add Sequence After extends a leg;
+    palette Termination ends the selected leg; a step takes its first TRUE transition. Legs rejoin, loop back or end.
+- CALC supports IF/THEN/ELSE/ENDIF and the conditional operator plus LOG2 for binary failure-index conversion.
+  References include /+/phase parameters, local step/block paths, cross-composite paths and nested EM child paths.
+  RESTART_TYPE uses $phase_restart_types Continue/From_Start; STEP_INDEX remains intact during Hold/Restart.
+- Built-in phase_failures and $phase_restart_types are installed in fresh projects and added to older saves
+  without replacing user configuration. Add failure messages 4-8 and download Changed Setup Data to BOTH the
+  controller and workstation. Runtime named states and displayed failure messages use their deployed setup data.
+- Clear Failures is available in the phase command selector. Failed phases cannot Restart until cleared.
+  The Process picture, phase faceplate and On-Line system parameters show the failure and diagnostic.
+  Blender tanks now open their unit faceplates from Process, just like the color tanks.
+- Course 7016 Workshops -> Ch 6: configuration/timed operation, Hold/Restart, failure monitoring/recovery, and
+  optional Stop/Abort/held-agitation exercises. The principal checklists have live checks; optional checks are manual.
+
+Deliberate simplifications:
+- RESET_IN on the BFI is written by logic (not wired); BFI inputs wire from block outputs only.
+- Only the Chapter 6 TIMER_SEC linked template is modeled here, not an arbitrary composite-template editor.
+- These are educational simulator capabilities, not vendor-controller certification.
+
+Verification:
+- tests/course7016-ch6.test.cjs: both real blender instances; timed reports; retentive Hold/Restart; all five failures
+  on EACH blender; actual fail-safe valve/motor feedback; Clear Failures and resumption; unit isolation; database
+  save/restore; early Hold -> From_Start; Stop/Abort; timed holding-agitation loops interrupted by Stop/Abort;
+  pulse delay/confirm timeout; expression and UI contracts; clickable blender unit links.
+- Browser walkthrough on an isolated test origin, starting with Chapter 5 BLENDERS prerequisites only:
+  created BlenderClasses/AGITATE and both parameters; authored every composite's steps, actions, transitions,
+  function blocks and selective branches through the UI; assigned/enabled/downloaded both unit phases;
+  added failure messages 4-8 and transferred Changed Setup Data to controller AND workstation.
+  Loaded both phases from Process. Requested 6/8 sec: completed with reports 6.1/8.1 sec (one scan tolerance).
+  On both units, Hold retained the timer unchanged and Restart resumed Running. Forced all five failures on
+  each unit through the equipment faceplates: correct indexes/messages, all six actual safe feedback values
+  zero, Clear Failures -> Restart -> Running, with the other blender still Running. All 14 live checks verified.
+  Stop and Abort also tested through faceplates on BOTH units; agitator stopped and Reset allowed a new run.
+  The optional holding-agitation loop is regression-tested, not a separate browser walkthrough.
+- Fixed blockers discovered by the walkthrough: CALCs with no input connections and missing Process-to-blender unit
+  links. No completed AGITATE was inserted into the student's project.
+- 2026-10-26 review: the first Chapter 6 authoring screens were table/form editors. They were replaced with the
+  DeltaV-style function block diagram (wired pins), SFC alternate-branch drawing and hierarchy Add Composite Block
+  described above, and re-checked in a browser (build FAIL_MONITOR blocks and wires, branch HOLD_LOGIC, add the
+  BLEND_TIMER composite, on-line values and parameter writes). The model and phase engine did not change.
+- Chapters 1-5 whole-course regression remains green. No saved student project was reset or populated.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -289,15 +356,17 @@ faceplates showed MAN instead of the CAS/AUTO mode the EM uses.
                                     READBACK); a state with ENABLED = False is refused, the others still run.
 - tests/course7016-ch2.test.cjs     Chapter 2 path examples validate and execute; Manual Operation two runs verify
                                     every step and the run comparison.
-- tests/course7016-full.test.cjs    THE WHOLE COURSE in order on one database: Chapter 1 -> 2 (two manual runs) ->
+- tests/course7016-full.test.cjs    Chapters 1-5 in order on one database: Chapter 1 -> 2 (two manual runs) ->
                                     3 (Enable Batch, restart) -> 4 (FILL, Hold/Restart, Verify, Stop/Abort/overshoot)
                                     -> 5 (EM classes, BLENDERS, run the process, verify EMs, descriptions, OR-block
                                     permissive on MTR-505/605 that really stops the pump). Every live check Verified.
 - tests/course7016-save.test.cjs    save -> fresh start -> restore keeps the configuration and the running plant;
                                     export/import round trip; Enable Batch reset.
 - tests/operator-ribbons.test.cjs   the Trainer shows only course displays (no site areas, presets or DV-09).
-- Full suite: 766 of 767 pass (2026-10-22); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
-  text, not in this repository) and fails at load, as it did before this work. Typecheck (web and node) is clean.
+- tests/course7016-ch6.test.cjs     Chapter 6 capabilities and both-blender workshop integration (npm run test:course6).
+- Full suite: 778 of 780 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
+  text, not in this repository) and fails at load, as it did before this work. The other failure was an intermittent
+  process-waste temperature assertion; the focused process-waste rerun passed all 21 tests. Typecheck is clean.
 - Browser preview: npx vite --config bl-preview.vite.config.mjs (local file, excluded from git) on port 5199;
   desktop: npm run dev.
 
@@ -305,7 +374,7 @@ faceplates showed MAN instead of the CAS/AUTO mode the EM uses.
 7. NOT SIMULATED (shown as disabled with an explanation)
 --------------------------------------------------------
 Batch Executive procedures, Recipe Studio and the Batch Operator Interface (not used in Chapters 1, 4 and 5),
-FAIL_MONITOR execution, Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
+Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
 Studio, version control (Check Out), unit arbitration and Modelock Override, batch history/reporting, EM algorithm
 types other than Command driven and State driven, Shared module blocks can be bound but variant substitution
 checks only the class name. EM Control Studio: Set Operator (only "=" is simulated), the Categorized parameter
@@ -406,7 +475,20 @@ material and the repository is public. bl-preview.vite.config.mjs (browser previ
 To rebuild pdf_extracted on another machine, extract the PDF text/images per chapter (7016-ch1.txt, 7016-ch5.txt,
 ch5/*.png ...).
 
-WHERE WE LEFT OFF (2026-10-22):
+WHERE WE LEFT OFF (2026-10-26):
+- Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and
+  deliberate UI simplifications. The student's database is preserved, with no automatically completed workshop.
+- Last recorded student position was Chapter 5 BLENDERS Unit Class Step 5. Finish those prerequisites if still
+  pending, then open Course 7016 Workshops -> Ch 6 AGITATE Unit Phase. No New Project/reset is needed.
+- Tests: Chapter 6's seven tests pass; 22 related course/save/named-set regression tests pass.
+  Full suite: 778/780. The pre-existing missing pdf_om.txt fails dv09-audit.test.cjs. A separate waste-process
+  temperature assertion failed intermittently in the full run; all 21 process-waste tests passed on focused rerun.
+  Typecheck and Electron production build pass. Full main-workshop browser walkthrough passed on both blenders,
+  including all ten failure/recovery combinations and all 14 live checks; see section 5A for measured results.
+- Next course chapter not yet audited/implemented as workshops: Chapter 7 (DRAIN Unit Phase).
+- Changes are local in this working tree; no commit, push or hosted deployment performed in this session.
+
+WHERE WE LEFT OFF (2026-10-22, superseded):
 - The user is working Chapter 5 by hand: BLENDER_COLOR and BLENDER_OUTLET are built; next is Workshop - BLENDERS
   Unit Class from Step 5 (p5-31: add the EM / CM classes to BLENDERS).
 - Open questions for the user's DeltaV system: the full name of the EM parameter "A_MIN_TIME..." (cut off in both
@@ -423,4 +505,3 @@ WHERE WE LEFT OFF (2026-10-20, superseded):
   the Course 7016 Workshops display, and the whole course passes in order on one database (course7016-full test).
   Your DV_School database is autosaved, so you can stop and continue later. Full suite 759/760 (only dv09-audit).
 - Next candidate: Chapter 6 (AGITATE unit phase - the PDF continues after p5-54 with "AGITATE Unit Phase").
-

@@ -10,12 +10,14 @@ import {
   type EmInstance
 } from './emStore'
 import {
-  COMPOSITES, NAME_RULE, STATE_LABEL, SYSTEM_PHASE_PARAMS, commandPhase, isNameValid, newPhaseClass, newRuntime, paramDefError,
-  stepIndex, stepPhase, type AliasDef, type AliasResolution, type BatchCategory, type BatchClassKind, type CompositeName,
+  COMPOSITES, COMMAND_LABEL, NAME_RULE, STATE_LABEL, SYSTEM_PHASE_PARAMS, commandPhase, isNameValid, newPhaseClass, newRuntime, paramDefError,
+  stepIndex, stepPhase, phaseHasFailure, type AliasDef, type AliasResolution, type BatchCategory, type BatchClassKind, type CompositeName,
   type PhaseClass, type PhaseCommand, type PhaseParamDef, type PhaseRuntime, type PhaseSfc, type ProcessCell, type ProcessCellClass,
   type UnitClass, type UnitModule, type UnitPhaseConfig
 } from './batchConfig'
 import type { AnyModule } from './types'
+import { phaseBlockDefaults } from './phaseBlocks'
+import type { NamedSetDefinition } from './namedSets'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 function ok<T>(value: T): Result<T> { return { ok: true, value } }
@@ -183,7 +185,7 @@ type RefKind = { k: 'internal'; name: string; field: string } | { k: 'ignore'; a
 export function classifyRef(ref: string): RefKind | string {
   const r = ref.trim()
   if (r.startsWith('//')) return { k: 'external', path: r.slice(2) }
-  const body = r.startsWith('^/') ? r.slice(2) : r.startsWith('/') ? r.slice(1) : null
+  const body = r.startsWith('/+/') ? r.slice(3) : r.startsWith('^/') ? r.slice(2) : r.startsWith('/') ? r.slice(1) : null
   if (body === null) return `'${ref}' — external references begin with //, internal ones with / or ^/`
   const [name, field = 'CV'] = body.split('.')
   if (field.toUpperCase() === 'IGN' && r.startsWith('/') && !r.startsWith('^/')) return { k: 'ignore', alias: name.toUpperCase() }
@@ -231,6 +233,12 @@ function readModule(path: string): Value {
   if (!m) {
     const em = useEm.getState()
     if (em.instances[sp.module]) {
+      const slash = sp.param.indexOf('/')
+      if (slash >= 0) {
+        const child = em.deployed[sp.module]?.children[sp.param.slice(0, slash)]
+        if (!child) throw new EvalError(`${sp.module} has no downloaded module block ${sp.param.slice(0, slash)}`)
+        return readModule(`${child}/${sp.param.slice(slash + 1)}.${sp.field}`)
+      }
       const v = emParamValue(em.deployed[sp.module], em.runtime[sp.module], sp.param)
       if (v === undefined) throw new EvalError(`${sp.module} has no parameter ${sp.param}`)
       return v
@@ -317,8 +325,7 @@ function writeModule(path: string, value: Value): void {
   throw new EvalError(`${m.tag}/${sp.param} cannot be written`)
 }
 
-function namedValue(set: string, state: string): number {
-  const sets = useStore.getState().namedSets.configured
+function namedValue(set: string, state: string, sets: Record<string, NamedSetDefinition> = useStore.getState().namedSets.configured): number {
   const def = Object.values(sets).find(x => x.name.toLowerCase() === set.toLowerCase())
   if (!def) throw new EvalError(`Named set ${set} does not exist`)
   const e = def.entries.find(x => x.name.toUpperCase() === state.toUpperCase())
@@ -326,7 +333,7 @@ function namedValue(set: string, state: string): number {
   return e.value
 }
 
-function systemParam(a: ActivePhase, name: string): Value | undefined {
+export function systemParam(a: ActivePhase, name: string): Value | undefined {
   const rt = a.rt
   switch (name) {
     case 'BSTATUS': case 'STATUS': return STATE_LABEL[rt.state]
@@ -380,7 +387,7 @@ function phaseEnv(key: string) {
       if (typeof c === 'string') throw new EvalError(c)
       if (c.k === 'ignore') throw new EvalError('Alias ignore flags are changed in the Alias properties, not from phase logic in BatchLive')
       if (c.k === 'internal') {
-        if (['BSTATUS', 'STATUS', 'STEP_INDEX', 'STATE_TIME', 'FAIL_INDEX', 'OWNER', 'UNIT', 'WDOG_STATE'].includes(c.name)) throw new EvalError(`${c.name} is read-only`)
+        if (['BSTATUS', 'STATUS', 'STATE_TIME', 'OWNER', 'UNIT', 'WDOG_STATE'].includes(c.name)) throw new EvalError(`${c.name} is read-only`)
         if (!(c.name in a().rt.params) && !SYSTEM_PHASE_PARAMS.some(([n]) => n === c.name)) throw new EvalError(`Phase parameter ${c.name} does not exist`)
         setParam(c.name, value)
         return
@@ -388,7 +395,8 @@ function phaseEnv(key: string) {
       const r = resolveAliases(c.path, unit())
       if (!r.ignored) writeModule(r.path, value)
     },
-    named: namedValue,
+    named: (set: string, state: string): number => namedValue(set, state,
+      useStore.getState().namedSets.deployed[`CONTROLLER:${s().deployedUnits[a().unit].controller}`] ?? {}),
     log: (text: string): void => log(key, `LOGEVENT: ${text}`, 'BATCH'),
     failed: (message: string): void => log(key, `Phase failure: ${message}`, 'DIAGNOSTIC')
   }
@@ -406,11 +414,13 @@ export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass): CheckEnv 
       const aliasPool = owners.length ? owners : Object.values(s.unitClasses)
       if (c.k === 'ignore') return aliasPool.some(u => u.aliases[c.alias]) ? null : `Alias ${c.alias} is not defined in a unit class`
       if (c.k === 'internal') {
+        if (pc && phaseInternalNames(pc).includes(c.name)) return null
         if (pc?.params[c.name]) return null
         if (SYSTEM_PHASE_PARAMS.some(([n]) => n === c.name))
-          return write && ['BSTATUS', 'STATUS', 'STEP_INDEX', 'STATE_TIME', 'FAIL_INDEX', 'OWNER', 'UNIT', 'WDOG_STATE'].includes(c.name) ? `${c.name} is read-only` : null
+          return write && ['BSTATUS', 'STATUS', 'STATE_TIME', 'OWNER', 'UNIT', 'WDOG_STATE'].includes(c.name) ? `${c.name} is read-only` : null
         return `${c.name} is not a parameter of phase class ${phaseClass}`
       }
+
       const aliases = [...c.path.matchAll(/#([^#]+)#/g)].map(m => m[1].toUpperCase())
       for (const al of aliases) if (!aliasPool.some(u => u.aliases[al])) return `#${al}# is not an alias of ${owners.length ? owners.map(o => o.name).join(', ') : 'any unit class'}`
       if (aliases.length) return null
@@ -423,6 +433,15 @@ export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass): CheckEnv 
       try { namedValue(set, state); return null } catch (e) { return (e as Error).message }
     }
   }
+}
+
+export function phaseInternalNames(pc: PhaseClass): string[] {
+  return COMPOSITES.flatMap(c => [
+    'CONFIRM_FAIL', `${c}/CONFIRM_FAIL`,
+    ...pc.logic[c].steps.flatMap(s => ['TIME', 'PENDING_CONFIRMS', 'FAILED_CONFIRMS', 'CONFIRM_FAIL'].flatMap(p => [`${s.name}/${p}`, `${c}/${s.name}/${p}`])),
+    ...Object.entries(pc.logic[c].blocks ?? {}).flatMap(([name, b]) =>
+      [name, `${c}/${name}`, ...Object.keys(phaseBlockDefaults(b)).flatMap(p => [`${name}/${p}`, `${c}/${name}/${p}`])])
+  ])
 }
 
 function controllerUp(tag: string | undefined): boolean {
@@ -1082,7 +1101,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     const next = commandPhase(a.rt, cmd)
     if (typeof next === 'string') return fail(next)
     set({ active: { ...s.active, [key]: { ...a, rt: next } } })
-    log(key, `Command ${cmd.charAt(0) + cmd.slice(1).toLowerCase()} → ${STATE_LABEL[next.state]}`, 'BATCH')
+    log(key, `Command ${COMMAND_LABEL[cmd]} → ${STATE_LABEL[next.state]}`, 'BATCH')
     return ok(next.state)
   },
   toggleOwner: (unit, phase) => {
@@ -1097,12 +1116,28 @@ export const useBatch = create<BatchState>((set, get) => ({
     return ok(owner)
   },
   setOnlineParam: (unit, phase, param, value) => {
+    param = param.trim().toUpperCase().replace(/\.CV$/, '')
     const s = get()
     const key = activeKey(unit, phase)
     const a = s.active[key]
     const dep = s.deployedUnits[unit]
     if (!a || !dep) return fail(`${phase} is not loaded on ${unit}`)
     const def = dep.params[phase]?.[param]
+    if (param === 'STEP_INDEX' || param === 'FAIL_INDEX' || param === 'RESTART_TYPE' || param.includes('/')) {
+      const parts = param.toUpperCase().replace(/\.CV$/, '').split('/')
+      const c = parts[0] as CompositeName
+      const block = dep.logic[phase]?.[c]?.blocks?.[parts[1]]
+      const allowed = parts.length === 3 && block && Object.keys(phaseBlockDefaults(block)).includes(parts[2])
+      if (!['STEP_INDEX', 'FAIL_INDEX', 'RESTART_TYPE'].includes(param) && !allowed) return fail(`${param} is not an online phase parameter`)
+      const n = Number(value)
+      if (!Number.isFinite(n)) return fail(`${param} needs a finite number`)
+      if (param === 'FAIL_INDEX' && (!Number.isInteger(n) || n < 0 || n > 255)) return fail('FAIL_INDEX must be an integer from 0 to 255')
+      if (!requireUnlockedLock('BATCH_OPERATE', `Write parameter of unit phase ${unit}/${phase}`)) return fail('Requires the Batch Operate key')
+      set({ active: { ...s.active, [key]: { ...a, rt: { ...a.rt, ...(param === 'FAIL_INDEX' ? { failIndex: n } : {}),
+        params: { ...a.rt.params, [param]: n } } } } })
+      log(key, `${param} := ${n}`, 'BATCH')
+      return ok(param)
+    }
     const checked = checkParamValue(def, param, phase, value)
     if (!checked.ok) return checked
     if (!requireUnlockedLock('BATCH_OPERATE', `Write parameter of unit phase ${unit}/${phase}`)) return fail('Requires the Batch Operate key')
@@ -1318,7 +1353,13 @@ export const useBatch = create<BatchState>((set, get) => ({
       if (!cur) continue
       // Writes made by the logic during this scan (report parameters) live on cur.rt.params.
       useBatch.setState(st => ({ active: { ...st.active, [key]: { ...cur, rt: { ...rt, params: { ...cur.rt.params, ...diffParams(a.rt.params, rt.params) } } } } }))
-      if (rt.state !== before) log(key, `Phase state ${STATE_LABEL[rt.state]}${rt.failIndex !== 'OK' && before !== rt.state && rt.message ? ` (failure: ${rt.message})` : ''}`, 'BATCH')
+      if (phaseHasFailure(rt) && !phaseHasFailure(a.rt) && typeof rt.failIndex === 'number' && !rt.message) {
+        const entry = useStore.getState().namedSets.deployed.WORKSTATION?.phase_failures?.entries.find(e => e.value === rt.failIndex)
+        rt.message = entry?.name ?? `Phase failure ${rt.failIndex}`
+        log(key, `Phase failure ${rt.failIndex}: ${rt.message}`, 'BATCH')
+        useBatch.setState(st => ({ active: { ...st.active, [key]: { ...st.active[key], rt: { ...st.active[key].rt, message: rt.message } } } }))
+      }
+      if (rt.state !== before) log(key, `Phase state ${STATE_LABEL[rt.state]}${phaseHasFailure(rt) && rt.message ? ` (failure: ${rt.message})` : ''}`, 'BATCH')
     }
   }
 }))

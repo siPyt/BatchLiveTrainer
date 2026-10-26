@@ -26,7 +26,8 @@ export function namedSetTargetKey(target: NamedSetTarget): string {
 }
 
 export function namedSetError(definition: NamedSetDefinition, allowEmpty = false): string | null {
-  if (!isValidDeltaVTag(definition.name) || definition.name !== definition.name.trim()) {
+  // This built-in phase set predates the user-defined 16-character tag limit.
+  if ((!isValidDeltaVTag(definition.name) && definition.name !== '$phase_restart_types') || definition.name !== definition.name.trim()) {
     return 'Named Set name must use the supported 1-16-character module-name syntax; case is preserved'
   }
   if (!allowEmpty && !definition.entries.length) return `Named Set ${definition.name} requires at least one entry`

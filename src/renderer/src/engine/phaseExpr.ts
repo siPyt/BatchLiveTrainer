@@ -15,14 +15,16 @@ export type Node =
   | { k: 'un'; op: '-' | 'NOT'; a: Node }
   | { k: 'bin'; op: string; a: Node; b: Node }
   | { k: 'call'; fn: string; args: Node[] }
+  | { k: 'choose'; condition: Node; yes: Node; no: Node }
 
 export type Statement = { k: 'assign'; target: string; expr: Node } | { k: 'expr'; expr: Node }
+  | { k: 'if'; condition: Node; yes: Statement[]; no: Statement[] }
 
 export interface Program { statements: Statement[] }
 
 type Tok = { t: 'num' | 'str' | 'quoted' | 'ident' | 'op'; v: string; pos: number }
 
-const OPS = [':=', '<=', '>=', '!=', '<>', '=', '<', '>', '+', '-', '*', '/', '(', ')', ',', ';']
+const OPS = [':=', '<=', '>=', '!=', '<>', '=', '<', '>', '+', '-', '*', '/', '(', ')', ',', ';', '?', ':']
 export const MODE_WORDS = ['CAS', 'AUTO', 'MAN', 'OOS', 'RCAS', 'ROUT', 'LO', 'IMAN']
 const KEYWORDS = ['AND', 'OR', 'NOT', 'TRUE', 'FALSE']
 
@@ -97,6 +99,26 @@ class Parser {
 
   statement(): Statement {
     const t = this.peek()
+    if (this.isWord('IF')) {
+      this.i++
+      const condition = this.expr()
+      if (!this.isWord('THEN')) throw new SyntaxError('Expected THEN')
+      this.i++
+      const branch = (): Statement[] => {
+        const rows: Statement[] = []
+        while (!this.done() && !this.isWord('ELSE') && !this.isWord('ENDIF')) {
+          rows.push(this.statement())
+          if (this.isOp(';')) this.i++
+          else if (!this.isWord('ELSE') && !this.isWord('ENDIF')) this.expectOp(';')
+        }
+        return rows
+      }
+      const yes = branch()
+      const no: Statement[] = this.isWord('ELSE') ? (this.i++, branch()) : []
+      if (!this.isWord('ENDIF')) throw new SyntaxError('Expected ENDIF')
+      this.i++
+      return { k: 'if', condition, yes, no }
+    }
     if (t?.t === 'quoted' && this.toks[this.i + 1]?.t === 'op' && this.toks[this.i + 1].v === ':=') {
       this.i += 2
       return { k: 'assign', target: t.v, expr: this.expr() }
@@ -104,7 +126,14 @@ class Parser {
     return { k: 'expr', expr: this.expr() }
   }
 
-  expr(): Node { return this.or() }
+  expr(): Node {
+    const condition = this.or()
+    if (!this.isOp('?')) return condition
+    this.i++
+    const yes = this.expr()
+    this.expectOp(':')
+    return { k: 'choose', condition, yes, no: this.expr() }
+  }
   private or(): Node { let a = this.and(); while (this.isWord('OR')) { this.i++; a = { k: 'bin', op: 'OR', a, b: this.and() } } return a }
   private and(): Node { let a = this.not(); while (this.isWord('AND')) { this.i++; a = { k: 'bin', op: 'AND', a, b: this.not() } } return a }
   private not(): Node { if (this.isWord('NOT')) { this.i++; return { k: 'un', op: 'NOT', a: this.not() } } return this.cmp() }
@@ -168,7 +197,7 @@ export function parseProgram(src: string): Program {
   return new Parser(tokenize(src)).program()
 }
 
-export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX']
+export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2']
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -184,6 +213,7 @@ function walk(n: Node, fn: (n: Node) => void): void {
   if (n.k === 'un') walk(n.a, fn)
   else if (n.k === 'bin') { walk(n.a, fn); walk(n.b, fn) }
   else if (n.k === 'call') n.args.forEach(a => walk(a, fn))
+  else if (n.k === 'choose') { walk(n.condition, fn); walk(n.yes, fn); walk(n.no, fn) }
 }
 
 /** Parser output lines for the expression editor; empty array means the expression is valid. */
@@ -194,17 +224,28 @@ export function checkExpression(src: string, kind: 'action' | 'condition', env: 
   const errors: string[] = []
   if (kind === 'condition') {
     if (program.statements.length !== 1 || program.statements[0].k !== 'expr') errors.push('A transition condition must be a single Boolean expression (no := assignments)')
-  } else if (program.statements.some(s => s.k !== 'assign' && !(s.expr.k === 'call' && s.expr.fn === 'LOGEVENT'))) {
-    errors.push('Each action statement must be an assignment (\'parameter\' := expression;) or LOGEVENT(...)')
   }
-  for (const s of program.statements) {
+  const check = (s: Statement): void => {
+    if (s.k === 'if') {
+      walk(s.condition, checkNode)
+      s.yes.forEach(check)
+      s.no.forEach(check)
+      return
+    }
+    if (kind === 'action' && s.k === 'expr' && !(s.expr.k === 'call' && s.expr.fn === 'LOGEVENT')) {
+      errors.push('Each action statement must be an assignment (\'parameter\' := expression;) or LOGEVENT(...)')
+    }
     if (s.k === 'assign') { const e = env.checkRef(s.target, true); if (e) errors.push(e) }
-    walk(s.expr, n => {
+    walk(s.expr, checkNode)
+  }
+  const checkNode = (n: Node): void => {
       if (n.k === 'ref') { const e = env.checkRef(n.v, false); if (e) errors.push(e) }
       else if (n.k === 'named') { const e = env.checkNamed(n.set, n.state); if (e) errors.push(e) }
       else if (n.k === 'call' && !FUNCTIONS.includes(n.fn)) errors.push(`Unknown function ${n.fn}`)
       else if (n.k === 'ident' && !MODE_WORDS.includes(n.v)) errors.push(`Unknown identifier ${n.v}`)
-    })
+  }
+  for (const s of program.statements) {
+    check(s)
   }
   return [...new Set(errors)]
 }
@@ -239,6 +280,7 @@ export function evaluate(n: Node, env: EvalEnv): Value {
     case 'ident': return n.v
     case 'ref': return env.read(n.v)
     case 'named': return env.named(n.set, n.state)
+    case 'choose': return evaluate(truthy(evaluate(n.condition, env)) ? n.yes : n.no, env)
     case 'un': return n.op === 'NOT' ? !truthy(evaluate(n.a, env)) : -toNum(evaluate(n.a, env))
     case 'call': {
       const args = n.args.map(a => evaluate(a, env))
@@ -246,6 +288,13 @@ export function evaluate(n: Node, env: EvalEnv): Value {
         case 'ABS': return Math.abs(toNum(args[0]))
         case 'MIN': return Math.min(...args.map(toNum))
         case 'MAX': return Math.max(...args.map(toNum))
+        case 'LOG2': {
+          const value = toNum(args[args.length - 1])
+          const base = args.length === 2 ? toNum(args[0]) : 2
+          if (args.length < 1 || args.length > 2 || !Number.isFinite(value) || !Number.isFinite(base) || value <= 0 || base <= 0 || base === 1)
+            throw new EvalError('LOG2 requires a positive value and an optional positive base other than 1')
+          return Math.log(value) / Math.log(base)
+        }
         case 'LOGEVENT': env.log(args.map(String).join(' ')); return true
         case 'SELSTR': {
           // SELSTR(default, string1, condition1, string2, condition2, ...)
@@ -277,10 +326,12 @@ export function evaluate(n: Node, env: EvalEnv): Value {
 }
 
 export function runProgram(src: string, env: EvalEnv): void {
-  for (const s of parseProgram(src).statements) {
+  const run = (s: Statement): void => {
+    if (s.k === 'if') { (truthy(evaluate(s.condition, env)) ? s.yes : s.no).forEach(run); return }
     if (s.k === 'assign') env.write(s.target, evaluate(s.expr, env))
     else evaluate(s.expr, env)
   }
+  parseProgram(src).statements.forEach(run)
 }
 
 export function evalCondition(src: string, env: EvalEnv): boolean {

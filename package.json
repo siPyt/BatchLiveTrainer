@@ -15,6 +15,7 @@
                     "test:control":  "node --test tests/control-strategy.test.cjs",
                     "test:sfc":  "node --test tests/sfc-qualifiers.test.cjs tests/sfc-properties.test.cjs tests/sfc-lifecycle.test.cjs tests/sfc-message.test.cjs tests/sfc-routing.test.cjs tests/sfc-course-paths.test.cjs tests/sfc-parallel.test.cjs tests/sfc-boolean.test.cjs tests/sfc-block-alarm.test.cjs tests/sfc-level-reset.test.cjs",
                     "test:named-sets":  "node --test tests/named-sets.test.cjs",
+                    "test:course6":  "node --test tests/course7016-ch6.test.cjs",
                     "dist":  "electron-vite build \u0026\u0026 electron-builder",
                     "dist:win":  "electron-vite build \u0026\u0026 electron-builder --win",
                     "icon":  "node scripts/gen-icon.mjs",

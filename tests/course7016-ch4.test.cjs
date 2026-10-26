@@ -237,7 +237,7 @@ test('7016 ch4: unresolved aliases fail the phase into Holding and are reported 
   for (let i = 0; i < 100 && B().active['UM_COLOR_200/FILL'].rt.state === 'RUNNING'; i++) run(1)
   const rt = B().active['UM_COLOR_200/FILL'].rt
   assert.ok(['HOLDING', 'HELD'].includes(rt.state), rt.state)
-  assert.equal(rt.failIndex, 'FAILED')
+  assert.equal(rt.failIndex, 255)
   assert.match(rt.message, /INLET_VLV# is not resolved/)
   assert.match(B().command('UM_COLOR_200', 'FILL', 'RESTART').error ?? 'HOLDING', /failure|not valid/)
 }))

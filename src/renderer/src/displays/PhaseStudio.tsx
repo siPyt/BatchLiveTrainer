@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../ui/uiStore'
 import { useBatchUi } from '../ui/batchUi'
 import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
-import { useBatch, moduleParamNames, phaseCheckEnv } from '../engine/batchStore'
+import { useBatch, moduleParamNames, phaseCheckEnv, phaseInternalNames, systemParam } from '../engine/batchStore'
+import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
+import { addBranch, connectEdge, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
+import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
   deleteStep, insertSequence, isNameValid, renameError,
@@ -14,7 +17,7 @@ import { ContextMenu } from '../components/LibraryExplorer'
 import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
-import { askConfirm } from '../components/AppNotices'
+import { askConfirm, askValue } from '../components/AppNotices'
 import { ensureTrailingSemicolon } from '../engine/phaseExpr'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
@@ -24,7 +27,8 @@ import { ensureTrailingSemicolon } from '../engine/phaseExpr'
 // LOGEVENT and Insert Alias browse buttons. Drawn on BatchLive's Control Studio ribbon/panes.
 
 type Menu = { x: number; y: number; label: string; items: { label: string; onClick?: () => void; danger?: boolean; disabled?: string; separator?: boolean }[] }
-type Sel = { k: 'step' | 'transition'; i: number } | null
+/** `r` selects an alternate-branch transition (index into sfc.routes); without it a transition is a step's ordinary one. */
+type Sel = { k: 'step' | 'transition'; i: number; r?: number } | null
 type ExprKind = 'action' | 'condition'
 
 /** What the expression editor can browse and how it validates: a phase class or an equipment module class. */
@@ -43,7 +47,8 @@ export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitCla
   return {
     check: phaseCheckEnv(pc.name, pc),
     internal: [...Object.values(pc.params).map(p => ({ key: p.name, text: p.name, note: `${p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()}` : p.kind} · ${p.type}${p.units ? ` · ${p.units}` : ''}`, insert: `'^/${p.name}.CV'` })),
-      ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter', insert: `'^/${n}.CV'` }))],
+      ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter', insert: `'^/${n}.CV'` })),
+      ...phaseInternalNames(pc).map(n => ({ key: n, text: n, note: 'Phase logic parameter', insert: `'^/${n}.CV'` }))],
     internalNote: `Parameters of phase class ${pc.name}. ^/ refers one level up, from the composite to the phase.`,
     aliases,
     aliasNote: owners.length ? `Aliases of unit class ${owners.map(o => o.name).join(', ')} (owners of ${pc.name}). Each unit module resolves the alias to its own module.` :
@@ -100,11 +105,16 @@ export function PhaseStudio(): JSX.Element {
   const [stepDlg, setStepDlg] = useState<number | null>(null)
   const [trDlg, setTrDlg] = useState<number | null>(null)
   const [actionDlg, setActionDlg] = useState<{ step: number; index: number | null } | null>(null)
+  const [edgeDlg, setEdgeDlg] = useState<EdgeRef | null>(null)
+  const [seqEdge, setSeqEdge] = useState<EdgeRef | null>(null)
+  const [selBlock, setSelBlock] = useState<string | null>(null)
+  const [blockDlg, setBlockDlg] = useState<string | null>(null)
+  const [compDlg, setCompDlg] = useState(false)
   const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 320)
   const [paletteWidth, setPaletteWidth] = usePersistentSize('phaseStudio.paletteWidth', 190)
   const [bottomHeight, setBottomHeight] = usePersistentSize('phaseStudio.bottomHeight', 170)
 
-  useEffect(() => { setSel(null) }, [composite])
+  useEffect(() => { setSel(null); setSelBlock(null) }, [composite])
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (useUi.getState().display !== 'studio') return
@@ -148,59 +158,116 @@ export function PhaseStudio(): JSX.Element {
     })()
   }
   const itemCount = sfc ? sfc.steps.length + sfc.transitions.length : 0
+  const sequenceComposite = !!sfc && composite !== 'FAIL_MONITOR'
+  const branched = sequenceComposite && isBranched(sfc!)
+  const chartEdges = sequenceComposite ? layoutPhaseSfc(sfc!).edges : []
   const afterIndex = (): number => sel ? sel.i : (sfc ? sfc.steps.length - 1 : 0)
-  const addSequence = (after: number): void => {
+  const edgeOfSel = (): EdgeRef | null => {
+    if (!sfc || !sel) return null
+    if (sel.k === 'transition') return { i: sel.i, route: sel.r ?? null }
+    const e = chartEdges.find(x => x.from === sel.i)
+    return e ? { i: sel.i, route: e.route } : null
+  }
+  const addSequence = (after: number, edge?: EdgeRef | null): void => {
     if (!sfc) { window.alert('Drill down into a composite state (for example RUN_LOGIC) to add steps and transitions.'); return }
+    const target = branched ? edge ?? edgeOfSel() : null
+    if (branched && !target) { window.alert('Select the step or transition to add after.'); return }
+    setSeqEdge(target)
     setSeqAfter(after)
   }
-  const addPair = (after: number): void => {
+  const addPair = (after: number, edge?: EdgeRef | null): void => {
     if (!sfc) { window.alert('Drill down into a composite state to add steps and transitions.'); return }
     if (itemCount + 2 > MAX_ITEMS) { window.alert(`Do not configure more than ${MAX_ITEMS} steps and transitions in any level.`); return }
+    if (branched) {
+      const target = edge ?? edgeOfSel()
+      if (!target) { window.alert('Select the step or transition to add after.'); return }
+      if (editSfc(s => insertOnEdge(s, target, 1))) setSel({ k: 'step', i: sfc.steps.length })
+      return
+    }
     if (editSfc(s => insertSequence(s, after, 1))) setSel({ k: 'step', i: Math.min(after + 1, sfc.steps.length) })
+  }
+  const branch = (i: number): void => {
+    if (!sfc) return
+    if (editSfc(s => addBranch(s, i))) setSel({ k: 'step', i: sfc.steps.length })
   }
   const removeStep = (i: number): void => {
     if (!sfc) return
     const step = sfc.steps[i]
     void askConfirm(`Delete step ${step.name} and transition ${sfc.transitions[i]?.name ?? ''}?`).then(ok => { if (ok && editSfc(s => deleteStep(s, i))) setSel(null) })
   }
+  const openTransition = (i: number, r?: number): void => {
+    if (branched || r !== undefined) setEdgeDlg({ i, route: r ?? null })
+    else setTrDlg(i)
+  }
   const stepMenu = (i: number, e: React.MouseEvent): void => {
     e.preventDefault()
     setSel({ k: 'step', i })
+    const first = chartEdges.find(x => x.from === i)
     setMenu({ x: e.clientX, y: e.clientY, label: sfc!.steps[i].name, items: [
       { label: 'Properties...', onClick: () => setStepDlg(i) },
       { label: 'Add Action...', onClick: () => setActionDlg({ step: i, index: null }) },
       { separator: true, label: '' },
-      { label: 'Add Sequence After...', onClick: () => addSequence(i) },
+      { label: 'Add Sequence After...', onClick: () => addSequence(i, first ? { i, route: first.route } : null) },
+      { label: 'Add Alternate Branch', onClick: () => branch(i) },
       { label: 'Delete', danger: true, onClick: () => removeStep(i), disabled: sfc!.steps.length <= 1 ? 'A sequence needs at least its initial step' : undefined }
     ] })
   }
-  const trMenu = (i: number, e: React.MouseEvent): void => {
+  const edgeMenu = (ref: EdgeRef, e: React.MouseEvent): void => {
     e.preventDefault()
-    setSel({ k: 'transition', i })
-    setMenu({ x: e.clientX, y: e.clientY, label: sfc!.transitions[i].name, items: [
-      { label: 'Properties...', onClick: () => setTrDlg(i) },
-      { label: 'Add Sequence After...', onClick: () => addSequence(i) }
+    setSel({ k: 'transition', i: ref.i, ...(ref.route === null ? {} : { r: ref.route }) })
+    const edge = edgeAt(sfc!, ref)
+    setMenu({ x: e.clientX, y: e.clientY, label: edge?.name ?? sfc!.transitions[ref.i]?.name ?? '', items: [
+      { label: 'Properties...', onClick: () => openTransition(ref.i, ref.route ?? undefined) },
+      { label: 'Connect To...', onClick: () => setEdgeDlg(ref) },
+      { separator: true, label: '' },
+      { label: 'Add Sequence After...', onClick: () => addSequence(ref.i, ref) },
+      { label: 'Add Alternate Branch', onClick: () => branch(ref.i) },
+      { label: 'Delete Branch', danger: true, disabled: ref.route === null ? 'Only alternate branches can be deleted' : undefined,
+        onClick: () => { if (editSfc(s => deleteBranch(s, ref))) setSel(null) } }
     ] })
   }
+  const trMenu = (i: number, e: React.MouseEvent): void => edgeMenu({ i, route: null }, e)
   const dropPalette = (e: React.DragEvent): void => {
     const item = e.dataTransfer.getData(DRAG_SFC)
     if (!item || !sfc) return
     e.preventDefault()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = (e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop) / zoom
-    const after = Math.max(0, stepTops(sfc).filter(top => top <= y).length - 1)
+    const after = branched ? afterIndex() : Math.max(0, stepTops(sfc).filter(top => top <= y).length - 1)
     paletteAction(item, after)
   }
   const paletteAction = (item: string, after: number): void => {
     if (item === 'Sequence') addSequence(after)
     else if (item === 'Step' || item === 'Transition') addPair(after)
-    else if (item === 'Termination') window.alert('Every composite sequence terminates after its last transition; the termination is already drawn.')
+    else if (item === 'Branch') { if (sel) branch(sel.i); else window.alert('Select the step or transition to branch from.') }
+    else if (item === 'Termination') {
+      const target = edgeOfSel()
+      if (branched && target) editSfc(s => connectEdge(s, target, null))
+      else window.alert(branched ? 'Select the transition that should end in a termination.' : 'Every composite sequence terminates after its last transition; the termination is already drawn.')
+    }
+  }
+  const editBlocks = (fn: (b: Record<string, PhaseBlock>) => Record<string, PhaseBlock> | string): boolean =>
+    editSfc(s => { const r = fn(s.blocks ?? {}); return typeof r === 'string' ? r : { ...s, blocks: r } })
+  const addFunctionBlock = (type: DiagramBlockType, x?: number, y?: number): void => {
+    const made = newDiagramBlock(type, sfc?.blocks ?? {}, x, y)
+    if (editBlocks(b => ({ ...b, [made.name]: made.block }))) setSelBlock(made.name)
+  }
+  const blockMenu = (target: { block: string } | { wire: { block: string; slot: number; label: string } }, e: React.MouseEvent): void => {
+    if ('wire' in target) {
+      setMenu({ x: e.clientX, y: e.clientY, label: target.wire.label, items: [
+        { label: 'Delete connection', danger: true, onClick: () => editBlocks(b => disconnectInput(b, target.wire.block, target.wire.slot)) }] })
+      return
+    }
+    setMenu({ x: e.clientX, y: e.clientY, label: target.block, items: [
+      { label: 'Properties...', onClick: () => setBlockDlg(target.block) },
+      { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete function block ${target.block}?`).then(ok => { if (ok && editBlocks(b => deleteBlock(b, target.block))) setSelBlock(null) }) } }
+    ] })
   }
   const title = composite ? `Library/Phase Classes/${pc.category}/${name}/${composite}` : `Library/Phase Classes/${pc.category}/${name}`
   const notModeled = 'This command is not implemented in the simulator'
   const drill = (c: CompositeName | null): void => openPhaseStudio(name, c ?? undefined)
   const selStep = sel?.k === 'step' && sfc ? sfc.steps[sel.i] : undefined
-  const selTr = sel?.k === 'transition' && sfc ? sfc.transitions[sel.i] : undefined
+  const selEdge = sel?.k === 'transition' && sfc && composite !== 'FAIL_MONITOR' ? edgeAt(sfc, { i: sel.i, route: sel.r ?? null }) : undefined
 
   return <div className="display studio class-studio phase-studio" data-phase-studio={name} data-composite={composite ?? ''}>
     <div className="ribbon">
@@ -234,14 +301,17 @@ export function PhaseStudio(): JSX.Element {
             </Stack>
           </Group>
           <Group label="Insert">
-            <Btn glyph="new" label="Sequence" onClick={sfc ? () => addSequence(afterIndex()) : undefined} unavailable={sfc ? undefined : 'Drill down into a composite state first'} />
+            <Btn glyph="new" label="Sequence" onClick={sequenceComposite ? () => addSequence(afterIndex()) : undefined} unavailable={sequenceComposite ? undefined : 'Select a sequence composite first'} />
             <Stack>
-              <Btn glyph="stateItem" label="Step" size="small" onClick={sfc ? () => addPair(afterIndex()) : undefined} unavailable={sfc ? undefined : 'Drill down into a composite state first'} />
+              <Btn glyph="stateItem" label="Step" size="small" onClick={sequenceComposite ? () => addPair(afterIndex()) : undefined} unavailable={sequenceComposite ? undefined : 'Select a sequence composite first'} />
               <Btn glyph="logic" label="Action" size="small" onClick={selStep ? () => setActionDlg({ step: sel!.i, index: null }) : undefined} unavailable={selStep ? undefined : 'Select a step first'} />
+              <Btn glyph="logic" label="Branch" size="small" onClick={sequenceComposite && sel ? () => branch(sel.i) : undefined}
+                unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
             </Stack>
           </Group>
           <Group label="Algorithm">
-            <Btn glyph="editObject" label="Edit Object" onClick={selStep ? () => setStepDlg(sel!.i) : selTr ? () => setTrDlg(sel!.i) : undefined} unavailable={sel ? undefined : 'Select a step or transition'} />
+            <Btn glyph="editObject" label="Edit Object" onClick={selStep ? () => setStepDlg(sel!.i) : selEdge ? () => openTransition(sel!.i, sel!.r) : selBlock && composite === 'FAIL_MONITOR' ? () => setBlockDlg(selBlock) : undefined}
+              unavailable={sel || selBlock ? undefined : 'Select a step, transition or function block'} />
             <Btn glyph="drillDown" label="Drill Down" onClick={!composite ? () => drill('RUN_LOGIC') : undefined} unavailable={composite ? 'Steps have no nested level' : undefined} />
             <Btn glyph="backOut" label="Back Out" onClick={composite ? () => drill(null) : undefined} unavailable={composite ? undefined : 'Already at the phase class level'} />
           </Group>
@@ -289,39 +359,62 @@ export function PhaseStudio(): JSX.Element {
               className={'studio-tree-node studio-block-select' + (c === composite ? ' active' : '') + (live?.composite === c ? ' ps-live' : '')}
               title={c} onClick={() => drill(c)}><BatchIcon kind="composite" />{c}</button>)}
           </div>
-          <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${composite ?? name}`}>
+          <div className="studio-tree ps-tree ps-tree-right" role="list" aria-label={`Contents of ${composite ?? name}`}
+            onContextMenu={composite && sfc && !live ? e => {
+              e.preventDefault()
+              setMenu({ x: e.clientX, y: e.clientY, label: composite, items: composite === 'FAIL_MONITOR'
+                ? DIAGRAM_BLOCK_TYPES.map(t => ({ label: `Add ${t} Function Block`, onClick: () => addFunctionBlock(t) }))
+                : [{ label: 'Add Composite Block...', onClick: () => setCompDlg(true) }] })
+            } : undefined}>
             {!composite ? COMPOSITES.map(c => <button key={c} type="button" role="listitem" data-content-node={c}
               className={'studio-tree-node ps-tree-item' + (live?.composite === c ? ' ps-live' : '')}
               title={`${c} — double-click to drill down`} onDoubleClick={() => drill(c)}><BatchIcon kind="composite" />{c}</button>) :
-              sfc?.steps.map((s, i) => <div key={s.id}>
+              sequenceComposite && sfc?.steps.map((s, i) => <div key={s.id}>
                 <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'step' && sel.i === i ? ' active' : '')}
-                  onClick={() => setSel({ k: 'step', i })} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
-                {sfc.transitions[i] && <button type="button" role="listitem" className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i ? ' active' : '')}
-                  onClick={() => setSel({ k: 'transition', i })} onDoubleClick={() => setTrDlg(i)}><span className="ps-ico-tr" />{sfc.transitions[i].name}</button>}
+                  onClick={() => { setSel({ k: 'step', i }); setSelBlock(null) }} onDoubleClick={() => setStepDlg(i)}><span className="ps-ico-step" />{s.name}</button>
+                {chartEdges.filter(e => e.from === i).map(e => <button key={`${e.route}`} type="button" role="listitem"
+                  className={'studio-tree-node ps-tree-item' + (sel?.k === 'transition' && sel.i === i && (sel.r ?? null) === e.route ? ' active' : '')}
+                  onClick={() => { setSel({ k: 'transition', i, ...(e.route === null ? {} : { r: e.route }) }); setSelBlock(null) }}
+                  onDoubleClick={() => openTransition(i, e.route ?? undefined)}><span className="ps-ico-tr" />{e.name}</button>)}
               </div>)}
+            {composite && Object.entries(sfc?.blocks ?? {}).map(([block, def]) => <button key={block} type="button" role="listitem" data-content-block={block}
+              className={'studio-tree-node ps-tree-item' + (selBlock === block ? ' active' : '')}
+              onClick={() => { setSelBlock(block); setSel(null) }} onDoubleClick={composite === 'FAIL_MONITOR' && !live ? () => setBlockDlg(block) : undefined}>
+              <BatchIcon kind="composite" />{block} ({def.type === 'TIMER_SEC' ? `linked: ${def.type}` : def.type})</button>)}
           </div>
         </div>
-        {panes.parameters && <ParamPane pc={pc} composite={composite} name={name} live={live?.key ?? null} />}
+        {panes.parameters && <ParamPane pc={pc} composite={composite} name={name} live={live?.key ?? null} block={composite && selBlock ? sfc?.blocks?.[selBlock] ? { name: selBlock, def: sfc.blocks[selBlock] } : null : null} />}
         <div className="studio-pane-label">Hierarchy View</div>
       </div>}
       {panes.hierarchy && <PaneResizer axis="x" sign={1} value={hierWidth} min={160} max={520} onChange={setHierWidth} label="Resize hierarchy panel" />}
 
       <div className="studio-center">
-        <div className="studio-canvas cs-diagram-wrap ps-canvas" aria-label={composite ? `${composite} sequential function chart` : `${name} phase state diagram`}
+        <div className="studio-canvas cs-diagram-wrap ps-canvas" aria-label={composite ? `${composite} ${composite === 'FAIL_MONITOR' ? 'function block diagram' : 'sequential function chart'}` : `${name} phase state diagram`}
           onDragOver={e => { if (sfc && e.dataTransfer.types.includes(DRAG_SFC)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
           onDrop={dropPalette} onMouseDown={() => setSel(null)}>
           {!composite ? <StateDiagram zoom={zoom} live={live?.state ?? null} onOpen={c => drill(c)} /> :
+            composite === 'FAIL_MONITOR' ? <PhaseFbd key={name} blocks={(live ? useBatch.getState().deployedUnits[live.unit]?.logic[live.phase]?.FAIL_MONITOR.blocks : sfc?.blocks) ?? {}}
+              zoom={zoom} selected={selBlock} scope="FAIL_MONITOR" readOnly={!!live} params={live ? useBatch.getState().active[live.key]?.rt.params : undefined}
+              onSelect={setSelBlock} onOpen={b => { if (!live) setBlockDlg(b) }} onMenu={blockMenu}
+              onMove={(b, x, y) => editBlocks(all => ({ ...all, [b]: { ...all[b], x, y } }))}
+              onConnect={(from, to) => { const r = connectBlocks(sfc?.blocks ?? {}, from, to); if (typeof r === 'string') return r; editBlocks(() => r); return null }}
+              onDisconnect={(b, slot) => editBlocks(all => disconnectInput(all, b, slot))}
+              onAdd={addFunctionBlock} /> :
+            branched ? <SfcBranchDiagram sfc={sfc!} zoom={zoom} sel={sel} liveStep={live && live.composite === composite ? live.step : null}
+              onSelect={s => { setSel(s); setSelBlock(null) }} onStepOpen={setStepDlg} onEdgeOpen={ref => setEdgeDlg(ref)} onStepMenu={stepMenu} onEdgeMenu={edgeMenu} /> :
             <SfcDiagram sfc={sfc!} zoom={zoom} sel={sel} liveStep={live && live.composite === composite ? live.step : null}
-              onSelect={setSel} onStepOpen={setStepDlg} onTrOpen={setTrDlg} onStepMenu={stepMenu} onTrMenu={trMenu} />}
+              onSelect={s => { setSel(s); setSelBlock(null) }} onStepOpen={setStepDlg} onTrOpen={i => openTransition(i)} onStepMenu={stepMenu} onTrMenu={trMenu} />}
         </div>
-        {composite && sfc && <PaneResizer axis="y" sign={-1} value={bottomHeight} min={90} max={420} onChange={setBottomHeight} label="Resize action panel" />}
-        {composite && sfc && <div className="studio-bottom ps-bottom" style={{ height: bottomHeight, flex: `0 0 ${bottomHeight}px` }}>
-          {selTr ? <div className="studio-pane ps-expr-pane">
+        {sequenceComposite && <PaneResizer axis="y" sign={-1} value={bottomHeight} min={90} max={420} onChange={setBottomHeight} label="Resize action panel" />}
+        {sequenceComposite && <div className="studio-bottom ps-bottom" style={{ height: bottomHeight, flex: `0 0 ${bottomHeight}px` }}>
+          {selEdge ? <div className="studio-pane ps-expr-pane">
             <table className="studio-param-table" aria-label="Transition">
-              <thead><tr><th>Transition</th><th>Expression</th><th>Description</th></tr></thead>
-              <tbody><tr onDoubleClick={() => setTrDlg(sel!.i)}><td>{selTr.name}</td><td className="ps-code">{selTr.condition}</td><td>{selTr.description}</td></tr></tbody>
+              <thead><tr><th>Transition</th><th>Expression</th><th>Description</th><th>Leads to</th></tr></thead>
+              <tbody><tr onDoubleClick={() => openTransition(sel!.i, sel!.r)}><td>{selEdge.name}</td><td className="ps-code">{selEdge.condition}</td>
+                <td>{selEdge.route === null ? sfc!.transitions[selEdge.from]?.description : ''}</td>
+                <td>{selEdge.to === null ? 'Termination' : sfc!.steps[selEdge.to].name}</td></tr></tbody>
             </table>
-            <div className="dvd-buttons"><button className="tbtn sm" onClick={() => setTrDlg(sel!.i)}>Properties...</button></div>
+            <div className="dvd-buttons"><button className="tbtn sm" onClick={() => openTransition(sel!.i, sel!.r)}>Properties...</button></div>
           </div> : <div className="studio-pane ps-expr-pane">
             <table className="studio-param-table" aria-label="Actions">
               <thead><tr><th>Action</th><th>Text</th><th>Description</th><th>Type</th><th>Qualifier</th><th>Time</th></tr></thead>
@@ -342,13 +435,25 @@ export function PhaseStudio(): JSX.Element {
       </div>
 
       {panes.palette && <PaneResizer axis="x" sign={-1} value={paletteWidth} min={150} max={360} onChange={setPaletteWidth} label="Resize palette panel" />}
-      {panes.palette && <div className="studio-pane studio-palette ps-palette" aria-label="Palette" style={{ width: paletteWidth, minWidth: paletteWidth, flex: `0 0 ${paletteWidth}px` }}>
+      {panes.palette && composite === 'FAIL_MONITOR' && <div className="studio-pane studio-palette ps-palette" aria-label="Palette" style={{ width: paletteWidth, minWidth: paletteWidth, flex: `0 0 ${paletteWidth}px` }}>
+        <select className="ps-pal-filter" aria-label="Palette filter" value="Calculation/Logic" onChange={() => {}}><option>Calculation/Logic</option></select>
+        <div className="ps-pal-grid">
+          {DIAGRAM_BLOCK_TYPES.map(t =>
+            <div key={t} className={'ps-pal-item' + (live ? ' disabled' : '')} data-palette={t} draggable={!live} role="button" tabIndex={0}
+              title={live ? 'Go to Edit mode to add function blocks' : `Click, or drag onto the diagram, to add a ${t} function block`}
+              onDragStart={e => { e.dataTransfer.setData(DRAG_FB, t); e.dataTransfer.setData('text/plain', t); e.dataTransfer.effectAllowed = 'copy' }}
+              onClick={() => { if (!live) addFunctionBlock(t) }}>
+              <PaletteGlyph item={t} /><span>{t}</span></div>)}
+        </div>
+        <div className="studio-pane-label">Palette</div>
+      </div>}
+      {panes.palette && composite !== 'FAIL_MONITOR' && <div className="studio-pane studio-palette ps-palette" aria-label="Palette" style={{ width: paletteWidth, minWidth: paletteWidth, flex: `0 0 ${paletteWidth}px` }}>
         <select className="ps-pal-filter" aria-label="Palette filter" value="All SFC Items" onChange={() => {}}><option>All SFC Items</option></select>
         <div className="ps-pal-grid">
           {(['Input Parameter', 'Internal Read Parameter', 'Internal Write Parameter', 'Output Parameter'] as const).map(x =>
             <div key={x} className="ps-pal-item disabled" title="Phase logic in Course 7016 Chapter 4 reads and writes through aliases and batch parameters; this palette item is not modeled">
               <PaletteGlyph item={x} /><span>{x}</span></div>)}
-          {(['Sequence', 'Step', 'Termination', 'Transition'] as const).map(x =>
+          {(['Sequence', 'Step', 'Termination', 'Transition', 'Branch'] as const).map(x =>
             <div key={x} className={'ps-pal-item' + (sfc ? '' : ' disabled')} data-palette={x} draggable={!!sfc} role="button" tabIndex={0}
               title={sfc ? (x === 'Sequence' ? 'Adds multiple connected steps and transitions (click, or drag onto the diagram)' : 'Click, or drag onto the diagram') : 'Drill down into a composite state first'}
               onDragStart={e => { e.dataTransfer.setData(DRAG_SFC, x); e.dataTransfer.setData('text/plain', x); e.dataTransfer.effectAllowed = 'copy' }}
@@ -365,16 +470,43 @@ export function PhaseStudio(): JSX.Element {
         online.length ? `Loaded on: ${online.map(o => `${o.unit} (${STATE_LABEL[o.state]})`).join(', ')}` : 'Assigned to: <unassigned>'}</span>
       {online.length > 1 && <select aria-label="On-line unit phase" value={onlineKey ?? ''} onChange={e => setOnlineKey(e.target.value || null)}>
         <option value="">Edit mode</option>{online.map(o => <option key={o.key} value={o.key}>{o.unit}/{o.phase}</option>)}</select>}
-      {composite === 'FAIL_MONITOR' && <span>FAIL_MONITOR is configured but not executed by the simulator</span>}
-      <span>{composite && sfc ? `${sfc.steps.length} steps, ${sfc.transitions.length} transitions` : ''}</span>
+      {composite === 'FAIL_MONITOR' && <span>Failure monitoring executes while the phase is active (not Idle)</span>}
+      <span>{sequenceComposite ? `${sfc!.steps.length} steps, ${sfc!.transitions.length} transitions` : composite === 'FAIL_MONITOR' ? `${Object.keys(sfc?.blocks ?? {}).length} function blocks` : ''}</span>
       <span className="studio-status-zoom">{Math.round(zoom * 100)}%</span>
     </div>
 
     {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
-    {seqAfter !== null && sfc && composite && <SequenceDialog itemCount={itemCount} onClose={() => setSeqAfter(null)}
-      onOk={count => { if (editSfc(s => insertSequence(s, seqAfter, count))) { setSeqAfter(null); setSel({ k: 'step', i: Math.min(seqAfter + 1, sfc.steps.length) }) } }} />}
+    {seqAfter !== null && sfc && composite && <SequenceDialog itemCount={itemCount} onClose={() => { setSeqAfter(null); setSeqEdge(null) }}
+      onOk={count => {
+        if (seqEdge) {
+          if (editSfc(s => insertOnEdge(s, seqEdge, count))) { setSeqAfter(null); setSeqEdge(null); setSel({ k: 'step', i: sfc.steps.length }) }
+        } else if (editSfc(s => insertSequence(s, seqAfter, count))) { setSeqAfter(null); setSel({ k: 'step', i: Math.min(seqAfter + 1, sfc.steps.length) }) }
+      }} />}
+    {edgeDlg && sfc && composite && sequenceComposite && sfc.steps[edgeDlg.i] && edgeAt(sfc, edgeDlg) && <EdgeDialog key={`${edgeDlg.i}:${edgeDlg.route}`} sfc={sfc} edge={edgeDlg} composite={composite} ctx={ctx}
+      onClose={() => setEdgeDlg(null)} onOk={(patch, target) => {
+        const ok = editSfc(s => {
+          const named = editEdge(s, edgeDlg, patch)
+          if (typeof named === 'string') return named
+          const current = edgeAt(s, edgeDlg)
+          return current && (current.to === null ? null : s.steps[current.to].name) === target ? named : connectEdge(named, edgeDlg, target)
+        })
+        if (ok) setEdgeDlg(null)
+      }} />}
+    {blockDlg && sfc && composite === 'FAIL_MONITOR' && sfc.blocks?.[blockDlg] && <BlockDialog key={blockDlg} name={blockDlg} sfc={sfc} ctx={ctx}
+      onClose={() => setBlockDlg(null)} onOk={(next, rename) => {
+        const ok = editBlocks(all => {
+          const renamed = rename !== blockDlg ? renameBlock(all, blockDlg, rename) : all
+          return { ...renamed, [rename]: next }
+        })
+        if (ok) { setBlockDlg(null); setSelBlock(rename) }
+      }} />}
+    {compDlg && sfc && composite && sequenceComposite && <CompositeBlockDialog existing={[...Object.keys(sfc.blocks ?? {}), ...sfc.steps.map(s => s.name)]}
+      onClose={() => setCompDlg(false)} onOk={(blockName, linkTo) => {
+        if (editBlocks(all => ({ ...all, [blockName]: { type: linkTo, expression: '', inputs: [], disabled: false } }))) { setCompDlg(false); setSelBlock(blockName) }
+      }} />}
     {stepDlg !== null && sfc && composite && sfc.steps[stepDlg] && <StepDialog key={sfc.steps[stepDlg].id} sfc={sfc} index={stepDlg} composite={composite} ctx={ctx}
-      onClose={() => setStepDlg(null)} onOk={next => { if (editSfc(s => ({ ...s, steps: s.steps.map((st, i) => i === stepDlg ? next : st) }))) setStepDlg(null) }} />}
+      onClose={() => setStepDlg(null)} onOk={next => { if (editSfc(s => ({ ...s, steps: s.steps.map((st, i) => i === stepDlg ? next : st),
+        routes: s.routes?.map(r => ({ ...r, from: r.from === s.steps[stepDlg].name ? next.name : r.from, to: r.to === s.steps[stepDlg].name ? next.name : r.to })) }))) setStepDlg(null) }} />}
     {trDlg !== null && sfc && composite && sfc.transitions[trDlg] && <TransitionDialog key={sfc.transitions[trDlg].id} sfc={sfc} index={trDlg} composite={composite} ctx={ctx}
       onClose={() => setTrDlg(null)} onOk={next => { if (editSfc(s => ({ ...s, transitions: s.transitions.map((t, i) => i === trDlg ? next : t) }))) setTrDlg(null) }} />}
     {actionDlg && sfc && composite && sfc.steps[actionDlg.step] && <ActionDialog step={sfc.steps[actionDlg.step].name} composite={composite} ctx={ctx}
@@ -389,26 +521,43 @@ export function PhaseStudio(): JSX.Element {
 // ---------------------------------------------------------------------------
 // Parameter view (p4-17/4-18: Filtered by, Alphabetic / Categorized)
 
-function ParamPane({ pc, composite, name, live }: { pc: PhaseClass; composite: CompositeName | null; name: string; live: string | null }): JSX.Element {
+function ParamPane({ pc, composite, name, live, block }: {
+  pc: PhaseClass; composite: CompositeName | null; name: string; live: string | null; block: { name: string; def: PhaseBlock } | null
+}): JSX.Element {
   const [view, setView] = useState<'Alphabetic' | 'Categorized'>('Alphabetic')
-  const params = useBatch(s => (live ? s.active[live]?.rt.params : undefined))
+  const active = useBatch(s => (live ? s.active[live] : undefined))
+  const params = active?.rt.params
   const user = Object.values(pc.params)
-  const rows: { name: string; value: string; group: string; open?: () => void }[] = composite
+  const writeBlock = (key: string, current: string): void => {
+    if (!active) return
+    void askValue(key, current).then(value => {
+      if (value === null) return
+      const r = useBatch.getState().setOnlineParam(active.unit, active.phase, key, Number(value))
+      if (!r.ok) window.alert(r.error)
+    })
+  }
+  const blockRows = composite && block ? Object.entries(phaseBlockDefaults(block.def)).map(([p, v]) => {
+    const key = `${composite}/${block.name}/${p}`
+    const value = String(params?.[key] ?? v)
+    return { name: p, value, group: 'Block', open: active ? () => writeBlock(key, value) : undefined }
+  }) : null
+  const rows: { name: string; value: string; group: string; open?: () => void }[] = blockRows ?? (composite === 'FAIL_MONITOR' ? [] : composite
     ? COMPOSITE_PARAMS.map(([n, v]) => ({ name: n, value: v, group: 'Composite' }))
-    : [...SYSTEM_PHASE_PARAMS.map(([n, v]) => ({ name: n, value: params && n in params ? String(params[n]) : v, group: 'System' })),
+    : [...SYSTEM_PHASE_PARAMS.map(([n, v]) => ({ name: n, value: active ? String(systemParam(active, n) ?? v) : v, group: 'System' })),
       ...user.map(p => ({ name: p.name, value: params && p.name in params ? String(params[p.name]) : String(p.defaultValue ?? ''), group: p.group,
-        open: () => useBatchUi.getState().openDialog({ t: 'param', phaseClass: name, kind: p.kind, original: p.name }) }))]
-  const sorted = view === 'Alphabetic' ? [...rows].sort((a, b) => a.name.localeCompare(b.name)) : [...rows].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name))
+        open: () => useBatchUi.getState().openDialog({ t: 'param', phaseClass: name, kind: p.kind, original: p.name }) }))])
+  const sorted = blockRows ? rows : view === 'Alphabetic' ? [...rows].sort((a, b) => a.name.localeCompare(b.name)) : [...rows].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name))
   return <div className="ps-params">
-    <div className="cs-params-filter">Filtered by: <span className="ps-filter-boxes">☑☑☑ ☑☑☑☑☑</span></div>
+    <div className="cs-params-filter">{block ? `${composite}/${block.name}` : <>Filtered by: <span className="ps-filter-boxes">☑☑☑ ☑☑☑☑☑</span></>}</div>
     <div className="cs-tabs" role="tablist">{(['Alphabetic', 'Categorized'] as const).map(t => <button key={t} role="tab" aria-selected={t === view}
       className={t === view ? 'on' : ''} onClick={() => setView(t)}>{t}</button>)}</div>
     <div className="ps-param-scroll">
-      <table className="studio-param-table" aria-label="Phase parameters">
+      <table className="studio-param-table" aria-label={block ? `${block.name} parameters` : 'Phase parameters'}>
         <thead><tr><th>Parameter</th><th>{live ? 'Value' : 'Default'}</th>{view === 'Categorized' && <th>Category</th>}</tr></thead>
-        <tbody>{sorted.map(r => <tr key={r.name} data-param={r.name} onDoubleClick={r.open}
-          className={r.group !== 'System' && r.group !== 'Composite' ? 'ps-user-param' : undefined}>
-          <td>{r.name}</td><td>{r.value}</td>{view === 'Categorized' && <td>{r.group}</td>}</tr>)}</tbody>
+        <tbody>{sorted.map(r => <tr key={r.name} data-param={r.name} onDoubleClick={r.open} title={r.open && block ? 'Double-click to change the on-line value' : undefined}
+          className={r.group !== 'System' && r.group !== 'Composite' && r.group !== 'Block' ? 'ps-user-param' : undefined}>
+          <td>{r.name}</td><td>{r.value}</td>{view === 'Categorized' && <td>{r.group}</td>}</tr>)}
+          {composite === 'FAIL_MONITOR' && !block && <tr><td colSpan={view === 'Categorized' ? 3 : 2}>Select a function block to see its parameters.</td></tr>}</tbody>
       </table>
     </div>
   </div>
@@ -540,6 +689,85 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
   </svg>
 }
 
+const BR_COL = 250
+const BR_ROW = 124
+const BR_TOP = 30
+const trimTo = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 3) + '...' : s)
+
+/** The chart of a composite that has alternate branches: legs fan out from a step, rejoin at a later step or terminate. */
+export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onEdgeOpen, onStepMenu, onEdgeMenu }: {
+  sfc: PhaseSfc; zoom: number; sel: Sel; liveStep: string | null
+  onSelect: (s: Sel) => void; onStepOpen: (i: number) => void; onEdgeOpen: (ref: EdgeRef) => void
+  onStepMenu: (i: number, e: React.MouseEvent) => void; onEdgeMenu: (ref: EdgeRef, e: React.MouseEvent) => void
+}): JSX.Element {
+  const layout = useMemo(() => layoutPhaseSfc(sfc), [sfc])
+  const gutters = layout.edges.filter(e => e.back).length
+  const X0 = 120 + gutters * 12
+  const cx = (c: number): number => X0 + c * BR_COL
+  const top = (i: number): number => BR_TOP + layout.row[i] * BR_ROW
+  const W = cx(layout.cols - 1) + 330
+  const H = BR_TOP + layout.rows * BR_ROW + 30
+  let backSeen = 0
+  return <svg className="cs-diagram ps-sfc" width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sequential function chart with alternate branches" data-branched="true">
+    <defs><pattern id="psGrid3" width={20} height={20} patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} /></pattern></defs>
+    <rect width={W} height={H} fill="url(#psGrid3)" />
+    {layout.edges.map((e, k) => {
+      const sx = cx(layout.col[e.from])
+      const sy = top(e.from) + STEP_H
+      const forward = layout.edges.filter(x => x.from === e.from && !x.back)
+      const diverges = forward.length > 1
+      const railOut = sy + 16
+      const legX = cx(layout.leg[k])
+      const crossY = e.back ? sy + 26 : diverges ? railOut + 24 : sy + 26
+      const crossX = e.back ? sx : legX
+      let d: string
+      let ends: { x: number; y: number } | null = null
+      if (e.to === null) {
+        const endY = (diverges ? railOut : sy) + 54
+        d = diverges ? `M ${sx} ${sy} V ${railOut} H ${legX} V ${endY}` : `M ${sx} ${sy} V ${endY}`
+        ends = { x: legX, y: endY }
+      } else if (e.back) {
+        const gx = 30 + (backSeen++) * 12
+        d = `M ${sx} ${sy} V ${sy + 40} H ${gx} V ${top(e.to) - 16} H ${cx(layout.col[e.to])} V ${top(e.to)}`
+      } else {
+        const tx = cx(layout.col[e.to])
+        const ty = top(e.to)
+        const converge = layout.edges.filter(x => x.to === e.to && !x.back).length > 1
+        d = (diverges ? `M ${sx} ${sy} V ${railOut} H ${legX}` : `M ${sx} ${sy}`) + (legX === tx && !converge ? ` V ${ty}` : ` V ${ty - 22} H ${tx} V ${ty}`)
+      }
+      const ref: EdgeRef = { i: e.from, route: e.route }
+      const selected = sel?.k === 'transition' && sel.i === e.from && (sel.r ?? null) === e.route
+      return <g key={`${e.from}:${e.route}:${k}`} data-edge={`${sfc.steps[e.from].name}>${e.to === null ? 'END' : sfc.steps[e.to].name}`}>
+        <path d={d} fill="none" className="ps-link" />
+        {ends && <g className="ps-termination" aria-label="Termination">
+          <line x1={ends.x - 12} y1={ends.y} x2={ends.x + 12} y2={ends.y} className="ps-term" />
+          <line x1={ends.x - 7} y1={ends.y + 4} x2={ends.x + 7} y2={ends.y + 4} className="ps-term" />
+        </g>}
+        <g data-transition={e.name} onMouseDown={ev => { ev.stopPropagation(); onSelect({ k: 'transition', i: e.from, ...(e.route === null ? {} : { r: e.route }) }) }}
+          onDoubleClick={() => onEdgeOpen(ref)} onContextMenu={ev => onEdgeMenu(ref, ev)}>
+          <rect x={crossX - 18} y={crossY - 10} width={150} height={32} fill="transparent" />
+          <line x1={crossX - 16} y1={crossY} x2={crossX + 16} y2={crossY} className={'ps-trans' + (selected ? ' sel' : '')} />
+          <text x={crossX + 22} y={crossY + 4} className="ps-trans-label">{e.name}</text>
+          <text x={crossX + 22} y={crossY + 15} className="ps-trans-cond">{trimTo(e.condition, 26)}</text>
+        </g>
+      </g>
+    })}
+    {sfc.steps.map((s, i) => {
+      const x = cx(layout.col[i])
+      const y = top(i)
+      const stepSel = sel?.k === 'step' && sel.i === i
+      return <g key={s.id} data-step={s.name} onMouseDown={ev => { ev.stopPropagation(); onSelect({ k: 'step', i }) }}
+        onDoubleClick={() => onStepOpen(i)} onContextMenu={ev => onStepMenu(i, ev)}>
+        <rect x={x - STEP_W / 2} y={y} width={STEP_W} height={STEP_H} className={'ps-step' + (stepSel ? ' sel' : '') + (liveStep === s.name ? ' live' : '')} />
+        {i === 0 && <rect x={x - STEP_W / 2 + 4} y={y + 4} width={STEP_W - 8} height={STEP_H - 8} className="ps-step-inner" />}
+        <text x={x} y={y + 21} textAnchor="middle" className="ps-step-label">{trimTo(s.name, 18)}</text>
+        {s.actions.slice(0, 5).map((a, ai) => <text key={a.name} x={x + STEP_W / 2 + 8} y={y + 12 + ai * ACTION_LINE} className="ps-step-action-text">{trimTo(a.name, 22)}</text>)}
+        {s.actions.length > 5 && <text x={x + STEP_W / 2 + 8} y={y + 12 + 5 * ACTION_LINE} className="ps-step-actions">+{s.actions.length - 5} more</text>}
+      </g>
+    })}
+  </svg>
+}
+
 export function PaletteGlyph({ item }: { item: string }): JSX.Element {
   const purple = item.includes('Parameter')
   return <svg width={30} height={30} viewBox="0 0 30 30" aria-hidden className="ps-pal-glyph">
@@ -552,6 +780,9 @@ export function PaletteGlyph({ item }: { item: string }): JSX.Element {
     {item === 'Step' && <path d="M7,9 H23 V19 H7 Z M15,4 V9 M15,19 V26" className="ps-pal-ink" />}
     {item === 'Transition' && <path d="M15,4 V26 M9,15 H21 M21,10 L24,13" className="ps-pal-ink" />}
     {item === 'Termination' && <path d="M15,4 V16 M9,12 H21 M9,20 H21 M11,24 H19" className="ps-pal-ink" />}
+    {item === 'Branch' && <path d="M15,3 V8 M6,8 H24 M6,8 V14 M24,8 V14 M3,14 H9 M21,14 H27 M6,14 V27 M24,14 V27" className="ps-pal-ink" />}
+    {(item === 'CND' || item === 'BFI' || item === 'CALC') && <><path d="M6,5 H24 V25 H6 Z M6,10 H24 M2,17 H6 M24,17 H28" className="ps-pal-ink" />
+      <text x={15} y={21} fontSize={6} textAnchor="middle" fill="#f2d33a" stroke="none">{item}</text></>}
   </svg>
 }
 
@@ -646,6 +877,13 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     if (!isNameValid(name)) { setError(NAME_RULE); return }
     if (name !== action?.name && existing.includes(name)) { setError(`${name} already exists in step ${step}`); return }
     if ((v.qualifier === 'D' || v.qualifier === 'L') && !(v.time >= 0)) { setError('Enter the delay/limit time in seconds'); return }
+    if (v.qualifier === 'P' && (!Number.isFinite(v.time) || v.time < 0)) { setError('Enter a finite pulse delay >= 0'); return }
+    if (v.confirm && v.qualifier !== 'P') { setError('Only Pulse actions offer confirmation'); return }
+    if (v.confirm && (!Number.isFinite(v.confirmTimeout) || (v.confirmTimeout ?? 0) < 0)) { setError('Enter a confirmation timeout >= 0 (0 waits indefinitely)'); return }
+    for (const expression of [v.confirm, v.delayExpression]) {
+      const errors = expression?.trim() ? checkExpression(expression, 'condition', ctx.check) : []
+      if (errors.length) { setError(errors.join('\n')); return }
+    }
     const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
     if (!problems.length) { onOk({ ...v, name }); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk({ ...v, name }) })
@@ -658,12 +896,19 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       </div>
       <div className="dvd-inline">
         <label>Action type:<select aria-label="Action type" value={v.type} onChange={e => setV({ ...v, type: e.target.value as ActionType })}>
-          <option>Assignment</option><option>Boolean</option></select></label>
-        <label>Qualifier:<select aria-label="Action qualifier" value={v.qualifier} onChange={e => setV({ ...v, qualifier: e.target.value as ActionQualifier })}>
+          <option>Assignment</option><option>Boolean</option><option>Non-Boolean</option></select></label>
+        <label>Qualifier:<select aria-label="Action qualifier" value={v.qualifier} onChange={e => setV({ ...v, qualifier: e.target.value as ActionQualifier,
+          ...(e.target.value !== 'P' ? { confirm: undefined, confirmTimeout: undefined, delayExpression: undefined } : {}) })}>
           {(Object.keys(QUALIFIER_LABEL) as ActionQualifier[]).map(q => <option key={q} value={q}>{QUALIFIER_LABEL[q]}</option>)}</select></label>
-        <label>Delay time (s):<input aria-label="Delay time" type="number" min={0} value={v.time} disabled={v.qualifier !== 'D' && v.qualifier !== 'L'}
+        <label>Delay time (s):<input aria-label="Delay time" type="number" min={0} value={v.time} disabled={v.qualifier !== 'D' && v.qualifier !== 'L' && v.qualifier !== 'P'}
           onChange={e => setV({ ...v, time: Number(e.target.value) })} /></label>
       </div>
+      {v.type === 'Non-Boolean' && <p className="exp-hint">Use the linked composite block name as the action name (for example BLEND_TIMER). N activates it for this step; no assignment expression is required.</p>}
+      {v.qualifier === 'P' && <>
+        <label>Pulse delay condition (optional):<input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} onChange={e => setV({ ...v, delayExpression: e.target.value })} /></label>
+        <label>Confirm expression (optional):<input aria-label="Confirm expression" value={v.confirm ?? ''} onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
+        <label>Confirm timeout (s, 0 = no timeout):<input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
+      </>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
         onChange={e => setV({ ...v, expression: e.target.value })} /></label>
       <ParserOutput text={v.expression} kind="action" ctx={ctx} />
@@ -705,6 +950,116 @@ export function TransitionDialog({ sfc, index, composite, ctx, onOk, onClose }: 
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
     {editor && <ExpressionDialog title={`${composite}/${v.name} Transition Expression`} kind="condition" ctx={ctx}
       value={v.condition} onClose={() => setEditor(false)} onOk={condition => { setV({ ...v, condition }); setEditor(false) }} />}
+  </SimulatorDialog>
+}
+
+/** Properties of a transition inside a branched chart: name, expression and the step or termination it leads to. */
+export function EdgeDialog({ sfc, edge, composite, ctx, onOk, onClose }: {
+  sfc: PhaseSfc; edge: EdgeRef; composite: string; ctx: ExprCtx
+  onOk: (patch: { name: string; condition: string; description?: string }, target: string | null) => void; onClose: () => void
+}): JSX.Element {
+  const current = edgeAt(sfc, edge)!
+  const [v, setV] = useState({ name: current.name, condition: current.condition,
+    description: edge.route === null ? sfc.transitions[edge.i]?.description ?? '' : '' })
+  const [target, setTarget] = useState(current.to === null ? '' : sfc.steps[current.to].name)
+  const [error, setError] = useState<string | null>(null)
+  const [editor, setEditor] = useState(false)
+  const submit = (): void => {
+    const name = v.name.trim().toUpperCase()
+    const e = renameError(sfc, current.name, name)
+    if (e) { setError(e); return }
+    const patch = { name, condition: v.condition, ...(edge.route === null ? { description: v.description } : {}) }
+    const problems = v.condition.trim() ? checkExpression(v.condition, 'condition', ctx.check) : []
+    if (!problems.length) { onOk(patch, target || null); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the transition anyway?`).then(ok => { if (ok) onOk(patch, target || null) })
+  }
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${composite}/${current.name} Transition Properties`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <div className="dvd-inline">
+        <label style={{ flex: 1 }}>Name:<input aria-label="Transition name" autoFocus value={v.name} onChange={e => setV({ ...v, name: e.target.value.toUpperCase() })} /></label>
+        {edge.route === null && <label style={{ flex: 2 }}>Description:<input aria-label="Transition description" value={v.description} onChange={e => setV({ ...v, description: e.target.value })} /></label>}
+      </div>
+      <label>Expression:<textarea aria-label="Transition expression" className="ps-code ps-expr-text" rows={3} value={v.condition}
+        onChange={e => setV({ ...v, condition: e.target.value })} /></label>
+      <ParserOutput text={v.condition} kind="condition" ctx={ctx} />
+      <label>Connect to:<select aria-label="Connect to" value={target} onChange={e => setTarget(e.target.value)}>
+        <option value="">Termination</option>
+        {sfc.steps.filter((_, i) => i !== edge.i).map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</select></label>
+      <p className="exp-hint">The first transition of a step whose expression is TRUE is taken; transitions are evaluated in the order they were added.</p>
+    </div>
+    <DlgButtons onOk={submit} onClose={onClose} extra={<button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button>} />
+    {error && <p role="alert" className="lib-dlg-error">{error}</p>}
+    {editor && <ExpressionDialog title={`${composite}/${v.name} Transition Expression`} kind="condition" ctx={ctx}
+      value={v.condition} onClose={() => setEditor(false)} onOk={condition => { setV({ ...v, condition }); setEditor(false) }} />}
+  </SimulatorDialog>
+}
+
+/** Properties of a CND, BFI or CALC function block in FAIL_MONITOR. */
+export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
+  name: string; sfc: PhaseSfc; ctx: ExprCtx; onOk: (b: PhaseBlock, name: string) => void; onClose: () => void
+}): JSX.Element {
+  const block = sfc.blocks![name]
+  const [n, setN] = useState(name)
+  const [v, setV] = useState(block)
+  const [error, setError] = useState<string | null>(null)
+  const [editor, setEditor] = useState(false)
+  const kind: ExprKind = v.type === 'CND' ? 'condition' : 'action'
+  const bctx: ExprCtx = v.type === 'CALC'
+    ? { ...ctx, check: { ...ctx.check, checkRef: (ref, write) => /^\/?(IN_?1|OUT1)\.CV$/i.test(ref) ? null : ctx.check.checkRef(ref, write) } }
+    : ctx
+  const submit = (): void => {
+    const next = n.trim().toUpperCase()
+    if (!isNameValid(next)) { setError(NAME_RULE); return }
+    if (next !== name && (sfc.blocks?.[next] || COMPOSITES.includes(next as CompositeName))) { setError(`${next} already exists`); return }
+    if (v.type === 'CND' && !v.expression.trim()) { setError('Enter the condition expression'); return }
+    const problems = v.type !== 'BFI' && v.expression.trim() ? checkExpression(v.expression, kind, bctx.check) : []
+    if (!problems.length) { onOk(v, next); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the block anyway?`).then(ok => { if (ok) onOk(v, next) })
+  }
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`FAIL_MONITOR/${name} ${v.type} Properties`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <div className="dvd-inline">
+        <label style={{ flex: 1 }}>Name:<input aria-label="Block name" autoFocus value={n} onChange={e => setN(e.target.value.toUpperCase())} /></label>
+        <label style={{ flex: 1 }}>Function block:<input aria-label="Function block type" readOnly value={v.type} /></label>
+      </div>
+      {v.type !== 'BFI' && <>
+        <label>Expression:<textarea aria-label="Block expression" className="ps-code ps-expr-text" rows={v.type === 'CALC' ? 5 : 3} value={v.expression}
+          onChange={e => setV({ ...v, expression: e.target.value })} /></label>
+        <ParserOutput text={v.expression} kind={kind} ctx={bctx} />
+      </>}
+      {v.type === 'CND' && <label className="dvd-check"><input type="checkbox" aria-label="DISABLE default" checked={v.disabled}
+        onChange={e => setV({ ...v, disabled: e.target.checked })} /> DISABLE = 1 by default (the condition is not evaluated until the logic enables it)</label>}
+      {v.type === 'BFI' && <p className="exp-hint">Drag from a condition's OUT_D pin to IN_D1...IN_Dn. FIRST_OUT holds the binary-weighted value of the first input that went TRUE until RESET_IN is set to 1.</p>}
+      {v.type === 'CALC' && <p className="exp-hint">IN1 and OUT1 are this block's own pins; other parameters are read with their full path, for example '/BFI1/OUT_D.CV' or '/+/FAIL_INDEX.CV'.</p>}
+    </div>
+    <DlgButtons onOk={submit} onClose={onClose} extra={v.type !== 'BFI' ? <button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button> : undefined} />
+    {error && <p role="alert" className="lib-dlg-error">{error}</p>}
+    {editor && <ExpressionDialog title={`FAIL_MONITOR/${n} Expression`} kind={kind} ctx={bctx}
+      value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
+  </SimulatorDialog>
+}
+
+/** Add Composite Block: a named block linked to an existing composite template (p6-15). */
+export function CompositeBlockDialog({ existing, onOk, onClose }: {
+  existing: string[]; onOk: (name: string, linkTo: 'TIMER_SEC') => void; onClose: () => void
+}): JSX.Element {
+  const [n, setN] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const submit = (): void => {
+    const name = n.trim().toUpperCase()
+    if (!isNameValid(name)) { setError(NAME_RULE); return }
+    if (existing.some(x => x.toUpperCase() === name) || COMPOSITES.includes(name as CompositeName)) { setError(`${name} is already used in this composite`); return }
+    onOk(name, 'TIMER_SEC')
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label="Add Composite Block" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Name:<input aria-label="Composite block name" autoFocus value={n} onChange={e => setN(e.target.value.toUpperCase())}
+        onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+      <label>Link to existing composite:<select aria-label="Link to composite" defaultValue="TIMER_SEC"><option value="TIMER_SEC">TIMER_SEC</option></select></label>
+      <p className="exp-hint">The block is a linked composite: it uses the TIMER_SEC template. Its START, RESET, TIME_DURATION and ELAPSED_TIME parameters are read and written with the block name, for example BLEND_TIMER/START.</p>
+    </div>
+    <DlgButtons onOk={submit} onClose={onClose} />
+    {error && <p role="alert" className="lib-dlg-error">{error}</p>}
   </SimulatorDialog>
 }
 

@@ -358,8 +358,8 @@ test('Course 7016 Chapters 1-5 in course order on one database: every workshop a
     // Everything stays verified at the end of the course.
     const all = liveChecks()
     for (const [id, list] of Object.entries(all)) assert.deepEqual(pending(list), [], id)
-    // ...and every workshop that has live checks is covered here.
-    const checked = COURSE.flatMap(m => m.workshops).filter(w => !/definitions|reading|ch2-process|ch3-licensing/.test(w.id) && !w.title.includes('reading'))
+    // Chapter 6 has its own timed-operation and failure-recovery integration suite.
+    const checked = COURSE.flatMap(m => m.workshops).filter(w => !/definitions|reading|ch2-process|ch3-licensing|ch6-/.test(w.id) && !w.title.includes('reading'))
     for (const w of checked) assert.ok(all[w.id], `${w.id} has live checks in the whole-course run`)
   } finally {
     useStore.setState(before.store, true)

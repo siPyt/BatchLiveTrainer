@@ -1,5 +1,5 @@
 import { useStore } from './store'
-import { useLibrary } from './libraryStore'
+import { useLibrary, courseNamedSets } from './libraryStore'
 import { useBatch } from './batchStore'
 import { useEm } from './emStore'
 
@@ -54,6 +54,11 @@ export function restoreCourseDatabase(text?: string | null): boolean {
       const known = new Set(Object.keys(dataOf(s.getState())))
       s.setState(Object.fromEntries(Object.entries(data).filter(([f]) => known.has(f))))
     }
+    const state = useStore.getState()
+    const defaults = courseNamedSets()
+    const additions = Object.fromEntries(['phase_failures', '$phase_restart_types']
+      .filter(name => !state.namedSets.configured[name]).map(name => [name, defaults[name]]))
+    useStore.setState({ namedSets: { ...state.namedSets, configured: { ...state.namedSets.configured, ...additions } } })
     return true
   } catch {
     return false

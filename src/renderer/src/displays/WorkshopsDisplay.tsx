@@ -12,6 +12,7 @@ import { useSystem } from '../engine/systemPreferences'
 import { useEm } from '../engine/emStore'
 import { checkCourse7016BlenderColor, checkCourse7016BlenderOutlet, checkCourse7016BlendersUnit, checkCourse7016Ch5Optional, checkCourse7016RunProcess, checkCourse7016VerifyEms, blendersDownloadedAt, type Ch5State } from '../engine/course7016Ch5Checks'
 import { checkCourse7016ManualOp } from '../engine/course7016Ch2Checks'
+import { checkCourse7016Ch6 } from '../engine/course7016Ch6Checks'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -92,6 +93,7 @@ function WorkshopPanel({
   const reset = useProgress((s) => s.reset)
   const eventLog = useStore((s) => s.eventLog)
   const modules = useStore((s) => s.modules)
+  const namedSets = useStore((s) => s.namedSets)
   const library = useLibrary()
   const batch = useBatch()
   const system = useSystem()
@@ -102,6 +104,7 @@ function WorkshopPanel({
     assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims, runSince: blendersDownloadedAt(em.deployed)
   }
   const checks: StepCheck[] | null =
+    w.id.startsWith('7016-ch6-') && w.id !== '7016-ch6-optional' ? checkCourse7016Ch6(batch, eventLog, namedSets) :
     w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :
     w.id === '7016-ch2-manual' ? checkCourse7016ManualOp(library.transfers) :
     w.id === '7016-ch3-sysprefs' ? checkCourse7016Ch3(system) :

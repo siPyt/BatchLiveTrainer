@@ -285,7 +285,9 @@ export function courseNamedSets(): Record<string, NamedSetDefinition> {
     'mtr2-pv': set('mtr2-pv', 'Two state motor state', [['STOPPED', 0], ['RUNNING', 1], ['TRAVEL', 2]]),
     // Equipment module command / state named sets (pp 5-13, 5-21): 255 is the mandatory Idle entry.
     'EM-vlvnc-2stage': emSet('EM-vlvnc-2stage', [['Close', 1], ['Dribble', 2], ['Bulk', 3], ['Auto Mode', 4]]),
-    EM_Outlet_State: emSet('EM_Outlet_State', [['Closed - CAS', 1], ['Draining Waste - CAS', 2], ['Releasing Product - CAS', 3], ['Auto Mode', 4]])
+    EM_Outlet_State: emSet('EM_Outlet_State', [['Closed - CAS', 1], ['Draining Waste - CAS', 2], ['Releasing Product - CAS', 3], ['Auto Mode', 4]]),
+    phase_failures: set('phase_failures', 'Phase failure messages', [['Ok', 0], ['Watchdog', 1], ['Write Req.', 2], ['Switchover', 3], ['Undefined', 255]]),
+    '$phase_restart_types': set('$phase_restart_types', 'Phase restart behavior', [['Continue', 0], ['From_Start', 1]])
   }
 }
 

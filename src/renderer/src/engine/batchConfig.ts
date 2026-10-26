@@ -1,5 +1,6 @@
 import { isValidDeltaVTag } from './naming'
-import { checkExpression, evalCondition, runProgram, EvalError, type CheckEnv, type EvalEnv, type Value } from './phaseExpr'
+import { checkExpression, evalCondition, runProgram, EvalError, truthy, toNum, type CheckEnv, type EvalEnv, type Value } from './phaseExpr'
+import { scanPhaseBlocks, phaseBlockDefaults, type PhaseBlock } from './phaseBlocks'
 
 // Course 7016 Chapter 4 (FILL Unit Phase): Process Cell Classes, Unit Classes with
 // aliases, Phase Classes with batch parameters and composite-state phase logic,
@@ -43,16 +44,26 @@ export interface PhaseParamDef {
   description: string
 }
 
-export type ActionType = 'Assignment' | 'Boolean'
+export type ActionType = 'Assignment' | 'Boolean' | 'Non-Boolean'
 export type ActionQualifier = 'N' | 'P' | 'S' | 'R' | 'D' | 'L'
 export const QUALIFIER_LABEL: Record<ActionQualifier, string> = {
   N: 'N - Non-stored', P: 'P - Pulse', S: 'S - Stored', R: 'R - Reset', D: 'D - Time delayed', L: 'L - Time limited'
 }
-export interface ActionDef { name: string; description: string; type: ActionType; qualifier: ActionQualifier; time: number; expression: string }
+export interface ActionDef {
+  name: string; description: string; type: ActionType; qualifier: ActionQualifier; time: number; expression: string
+  delayExpression?: string
+  confirm?: string
+  confirmTimeout?: number
+}
 export interface StepDef { id: string; name: string; description: string; actions: ActionDef[] }
 export interface TransitionDef { id: string; name: string; description: string; condition: string }
 /** A composite-state sequence: steps[i] is followed by transitions[i]; after the last transition the sequence terminates. */
-export interface PhaseSfc { steps: StepDef[]; transitions: TransitionDef[] }
+export interface PhaseRoute { from: string; to: string | null; condition: string; name?: string }
+export interface PhaseSfc {
+  steps: StepDef[]; transitions: TransitionDef[]
+  blocks?: Record<string, PhaseBlock>
+  routes?: PhaseRoute[]
+}
 
 export type CompositeName = 'RUN_LOGIC' | 'HOLD_LOGIC' | 'RESTART_LOGIC' | 'STOP_LOGIC' | 'ABORT_LOGIC' | 'FAIL_MONITOR'
 export const COMPOSITES: CompositeName[] = ['ABORT_LOGIC', 'FAIL_MONITOR', 'HOLD_LOGIC', 'RESTART_LOGIC', 'RUN_LOGIC', 'STOP_LOGIC']
@@ -100,7 +111,7 @@ export interface UnitModule {
 
 export const SYSTEM_PHASE_PARAMS: [string, string][] = [
   ['AUTO_RESTART', 'False'], ['BATCH_ID', ''], ['BCOMMAND', '0'], ['BSTATUS', 'Idle'], ['CLASS', ''], ['COMMANDMASK', '0'],
-  ['DOWNLOAD_REQ', 'False'], ['FAIL_INDEX', 'OK'], ['OWNER', 'DeltaV Batch'], ['PAUSE_REQ', 'False'], ['PAUSED', 'False'],
+  ['DOWNLOAD_REQ', 'False'], ['FAIL_INDEX', '0'], ['OWNER', 'DeltaV Batch'], ['PAUSE_REQ', 'False'], ['PAUSED', 'False'],
   ['REQDATA1', '0'], ['REQDATA2', '0'], ['REQDATA3', '0'], ['REQDATA4', '0'], ['REQDATA5', '0'], ['REQUEST', '0'],
   ['RESTART_TYPE', '0'], ['SINGLE_STEP', 'False'], ['SIZE', '0'], ['STATE_TIME', '0'], ['STATUS', '0'], ['STEP_INDEX', '0'],
   ['SWITCHED_OVER', 'False'], ['TIME', '0'], ['TOO_LONG_TIME', '0'], ['UNIT', ''], ['WATCHDOG', '0'], ['WDOG_STATE', 'OK'],
@@ -131,7 +142,7 @@ export function newPhaseClass(name: string, category: string): PhaseClass {
 }
 
 export function sfcNames(sfc: PhaseSfc): string[] {
-  return [...sfc.steps.map(s => s.name), ...sfc.transitions.map(t => t.name)]
+  return [...sfc.steps.map(s => s.name), ...sfc.transitions.map(t => t.name), ...(sfc.routes ?? []).flatMap(r => (r.name ? [r.name] : []))]
 }
 
 export function nextName(sfc: PhaseSfc, prefix: 'S' | 'T'): string {
@@ -141,7 +152,7 @@ export function nextName(sfc: PhaseSfc, prefix: 'S' | 'T'): string {
 
 /** Insert `count` connected step/transition pairs after step `afterIndex` (Palette ▸ Sequence, p4-19). */
 export function insertSequence(sfc: PhaseSfc, afterIndex: number, count: number): PhaseSfc {
-  const out: PhaseSfc = { steps: [...sfc.steps], transitions: [...sfc.transitions] }
+  const out: PhaseSfc = { ...sfc, steps: [...sfc.steps], transitions: [...sfc.transitions] }
   const at = Math.max(0, Math.min(afterIndex + 1, out.steps.length))
   for (let i = 0; i < count; i++) {
     const step: StepDef = { id: newId('s'), name: nextName(out, 'S'), description: '', actions: [] }
@@ -154,7 +165,9 @@ export function insertSequence(sfc: PhaseSfc, afterIndex: number, count: number)
 
 export function deleteStep(sfc: PhaseSfc, index: number): PhaseSfc | string {
   if (sfc.steps.length <= 1) return 'A sequence needs at least its initial step'
-  return { steps: sfc.steps.filter((_, i) => i !== index), transitions: sfc.transitions.filter((_, i) => i !== index) }
+  const name = sfc.steps[index]?.name
+  return { ...sfc, steps: sfc.steps.filter((_, i) => i !== index), transitions: sfc.transitions.filter((_, i) => i !== index),
+    routes: sfc.routes?.filter(r => r.from !== name && r.to !== name) }
 }
 
 export function renameError(sfc: PhaseSfc, oldName: string, next: string): string | null {
@@ -199,12 +212,13 @@ export const STATE_LABEL: Record<PhaseState, string> = {
   IDLE: 'Idle', RUNNING: 'Running', HOLDING: 'Holding', HELD: 'Held', RESTARTING: 'Restarting', COMPLETE: 'Complete',
   STOPPING: 'Stopping', STOPPED: 'Stopped', ABORTING: 'Aborting', ABORTED: 'Aborted'
 }
-export type PhaseCommand = 'START' | 'HOLD' | 'RESTART' | 'STOP' | 'ABORT' | 'RESET'
-export const COMMAND_LABEL: Record<PhaseCommand, string> = { START: 'Start', HOLD: 'Hold', RESTART: 'Restart', STOP: 'Stop', ABORT: 'Abort', RESET: 'Reset' }
+export type PhaseCommand = 'START' | 'HOLD' | 'RESTART' | 'STOP' | 'ABORT' | 'RESET' | 'CLEAR_FAILURES'
+export const COMMAND_LABEL: Record<PhaseCommand, string> = { START: 'Start', HOLD: 'Hold', RESTART: 'Restart', STOP: 'Stop', ABORT: 'Abort', RESET: 'Reset', CLEAR_FAILURES: 'Clear Failures' }
 export const COMMANDS_FOR: Record<PhaseState, PhaseCommand[]> = {
   IDLE: ['START'], RUNNING: ['HOLD', 'STOP', 'ABORT'], HOLDING: ['STOP', 'ABORT'], HELD: ['RESTART', 'STOP', 'ABORT'],
   RESTARTING: ['HOLD', 'STOP', 'ABORT'], COMPLETE: ['RESET'], STOPPING: ['ABORT'], STOPPED: ['RESET'], ABORTING: [], ABORTED: ['RESET']
 }
+for (const state of Object.keys(COMMANDS_FOR) as PhaseState[]) COMMANDS_FOR[state].push('CLEAR_FAILURES')
 const COMPOSITE_OF: Partial<Record<PhaseState, CompositeName>> = {
   RUNNING: 'RUN_LOGIC', HOLDING: 'HOLD_LOGIC', RESTARTING: 'RESTART_LOGIC', STOPPING: 'STOP_LOGIC', ABORTING: 'ABORT_LOGIC'
 }
@@ -213,7 +227,10 @@ const DONE_STATE: Partial<Record<PhaseState, PhaseState>> = {
 }
 export const compositeOf = (state: PhaseState): CompositeName | undefined => COMPOSITE_OF[state]
 
-export interface SeqPos { step: number; stepTime: number; executed: string[]; done: boolean }
+export interface SeqPos {
+  step: number; stepTime: number; executed: string[]; done: boolean
+  confirmed?: string[]; failedConfirms?: string[]; firedAt?: Record<string, number>
+}
 export interface PhaseRuntime {
   state: PhaseState
   stateTime: number
@@ -222,34 +239,36 @@ export interface PhaseRuntime {
   /** RUN_LOGIC position saved while Holding/Held/Restarting; RUNNING resumes from it. */
   runPos: SeqPos | null
   params: Record<string, Value>
-  failIndex: string
+  failIndex: number | string
   message: string
 }
 
 export function newRuntime(params: Record<string, Value>): PhaseRuntime {
-  return { state: 'IDLE', stateTime: 0, lastCommand: null, seq: null, runPos: null, params, failIndex: 'OK', message: '' }
+  return { state: 'IDLE', stateTime: 0, lastCommand: null, seq: null, runPos: null, params: { STEP_INDEX: 0, RESTART_TYPE: 0, ...params }, failIndex: 0, message: '' }
 }
+export const phaseHasFailure = (rt: PhaseRuntime): boolean => rt.failIndex !== 0 && rt.failIndex !== 'OK'
 const freshSeq = (): SeqPos => ({ step: 0, stepTime: 0, executed: [], done: false })
 
 /** Apply an operator/Batch command; returns an error message or the next runtime. */
 export function commandPhase(rt: PhaseRuntime, cmd: PhaseCommand): PhaseRuntime | string {
   if (!COMMANDS_FOR[rt.state].includes(cmd)) return `${COMMAND_LABEL[cmd]} is not valid while the phase is ${STATE_LABEL[rt.state]}`
+  if (cmd === 'CLEAR_FAILURES') return { ...rt, lastCommand: cmd, failIndex: 0, message: '' }
   const next: PhaseRuntime = { ...rt, lastCommand: cmd, stateTime: 0 }
   switch (cmd) {
     case 'START':
-      if (rt.failIndex !== 'OK') return 'The phase cannot start while a failure is active; Reset it first'
+      if (phaseHasFailure(rt)) return 'The phase cannot start while a failure is active; clear failures first'
       return { ...next, state: 'RUNNING', seq: freshSeq(), runPos: null, message: '' }
     case 'HOLD':
       return { ...next, state: 'HOLDING', runPos: rt.state === 'RUNNING' ? rt.seq : rt.runPos, seq: freshSeq() }
     case 'RESTART':
-      if (rt.failIndex !== 'OK') return 'The phase cannot restart while a failure is active'
+      if (phaseHasFailure(rt)) return 'The phase cannot restart while a failure is active'
       return { ...next, state: 'RESTARTING', seq: freshSeq() }
     case 'STOP':
       return { ...next, state: 'STOPPING', seq: freshSeq() }
     case 'ABORT':
       return { ...next, state: 'ABORTING', seq: freshSeq() }
     case 'RESET':
-      return { ...next, state: 'IDLE', seq: null, runPos: null, failIndex: 'OK', message: '' }
+      return { ...next, state: 'IDLE', seq: null, runPos: null, failIndex: 0, message: '', params: { ...rt.params, STEP_INDEX: 0 } }
   }
 }
 
@@ -257,50 +276,120 @@ export interface PhaseEnv extends EvalEnv { failed?: (message: string) => void }
 
 /** Advance one scan of the active composite sequence. */
 export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSfc>, env: PhaseEnv, dt: number): PhaseRuntime {
-  let next: PhaseRuntime = { ...rt, stateTime: rt.stateTime + dt }
+  let next: PhaseRuntime = { ...rt, params: { ...rt.params }, stateTime: rt.stateTime + dt }
   const composite = COMPOSITE_OF[rt.state]
-  if (!composite || !rt.seq) return next
-  const sfc = logic[composite]
-  const pos: SeqPos = { ...rt.seq, stepTime: rt.seq.stepTime + dt, executed: [...rt.seq.executed] }
+  const pos: SeqPos = rt.seq ? { ...rt.seq, stepTime: rt.seq.stepTime + dt, executed: [...rt.seq.executed],
+    confirmed: [...(rt.seq.confirmed ?? [])], failedConfirms: [...(rt.seq.failedConfirms ?? [])], firedAt: { ...rt.seq.firedAt } } : freshSeq()
+  const scoped = (scope: CompositeName): PhaseEnv => ({
+    ...env,
+    read: ref => {
+      if (ref.startsWith('//')) return env.read(ref)
+      const name = ref.replace(/^(?:\/\+\/|\^\/|\/)/, '').replace(/\.CV$/i, '').toUpperCase()
+      const local = name.includes('/') || name === 'CONFIRM_FAIL' || logic[scope].blocks?.[name] ? (COMPOSITES.some(c => name.startsWith(c + '/')) ? name : `${scope}/${name}`) : name
+      if (name === 'FAIL_INDEX') return next.failIndex === 'OK' ? 0 : next.failIndex
+      if (name === 'STATE_TIME') return next.stateTime
+      if (local in next.params) return next.params[local]
+      if (name in next.params) return next.params[name]
+      return env.read(ref)
+    },
+    write: (ref, value) => {
+      if (ref.startsWith('//')) { env.write(ref, value); return }
+      const name = ref.replace(/^(?:\/\+\/|\^\/|\/)/, '').replace(/\.CV$/i, '').toUpperCase()
+      const local = name.includes('/') || logic[scope].blocks?.[name] ? (COMPOSITES.some(c => name.startsWith(c + '/')) ? name : `${scope}/${name}`) : name
+      if (name === 'FAIL_INDEX') {
+        const n = toNum(value)
+        if (!Number.isInteger(n) || n < 0 || n > 255) throw new EvalError('FAIL_INDEX must be an integer from 0 to 255')
+        next.failIndex = n
+      } else if (name === 'STEP_INDEX' || name === 'RESTART_TYPE' || name in next.params || local in next.params) next.params[local] = value
+      else env.write(ref, value)
+    }
+  })
+  for (const c of COMPOSITES) for (const [name, block] of Object.entries(logic[c].blocks ?? {})) {
+    if (!(`${c}/${name}` in next.params)) next.params[`${c}/${name}`] = 1
+    for (const [p, v] of Object.entries(phaseBlockDefaults(block))) {
+      const key = `${c}/${name}/${p}`
+      if (!(key in next.params)) next.params[key] = v
+    }
+  }
   try {
+    if (!['IDLE', 'COMPLETE', 'STOPPED', 'ABORTED'].includes(rt.state)) {
+      for (const c of COMPOSITES) scanPhaseBlocks(logic[c].blocks ?? {}, scoped(c), dt)
+      if (phaseHasFailure(next) && (rt.state === 'RUNNING' || rt.state === 'RESTARTING')) {
+        return { ...next, state: 'HOLDING', stateTime: 0, runPos: rt.state === 'RUNNING' ? rt.seq : rt.runPos, seq: freshSeq() }
+      }
+    }
+    if (!composite || !rt.seq) return next
+    const sfc = logic[composite]
+    const localEnv = scoped(composite)
     if (!pos.done) {
       const step = sfc.steps[pos.step]
       if (!step) pos.done = true
       else {
+        next.params[`${composite}/${step.name}/TIME`] = pos.stepTime
+        next.params[`${composite}/${step.name}/PENDING_CONFIRMS`] = step.actions.filter(a => a.confirm && !pos.confirmed!.includes(a.name) && !pos.failedConfirms!.includes(a.name)).length
         for (const a of step.actions) {
           if (pos.executed.includes(a.name)) continue
-          if (a.qualifier === 'D' && pos.stepTime < a.time) continue
-          if (a.expression.trim()) runProgram(a.expression, env)
+          if ((a.qualifier === 'D' || a.qualifier === 'P') && pos.stepTime < a.time) continue
+          if (a.delayExpression?.trim() && !evalCondition(a.delayExpression, localEnv)) continue
+          if (a.type === 'Non-Boolean') {
+            if (!sfc.blocks?.[a.name]) throw new EvalError(`Non-Boolean action ${a.name} must name a composite block`)
+            localEnv.write(`/${a.name}/ACTIVE.CV`, 1)
+          } else if (a.expression.trim()) runProgram(a.expression, localEnv)
           pos.executed.push(a.name)
+          pos.firedAt![a.name] = pos.stepTime
         }
+        for (const a of step.actions.filter(a => a.confirm && pos.executed.includes(a.name))) {
+          if (pos.confirmed!.includes(a.name) || pos.failedConfirms!.includes(a.name)) continue
+          if (evalCondition(a.confirm!, localEnv)) pos.confirmed!.push(a.name)
+          else if ((a.confirmTimeout ?? 0) > 0 && pos.stepTime - pos.firedAt![a.name] >= a.confirmTimeout!) pos.failedConfirms!.push(a.name)
+        }
+        next.params[`${composite}/${step.name}/TIME`] = pos.stepTime
+        next.params[`${composite}/${step.name}/PENDING_CONFIRMS`] = step.actions.filter(a => a.confirm && !pos.confirmed!.includes(a.name) && !pos.failedConfirms!.includes(a.name)).length
+        next.params[`${composite}/${step.name}/FAILED_CONFIRMS`] = pos.failedConfirms!.length
+        next.params[`${composite}/${step.name}/CONFIRM_FAIL`] = pos.failedConfirms!.length > 0
+        next.params[`${composite}/CONFIRM_FAIL`] = pos.failedConfirms!.length > 0
         const allDone = step.actions.every(a => pos.executed.includes(a.name))
         const tr = sfc.transitions[pos.step]
-        if (allDone && (!tr || !tr.condition.trim() || evalCondition(tr.condition, env))) {
+        const routes = sfc.routes?.filter(r => r.from === step.name) ?? []
+        const route = routes.find(r => evalCondition(r.condition, localEnv))
+        if (allDone && routes.length) {
+          if (route) {
+            if (route.to === null) pos.done = true
+            else {
+              const target = sfc.steps.findIndex(s => s.name === route.to)
+              if (target < 0) throw new EvalError(`Route target ${route.to} does not exist`)
+              Object.assign(pos, freshSeq(), { step: target })
+            }
+          }
+        } else if (allDone && (!tr || !tr.condition.trim() || evalCondition(tr.condition, localEnv))) {
           if (pos.step + 1 >= sfc.steps.length) pos.done = true
-          else Object.assign(pos, { step: pos.step + 1, stepTime: 0, executed: [] })
+          else Object.assign(pos, freshSeq(), { step: pos.step + 1 })
+        }
+        if (pos.done || sfc.steps[pos.step]?.id !== step.id) {
+          for (const a of step.actions) if (a.type === 'Non-Boolean' && a.qualifier === 'N') localEnv.write(`/${a.name}/ACTIVE.CV`, 0)
         }
       }
     }
   } catch (e) {
     const message = e instanceof EvalError || e instanceof SyntaxError ? e.message : String((e as Error).message ?? e)
-    env.failed?.(`${composite}/${sfc.steps[pos.step]?.name ?? ''}: ${message}`)
+    env.failed?.(`${composite ?? 'FAIL_MONITOR'}: ${message}`)
     const failNext: PhaseState = rt.state === 'RUNNING' || rt.state === 'RESTARTING' ? 'HOLDING' : DONE_STATE[rt.state] ?? rt.state
-    return { ...next, failIndex: 'FAILED', message, state: failNext, stateTime: 0,
+    return { ...next, failIndex: 255, message, state: failNext, stateTime: 0,
       runPos: rt.state === 'RUNNING' ? rt.seq : rt.runPos, seq: failNext === 'HOLDING' ? freshSeq() : null }
   }
   next = { ...next, seq: pos }
   if (pos.done) {
     const target = DONE_STATE[rt.state]!
     next = { ...next, state: target, stateTime: 0, seq: null }
-    if (target === 'RUNNING') next.seq = rt.runPos ? { ...rt.runPos } : freshSeq()
+    if (target === 'RUNNING') next.seq = toNum(next.params.RESTART_TYPE) === 1 ? freshSeq() : rt.runPos ? { ...rt.runPos } : freshSeq()
     if (target === 'COMPLETE' || target === 'STOPPED' || target === 'ABORTED') next.runPos = null
   }
   return next
 }
 
-/** STEP_INDEX: 1-based index of the active step of the active composite (0 when no sequence runs). */
+/** STEP_INDEX is a phase parameter written by the user's logic, independent of the active composite. */
 export function stepIndex(rt: PhaseRuntime): number {
-  return rt.seq && !rt.seq.done ? rt.seq.step + 1 : 0
+  return Number(rt.params.STEP_INDEX ?? 0)
 }
 
 export function activeStepName(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSfc>): string {

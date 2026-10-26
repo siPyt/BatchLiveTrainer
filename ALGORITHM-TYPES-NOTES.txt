@@ -270,3 +270,15 @@ It reads like an AI-generated answer, not an Emerson document, and it contains e
      change: tag before-em-studio-deltav-match (f5eeec6).
    - Still unknown (ask the user's DeltaV system): full name of "A_MIN_TIME..."; contents of DRIVE,
      TARGET, TARGET_REACHED and a new class's MONITOR; behaviour of item Sequence and CFM times.
+   2026-10-26
+   - The user requested Chapter 6 workshop readiness. The historical phase-engine gaps in sections 5 and 8 are now
+     addressed for the AGITATE workshops: writable STEP_INDEX, numeric failures into Holding, Clear Failures,
+     RESTART_TYPE Continue/From_Start, pulse delays/confirms and step timing, executable CND/BFI/CALC failure
+     monitoring, condition DISABLE, TIMER_SEC linked composites and selective Hold/Restart branches.
+   - Verified against the user's local 7016 Rev 13 Chapter 6 text and rendered slides (including 6-5/6-6,
+     6-10..6-12 and 6-35/6-37). CALC supports the conditional operator and LOG2 as well as IF/THEN/ENDIF.
+   - Both blender instances pass timed operation, all five failure/clear/restart paths and save/restore tests.
+     The new editors use explicit connection/branch tables, not pixel-identical DeltaV FBD/branch graphics.
+     See COURSE-7016-PROGRESS.txt section 5A and tests/course7016-ch6.test.cjs.
+   - This does NOT add the five undocumented EM algorithm types. BCOMMAND/XCOMMAND dispatch and later recipe
+     capabilities remain separate work; their presence in the parameter list is not a claim of execution support.
