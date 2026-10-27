@@ -694,6 +694,11 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
  6. References such as '/FAIL_MONITOR/...' and '/RUN_LOGIC/BLEND_TIMER/...' written from another composite (the course
     guide prints them that way) work in the trainer. Question: does the real system need '^/FAIL_MONITOR/...' there?
  7. The new account name admin123 and the shared password admin123 on every FlexLock account are trainer-only.
+ 8. Action Properties > General > Delay group: the trainer starts a new Pulse action with neither "Time value" nor
+    "Expression" selected (no delay; clicking a selected radio again clears it; D / L qualifiers select Time value
+    because the time is their parameter). Slide 6-5 only shows the group with Expression selected, not its default, so
+    "unselected by default" is the student's belief, not confirmed. Question: what is selected on a brand-new action, and
+    can the selection be cleared? (The Confirm Timeout group defaults to Time value = 0, which slide 6-7 does show.)
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert

@@ -890,7 +890,8 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
   const [v, setV] = useState<ActionDef>(action ?? { name: nextName(), description: '', type: 'Assignment', qualifier: 'N', time: 0, expression: '' })
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'General' | 'Confirm'>(initialTab)
-  const [delayMode, setDelayMode] = useState<'time' | 'expression'>(action?.delayExpression ? 'expression' : 'time')
+  const [delayMode, setDelayMode] = useState<'none' | 'time' | 'expression'>(
+    action?.delayExpression ? 'expression' : action && (action.qualifier === 'D' || action.qualifier === 'L' || (action.qualifier === 'P' && action.time > 0)) ? 'time' : 'none')
   const [editor, setEditor] = useState(false)
   const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | 'timeout' | null>(null)
   const pulse = v.qualifier === 'P'
@@ -912,7 +913,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     if (!isNameValid(name)) { setError(NAME_RULE); return }
     if (name !== action?.name && existing.includes(name)) { setError(`${name} already exists in step ${step}`); return }
     if ((v.qualifier === 'D' || v.qualifier === 'L') && !(v.time >= 0)) { setError('Enter the delay/limit time in seconds'); return }
-    if (pulse && (!Number.isFinite(v.time) || v.time < 0)) { setError('Enter a finite pulse delay >= 0'); return }
+    if (pulse && delayMode === 'time' && (!Number.isFinite(v.time) || v.time < 0)) { setError('Enter a finite pulse delay >= 0'); return }
     const delayExpr = pulse && delayMode === 'expression' ? v.delayExpression?.trim() : ''
     if (pulse && delayMode === 'expression' && !delayExpr) { setError('Enter a delay expression on the General tab, or choose Time value'); setTab('General'); return }
     if (confirmOn && !pulse) { setError('Only Pulse actions offer confirmation'); return }
@@ -924,7 +925,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       const errors = expression?.trim() ? checkExpression(expression, 'condition', ctx.check) : []
       if (errors.length) { setError(errors.join('\n')); return }
     }
-    const saved: ActionDef = { ...v, name, delayExpression: delayExpr || undefined,
+    const saved: ActionDef = { ...v, name, time: pulse && delayMode !== 'time' ? 0 : v.time, delayExpression: delayExpr || undefined,
       confirm: confirmOn ? v.confirm?.trim() : undefined,
       confirmTimeout: confirmOn && timeoutMode === 'time' ? v.confirmTimeout ?? 0 : undefined, confirmTimeoutExpression: timeoutExpr || undefined }
     const problems = v.expression.trim() ? checkText(v.expression, actionKind, ctx.check) : []
@@ -944,23 +945,26 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
           <option>Assignment</option><option>Boolean</option><option>Non-Boolean</option></select></label>
         <label>Qualifier:<select aria-label="Action qualifier" value={v.qualifier} onChange={e => {
           const q = e.target.value as ActionQualifier
-          if (q !== 'P') { setConfirmOn(false); setDelayMode('time'); setTimeoutMode('time') }
+          if (q !== 'P') { setConfirmOn(false); setTimeoutMode('time') }
+          setDelayMode(q === 'D' || q === 'L' ? 'time' : 'none')
           setV({ ...v, qualifier: q, ...(q !== 'P' ? { confirm: undefined, confirmTimeout: undefined, confirmTimeoutExpression: undefined, delayExpression: undefined } : {}) })
         }}>
           {(Object.keys(QUALIFIER_LABEL) as ActionQualifier[]).map(q => <option key={q} value={q}>{QUALIFIER_LABEL[q]}</option>)}</select></label>
       </div>
       <fieldset className="dvd-group" disabled={!timed}>
         <legend>Delay</legend>
-        <div className="dvd-inline">
-          <label><input type="radio" name="action-delay-mode" aria-label="Delay as time value" checked={delayMode === 'time'} onChange={() => setDelayMode('time')} /> Time value (s):
-            <input aria-label="Delay time" type="number" min={0} value={v.time} disabled={!timed || delayMode !== 'time'} onChange={e => setV({ ...v, time: Number(e.target.value) })} /></label>
+        <div className="dvd-radio-row">
+          <label className="dvd-radio"><input type="radio" name="action-delay-mode" aria-label="Delay as time value" checked={delayMode === 'time'} readOnly
+            onClick={() => setDelayMode(delayMode === 'time' && pulse ? 'none' : 'time')} /> Time value (s)</label>
+          <input aria-label="Delay time" type="number" min={0} value={v.time} disabled={!timed || delayMode !== 'time'} onChange={e => setV({ ...v, time: Number(e.target.value) })} />
         </div>
-        <div className="dvd-inline">
-          <label style={{ flex: 1 }}><input type="radio" name="action-delay-mode" aria-label="Delay as expression" checked={delayMode === 'expression'} disabled={!pulse} onChange={() => setDelayMode('expression')} /> Expression:
-            <input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} disabled={!pulse || delayMode !== 'expression'} onChange={e => setV({ ...v, delayExpression: e.target.value })} /></label>
+        <div className="dvd-radio-row">
+          <label className="dvd-radio"><input type="radio" name="action-delay-mode" aria-label="Delay as expression" checked={delayMode === 'expression'} disabled={!pulse} readOnly
+            onClick={() => setDelayMode(delayMode === 'expression' ? 'none' : 'expression')} /> Expression</label>
+          <input aria-label="Pulse delay condition" value={v.delayExpression ?? ''} disabled={!pulse || delayMode !== 'expression'} onChange={e => setV({ ...v, delayExpression: e.target.value })} />
           <button type="button" className="tbtn sm" disabled={!pulse || delayMode !== 'expression'} onClick={() => setCondEditor('delay')}>Expression Assistant...</button>
         </div>
-        {!timed && <p className="exp-hint">The delay applies to Pulse, Time delayed and Time limited actions.</p>}
+        <p className="exp-hint">{timed ? 'No delay unless Time value or Expression is selected. Click the selected one again to clear it.' : 'The delay applies to Pulse, Time delayed and Time limited actions.'}</p>
       </fieldset>
       {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression, for example '/BLEND_TIMER' (a Non-Stored N action). An action named after the block with no expression also works.</p>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
@@ -977,15 +981,15 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       {defaultNote && <p role="alert" className="lib-dlg-error">{defaultNote}</p>}
       <fieldset className="dvd-group" disabled={!confirmOn}>
         <legend>Confirm Timeout</legend>
-        <div className="dvd-inline">
-          <label><input type="radio" name="action-confirm-timeout" aria-label="Timeout as time value" checked={timeoutMode === 'time'} onChange={() => setTimeoutMode('time')} /> Time value (s, 0 = no timeout):
-            <input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} disabled={!confirmOn || timeoutMode !== 'time'}
-              onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
+        <div className="dvd-radio-row">
+          <label className="dvd-radio"><input type="radio" name="action-confirm-timeout" aria-label="Timeout as time value" checked={timeoutMode === 'time'} onChange={() => setTimeoutMode('time')} /> Time value (s, 0 = no timeout)</label>
+          <input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} disabled={!confirmOn || timeoutMode !== 'time'}
+            onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} />
         </div>
-        <div className="dvd-inline">
-          <label style={{ flex: 1 }}><input type="radio" name="action-confirm-timeout" aria-label="Timeout as expression" checked={timeoutMode === 'expression'} onChange={() => setTimeoutMode('expression')} /> Expression:
-            <input aria-label="Confirm timeout expression" value={v.confirmTimeoutExpression ?? ''} disabled={!confirmOn || timeoutMode !== 'expression'}
-              onChange={e => setV({ ...v, confirmTimeoutExpression: e.target.value })} /></label>
+        <div className="dvd-radio-row">
+          <label className="dvd-radio"><input type="radio" name="action-confirm-timeout" aria-label="Timeout as expression" checked={timeoutMode === 'expression'} onChange={() => setTimeoutMode('expression')} /> Expression</label>
+          <input aria-label="Confirm timeout expression" value={v.confirmTimeoutExpression ?? ''} disabled={!confirmOn || timeoutMode !== 'expression'}
+            onChange={e => setV({ ...v, confirmTimeoutExpression: e.target.value })} />
           <button type="button" className="tbtn sm" disabled={!confirmOn || timeoutMode !== 'expression'} onClick={() => setCondEditor('timeout')}>Expression Assistant...</button>
         </div>
         <p className="exp-hint">With an expression the confirm fails as soon as the expression is TRUE before the confirm expression is, for example '/INITIALIZE_EQUIP/TIME.CV' &gt; 10.</p>

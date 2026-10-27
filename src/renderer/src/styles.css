@@ -4804,6 +4804,10 @@ button {
 .dvd.dvd-wide { min-width: 620px; max-width: 860px; }
 /* The two-tab Action dialog is tall: anchor it to the top of the window and scroll it instead of running off the bottom. */
 .dvd.ps-action-dialog { top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+/* Radio beside its caption, then the field, as in the DeltaV Delay / Confirm Timeout groups (slides 6-5, 6-7). */
+.dvd-radio-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.dvd-radio-row > .dvd-radio { display: flex; flex-direction: row; align-items: center; gap: 4px; margin: 0; white-space: nowrap; min-width: 190px; }
+.dvd-radio-row > input:not([type='radio']) { flex: 1; min-width: 0; box-sizing: border-box; }
 .dvd-split { display: flex; gap: 14px; align-items: flex-start; }
 .dvd-split > div { flex: 1; min-width: 0; }
 /* OK / Cancel column beside the fields stays button-width (DeltaV "New" / "Add Module Class" dialogs). */
