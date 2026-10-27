@@ -14,11 +14,21 @@ export function ModuleIcon({ kind, size = 20 }: { kind: ModuleIconKind; size?: n
           {kind === 'equipment' && <rect x={1} y={1} width={22} height={22} fill="#eceeef" stroke="#64727a" />}
           {kind === 'cell' && <path d="M2,22 V13 H7 V22 M9,22 V8 H14 V22 M16,22 V4 H21 V22" fill="#c4ccd1" stroke="#64727a" />}
           <g strokeWidth={0.7}>
-            <circle cx={12} cy={6.5} r={5} fill="#589c36" stroke="#356e24" />
-            <circle cx={6.5} cy={14} r={5} fill="#a34932" stroke="#783721" />
-            <circle cx={17.5} cy={14} r={5} fill="#34338c" stroke="#232369" />
+            {kind === 'equipment' ? (
+              <>
+                <circle cx={12} cy={6} r={4.4} fill="#589c36" stroke="#356e24" />
+                <circle cx={6.3} cy={12} r={4.4} fill="#a34932" stroke="#783721" />
+                <circle cx={17.7} cy={12} r={4.4} fill="#34338c" stroke="#232369" />
+                <circle cx={12} cy={18} r={4.4} fill="#589c36" stroke="#356e24" />
+              </>
+            ) : (
+              <>
+                <circle cx={12} cy={6.5} r={5} fill="#589c36" stroke="#356e24" />
+                <circle cx={6.5} cy={14} r={5} fill="#a34932" stroke="#783721" />
+                <circle cx={17.5} cy={14} r={5} fill="#34338c" stroke="#232369" />
+              </>
+            )}
           </g>
-          {kind === 'equipment' && <text x={12} y={23} textAnchor="middle" fontSize={6} fontWeight={800} fill="#17222b">EM</text>}
         </>
       )}
     </svg>
