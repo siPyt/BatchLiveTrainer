@@ -28,7 +28,10 @@ const OPS = [':=', '<=', '>=', '!=', '<>', '=', '<', '>', '+', '-', '*', '/', '(
 export const MODE_WORDS = ['CAS', 'AUTO', 'MAN', 'OOS', 'RCAS', 'ROUT', 'LO', 'IMAN']
 const KEYWORDS = ['AND', 'OR', 'NOT', 'TRUE', 'FALSE']
 
-function tokenize(src: string): Tok[] {
+function tokenize(rawSrc: string): Tok[] {
+  // Text copied from the course PDF or a web page carries typographic characters: curly quotes and the modifier
+  // letter U+02C6 in place of ^. Each maps to a single character, so error positions stay accurate.
+  const src = rawSrc.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u02C6/g, '^')
   const out: Tok[] = []
   let i = 0
   while (i < src.length) {
@@ -199,7 +202,7 @@ export function parseProgram(src: string): Program {
   return new Parser(tokenize(src)).program()
 }
 
-export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2']
+export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2', 'LN', 'LOG', 'EXP', 'SQRT']
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -296,6 +299,16 @@ export function evaluate(n: Node, env: EvalEnv): Value {
           if (args.length < 1 || args.length > 2 || !Number.isFinite(value) || !Number.isFinite(base) || value <= 0 || base <= 0 || base === 1)
             throw new EvalError('LOG2 requires a positive value and an optional positive base other than 1')
           return Math.log(value) / Math.log(base)
+        }
+        case 'LN': case 'LOG': case 'SQRT': {
+          // Slide 6-40 converts FIRST_OUT with LN(x) / LN(2) + 4.
+          const x = toNum(args[0])
+          if (args.length !== 1 || !Number.isFinite(x) || (n.fn === 'SQRT' ? x < 0 : x <= 0)) throw new EvalError(`${n.fn} requires one ${n.fn === 'SQRT' ? 'non-negative' : 'positive'} number`)
+          return n.fn === 'LN' ? Math.log(x) : n.fn === 'LOG' ? Math.log10(x) : Math.sqrt(x)
+        }
+        case 'EXP': {
+          if (args.length !== 1 || !Number.isFinite(toNum(args[0]))) throw new EvalError('EXP requires one number')
+          return Math.exp(toNum(args[0]))
         }
         case 'LOGEVENT': env.log(args.map(String).join(' ')); return true
         case 'SELSTR': {

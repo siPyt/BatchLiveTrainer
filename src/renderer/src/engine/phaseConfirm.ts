@@ -2,6 +2,8 @@
 // reads back what the action wrote, e.g.
 //   '//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP'   ->  '//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'
 
+import { findNamedSet } from './namedSetMatch'
+
 export interface NamedSetLike { name: string; entries: { name: string; value: number }[] }
 
 type Result = { ok: true; expression: string } | { ok: false; error: string }
@@ -24,13 +26,13 @@ export function defaultConfirmExpression(action: string, sets: Record<string, Na
   const named = /^'([^:']+):([^']+)'$/.exec(rhs)
   if (!named) return { ok: true, expression: `'${base}/${leaf === 'CAS_SP' ? 'PV.CV' : 'DC1/PV_D.CV'}' = ${rhs}` }
   const [, setName, state] = named
-  const sp = Object.values(sets).find(s => s.name === setName)
+  const sp = findNamedSet(sets, setName)
   const entry = sp?.entries.find(e => e.name.toUpperCase() === state.toUpperCase())
   if (!sp || !entry) return fail(`Named state ${setName}:${state} was not found`)
-  const pvName = /sp$/i.test(setName) ? setName.replace(/sp$/i, 'pv') : setName
-  const pv = pvName === setName ? undefined : Object.values(sets).find(s => s.name === pvName)
+  const pvName = /sp$/i.test(sp.name) ? sp.name.replace(/sp$/i, 'pv') : sp.name
+  const pv = pvName === sp.name ? undefined : findNamedSet(sets, pvName)
   const pvState = pv?.entries.find(e => e.value === entry.value)
   if (!pv || !pvState) return fail(`No readback named set (${pvName}) with a state for ${state}; write the confirm expression yourself.`)
-  const motor = /^mtr/i.test(setName)
+  const motor = /^mtr/i.test(sp.name)
   return { ok: true, expression: `'${base}/${motor ? 'DC1/PV_D.CV' : 'PV.CV'}' = '${pv.name}:${pvState.name}'` }
 }

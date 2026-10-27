@@ -630,6 +630,25 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    different, as account names must be unique). Tests that logged on with the old per-account passwords were updated;
    FLEXLOCK-LOGINS.txt lists the new table. Full suite 785/786 (dv09-audit only).
 
+ - Chapter 6 guide audit (student pasted a consolidated guide to slides 6-1..6-54 and asked that every capability in it
+   exists, without changing anything authentic to DeltaV). Method: tests/course7016-ch6.test.cjs now builds the whole
+   AGITATE phase (RUN / HOLD / RESTART / FAIL_MONITOR, STOP / ABORT) with the guide's expressions typed literally
+   (agitate('guide')) and runs both blenders through Hold, Restart, early Hold, Stop/Abort and all five failures.
+   Gaps found and closed (all additive; existing forms behave exactly as before):
+     * Named set spelling: Chapter 5 says EM_Outlet_State, Chapter 6 / slide 6-5 say 'EM-Outlet_State'. Lookup now
+       matches ignoring - and _ (namedSetMatch.ts; exact match still wins). A state that does not exist is still an
+       error: the guide's "Close - CAS" is a slip, the course state is "Closed - CAS".
+     * Non-Boolean action: slide 6-18 gives the expression '/BLEND_TIMER'. batchConfig.nonBooleanBlock accepts that
+       (an action named after the block with no expression still works); the Action dialog validates it as a block
+       reference (nonBooleanErrors) and its hint and the 7016-6-3 workshop text say so.
+     * Expression functions LN, LOG, EXP, SQRT added (slide 6-40 MESSAGE block: LN('IN1.CV') / LN(2) + 4).
+     * Text pasted from the PDF / guide: curly quotes and the modifier letter U+02C6 (printed for ^) are read as ' " ^.
+   Already worked, now proven with the literal guide text: '^/STEP_INDEX.CV', '//#ALIAS#/DC1/MODE.TARGET', PENDING_CONFIRMS
+   transition, '/FAIL_MONITOR/..../DISABLE.CV' from RUN / HOLD / RESTART, '/RUN_LOGIC/BLEND_TIMER/START.CV' from
+   HOLD / RESTART, Pulse delay expression (action R / L), Confirm with Default Expression, 3-way HOLD branch merging
+   into NULL1 then HELD, RESTART branches (From_Start vs Continue), ENABLE_PC, BFI1/RESET_IN, FAIL_INDEX 4-8.
+   Tests: course7016-ch6.test.cjs 13/13; full suite 787/788 (dv09-audit only).
+
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
   Alias... list for A_COMMAND / A_PV on BLNDR_COLOR / BLNDR_OUTLET; in the two-tab Action dialog set qualifier P on

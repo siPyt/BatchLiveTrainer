@@ -18,6 +18,7 @@ import {
 import type { AnyModule } from './types'
 import { phaseBlockDefaults } from './phaseBlocks'
 import type { NamedSetDefinition } from './namedSets'
+import { findNamedSet } from './namedSetMatch'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 function ok<T>(value: T): Result<T> { return { ok: true, value } }
@@ -332,7 +333,7 @@ function writeModule(path: string, value: Value): void {
 }
 
 function namedValue(set: string, state: string, sets: Record<string, NamedSetDefinition> = useStore.getState().namedSets.configured): number {
-  const def = Object.values(sets).find(x => x.name.toLowerCase() === set.toLowerCase())
+  const def = findNamedSet(sets, set)
   if (!def) throw new EvalError(`Named set ${set} does not exist`)
   const e = def.entries.find(x => x.name.toUpperCase() === state.toUpperCase())
   if (!e) throw new EvalError(`Named set ${set} has no state ${state}`)

@@ -8,6 +8,7 @@ import { evalCondition, runProgram, EvalError, MODE_WORDS, type CheckEnv, type V
 import { isValidDeltaVTag } from './naming'
 import type { AnyModule } from './types'
 import { COURSE_VALVE_TRAVEL } from './classLibrary'
+import { findNamedSet } from './namedSetMatch'
 
 // Course 7016 Chapter 5 (Module Classes): Equipment Module Classes (command-driven and
 // state-driven), the Control Module Classes they embed (2STAGE_VALVE, NC_VALVE, AGIT_MTR,
@@ -116,7 +117,7 @@ const log = (tag: string, text: string, category: 'CONFIGURE' | 'BATCH' | 'DIAGN
 
 export function namedSetOf(name: string): { name: string; entries: { name: string; value: number; userSelectable?: boolean }[] } | undefined {
   const sets = useStore.getState().namedSets.configured
-  return Object.values(sets).find(s => s.name.toLowerCase() === name.trim().toLowerCase())
+  return findNamedSet(sets, name)
 }
 export function stateName(set: string, value: number): string {
   return namedSetOf(set)?.entries.find(e => e.value === value)?.name ?? String(value)

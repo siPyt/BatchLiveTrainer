@@ -9,7 +9,7 @@ import { addBranch, connectEdge, deleteBranch, edgeAt, editEdge, insertOnEdge, i
 import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
-  deleteStep, insertSequence, isNameValid, renameError,
+  deleteStep, insertSequence, isNameValid, nonBooleanErrors, renameError,
   type ActionDef, type ActionQualifier, type ActionType, type CheckEnv, type CompositeName, type PhaseClass, type PhaseSfc, type PhaseState, type UnitClass
 } from '../engine/batchConfig'
 import { SimulatorDialog } from '../components/SimulatorDialog'
@@ -30,7 +30,9 @@ import { defaultConfirmExpression } from '../engine/phaseConfirm'
 type Menu = { x: number; y: number; label: string; items: { label: string; onClick?: () => void; danger?: boolean; disabled?: string; separator?: boolean }[] }
 /** `r` selects an alternate-branch transition (index into sfc.routes); without it a transition is a step's ordinary one. */
 type Sel = { k: 'step' | 'transition'; i: number; r?: number } | null
-type ExprKind = 'action' | 'condition'
+type ExprKind = 'action' | 'condition' | 'block'
+/** A Non-Boolean action's expression ('block') names a composite block instead of assigning a value. */
+const checkText = (text: string, kind: ExprKind, env: CheckEnv): string[] => (kind === 'block' ? nonBooleanErrors(text, env) : checkExpression(text, kind, env))
 
 /** What the expression editor can browse and how it validates: a phase class or an equipment module class. */
 export interface ExprCtx {
@@ -880,6 +882,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
   const [editor, setEditor] = useState(false)
   const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | 'timeout' | null>(null)
   const pulse = v.qualifier === 'P'
+  const actionKind: ExprKind = v.type === 'Non-Boolean' ? 'block' : 'action'
   const timed = pulse || v.qualifier === 'D' || v.qualifier === 'L'
   const [confirmOn, setConfirmOn] = useState(action?.confirm !== undefined)
   const [timeoutMode, setTimeoutMode] = useState<'time' | 'expression'>(action?.confirmTimeoutExpression ? 'expression' : 'time')
@@ -910,7 +913,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     const saved: ActionDef = { ...v, name, delayExpression: delayExpr || undefined,
       confirm: confirmOn ? v.confirm?.trim() : undefined,
       confirmTimeout: confirmOn && timeoutMode === 'time' ? v.confirmTimeout ?? 0 : undefined, confirmTimeoutExpression: timeoutExpr || undefined }
-    const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
+    const problems = v.expression.trim() ? checkText(v.expression, actionKind, ctx.check) : []
     if (!problems.length) { onOk(saved); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk(saved) })
   }
@@ -945,10 +948,10 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
         </div>
         {!timed && <p className="exp-hint">The delay applies to Pulse, Time delayed and Time limited actions.</p>}
       </fieldset>
-      {v.type === 'Non-Boolean' && <p className="exp-hint">Use the linked composite block name as the action name (for example BLEND_TIMER). N activates it for this step; no assignment expression is required.</p>}
+      {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression, for example '/BLEND_TIMER' (a Non-Stored N action). An action named after the block with no expression also works.</p>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
         onChange={e => setV({ ...v, expression: e.target.value })} /></label>
-      <ParserOutput text={v.expression} kind="action" ctx={ctx} />
+      <ParserOutput text={v.expression} kind={actionKind} ctx={ctx} />
     </div> : <div className="lib-dlg-fields dvd-panel">
       <label><input type="checkbox" aria-label="Confirm action for pulse qualifier" checked={confirmOn} disabled={!pulse}
         onChange={e => { setConfirmOn(e.target.checked); setV({ ...v, confirm: e.target.checked ? v.confirm ?? '' : v.confirm, confirmTimeout: v.confirmTimeout ?? 0 }) }} /> Confirm action for pulse qualifier</label>
@@ -975,7 +978,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     </div>}
     <DlgButtons onOk={submit} onClose={onClose} extra={<button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button>} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
-    {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind="action" ctx={ctx}
+    {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind={actionKind} ctx={ctx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
     {condEditor && <ExpressionDialog title={`${composite}/${step}/${v.name} ${condEditor === 'confirm' ? 'Confirm' : condEditor === 'timeout' ? 'Confirm Timeout' : 'Pulse Delay'} Expression`} kind="condition" ctx={ctx}
       value={(condEditor === 'confirm' ? v.confirm : condEditor === 'timeout' ? v.confirmTimeoutExpression : v.delayExpression) ?? ''} onClose={() => setCondEditor(null)}
@@ -1131,10 +1134,10 @@ export function CompositeBlockDialog({ existing, onOk, onClose }: {
 }
 
 function ParserOutput({ text, kind, ctx }: { text: string; kind: ExprKind; ctx: ExprCtx }): JSX.Element {
-  const problems = text.trim() ? checkExpression(text, kind, ctx.check) : []
+  const problems = text.trim() ? checkText(text, kind, ctx.check) : []
   return <div className="ps-parser" role="status" aria-label="Parser output">
     <span className="ps-parser-head">Parser output:</span>
-    {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : 'Empty expression.'}</span> :
+    {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : kind === 'block' ? 'Empty: the action name is the composite block.' : 'Empty expression.'}</span> :
       problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), 0 warning(s)</span>}
   </div>
 }
@@ -1159,8 +1162,8 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
     requestAnimationFrame(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + ins.length } })
   }
   const submit = (): void => {
-    const final = ensureTrailingSemicolon(text)
-    const problems = final.trim() ? checkExpression(final, kind, ctx.check) : []
+    const final = kind === 'block' ? text.trim() : ensureTrailingSemicolon(text)
+    const problems = final.trim() ? checkText(final, kind, ctx.check) : []
     if (!problems.length) { onOk(final); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nKeep the expression anyway?`).then(ok => { if (ok) onOk(final) })
   }

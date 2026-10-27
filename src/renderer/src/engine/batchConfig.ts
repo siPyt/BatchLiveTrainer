@@ -58,6 +58,24 @@ export interface ActionDef {
   confirmTimeoutExpression?: string
 }
 export interface StepDef { id: string; name: string; description: string; actions: ActionDef[] }
+
+const NON_BOOLEAN_REF = /^\s*'(?:\^?\/)?([A-Za-z_][A-Za-z0-9_$-]*)'\s*;?\s*$/
+/**
+ * The composite block a Non-Boolean action invokes. Slide 6-18 writes it as the action expression ('/BLEND_TIMER');
+ * an action named after the block with an empty expression keeps working as before. Null when neither names a block.
+ */
+export function nonBooleanBlock(a: Pick<ActionDef, 'name' | 'expression'>, blocks: Record<string, unknown> | undefined): string | null {
+  const wanted = (NON_BOOLEAN_REF.exec(a.expression)?.[1] ?? a.name).toUpperCase()
+  return Object.keys(blocks ?? {}).find(b => b.toUpperCase() === wanted) ?? null
+}
+/** Problems with a Non-Boolean action's expression (empty is fine: the action name is then the block name). */
+export function nonBooleanErrors(expression: string, check: CheckEnv): string[] {
+  if (!expression.trim()) return []
+  const m = NON_BOOLEAN_REF.exec(expression)
+  if (!m) return ["A Non-Boolean action's expression is the composite block it starts, for example '/BLEND_TIMER'"]
+  const problem = check.checkRef(`/${m[1]}`, false)
+  return problem ? [problem] : []
+}
 export interface TransitionDef { id: string; name: string; description: string; condition: string }
 /** A composite-state sequence: steps[i] is followed by transitions[i]; after the last transition the sequence terminates. */
 export interface PhaseRoute { from: string; to: string | null; condition: string; name?: string }
@@ -334,8 +352,9 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
           if ((a.qualifier === 'D' || a.qualifier === 'P') && pos.stepTime < a.time) continue
           if (a.delayExpression?.trim() && !evalCondition(a.delayExpression, localEnv)) continue
           if (a.type === 'Non-Boolean') {
-            if (!sfc.blocks?.[a.name]) throw new EvalError(`Non-Boolean action ${a.name} must name a composite block`)
-            localEnv.write(`/${a.name}/ACTIVE.CV`, 1)
+            const block = nonBooleanBlock(a, sfc.blocks)
+            if (!block) throw new EvalError(`Non-Boolean action ${a.name} must name a composite block (for example '/BLEND_TIMER')`)
+            localEnv.write(`/${block}/ACTIVE.CV`, 1)
           } else if (a.expression.trim()) runProgram(a.expression, localEnv)
           pos.executed.push(a.name)
           pos.firedAt![a.name] = pos.stepTime
@@ -369,7 +388,10 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
           else Object.assign(pos, freshSeq(), { step: pos.step + 1 })
         }
         if (pos.done || sfc.steps[pos.step]?.id !== step.id) {
-          for (const a of step.actions) if (a.type === 'Non-Boolean' && a.qualifier === 'N') localEnv.write(`/${a.name}/ACTIVE.CV`, 0)
+          for (const a of step.actions) if (a.type === 'Non-Boolean' && a.qualifier === 'N') {
+            const block = nonBooleanBlock(a, sfc.blocks)
+            if (block) localEnv.write(`/${block}/ACTIVE.CV`, 0)
+          }
         }
       }
     }
