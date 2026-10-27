@@ -866,31 +866,37 @@ export function StepDialog({ sfc, index, composite, ctx, onOk, onClose }: {
   </SimulatorDialog>
 }
 
-/** Action properties with its expression (p4-20). */
-export function ActionDialog({ step, composite, ctx, action, existing, onOk, onClose }: {
+/** Action properties (p4-20, p6-5, p6-7): General tab with the Delay and Action expression, Confirm tab for Pulse actions. */
+export function ActionDialog({ step, composite, ctx, action, existing, onOk, onClose, initialTab = 'General' }: {
   step: string; composite: string; ctx: ExprCtx; action: ActionDef | null; existing: string[]
-  onOk: (a: ActionDef) => void; onClose: () => void
+  onOk: (a: ActionDef) => void; onClose: () => void; initialTab?: 'General' | 'Confirm'
 }): JSX.Element {
   const nextName = (): string => { for (let n = 1; ; n++) if (!existing.includes(`A${n}`)) return `A${n}` }
   const [v, setV] = useState<ActionDef>(action ?? { name: nextName(), description: '', type: 'Assignment', qualifier: 'N', time: 0, expression: '' })
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<'General' | 'Confirm'>(initialTab)
+  const [delayMode, setDelayMode] = useState<'time' | 'expression'>(action?.delayExpression ? 'expression' : 'time')
   const [editor, setEditor] = useState(false)
   const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | null>(null)
+  const pulse = v.qualifier === 'P'
+  const timed = pulse || v.qualifier === 'D' || v.qualifier === 'L'
+  const confirmOn = !!v.confirm?.trim()
   const submit = (): void => {
     const name = v.name.trim().toUpperCase()
     if (!isNameValid(name)) { setError(NAME_RULE); return }
     if (name !== action?.name && existing.includes(name)) { setError(`${name} already exists in step ${step}`); return }
     if ((v.qualifier === 'D' || v.qualifier === 'L') && !(v.time >= 0)) { setError('Enter the delay/limit time in seconds'); return }
-    if (v.qualifier === 'P' && (!Number.isFinite(v.time) || v.time < 0)) { setError('Enter a finite pulse delay >= 0'); return }
-    if (v.confirm && v.qualifier !== 'P') { setError('Only Pulse actions offer confirmation'); return }
-    if (v.confirm && (!Number.isFinite(v.confirmTimeout) || (v.confirmTimeout ?? 0) < 0)) { setError('Enter a confirmation timeout >= 0 (0 waits indefinitely)'); return }
+    if (pulse && (!Number.isFinite(v.time) || v.time < 0)) { setError('Enter a finite pulse delay >= 0'); return }
+    if (confirmOn && !pulse) { setError('Only Pulse actions offer confirmation'); return }
+    if (confirmOn && (!Number.isFinite(v.confirmTimeout) || (v.confirmTimeout ?? 0) < 0)) { setError('Enter a confirmation timeout >= 0 (0 waits indefinitely)'); return }
     for (const expression of [v.confirm, v.delayExpression]) {
       const errors = expression?.trim() ? checkExpression(expression, 'condition', ctx.check) : []
       if (errors.length) { setError(errors.join('\n')); return }
     }
+    const saved: ActionDef = { ...v, name, ...(v.delayExpression?.trim() ? {} : { delayExpression: undefined }) }
     const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
-    if (!problems.length) { onOk({ ...v, name }); return }
-    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk({ ...v, name }) })
+    if (!problems.length) { onOk(saved); return }
+    void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk(saved) })
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${composite}/${step}/${v.name || 'A1'} Action`} onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">

@@ -583,6 +583,33 @@ WHERE WE LEFT OFF (2026-10-26, end of day):
 - Tests: npm test = 780/781 (dv09-audit needs pdf_om.txt); npm run test:course6 = 8/8; typecheck and build clean.
 - Tooling note: when screenshotting through the VS Code browser tab, the viewport is tiny; use a separate headless
   browser against the Vite preview (npx vite --config bl-preview.vite.config.mjs) with its own profile.
+
+Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - INITIALIZE_EQUIP actions):
+ - Student questions answered (no code change): item J (start BLEND_TIMER) is an N-qualifier action
+   '/BLEND_TIMER/START.CV' := 1;  the confirm comparison ('...A_PV.CV' = '...') belongs in the Confirm field, NOT in the
+   Action expression box (that box only accepts assignments, hence "Each action statement must be an assignment").
+   Course typos: the course writes EM-Outlet_State, the installed named set is EM_Outlet_State (underscore);
+   the confirm for BASE_IN_VLV must be 'vlvnc-pv:CLOSED' (the course's vlvnc-pv:CLOSE does not exist). Pulse (P)
+   is required before the Confirm checkbox is offered.
+ - Found and fixed (40c79c6, pushed): Insert Alias... only listed control-module fields (CAS_SP, PV, PV_D ...), so for the
+   equipment-module aliases BLNDR_COLOR / BLNDR_OUTLET there was no A_COMMAND to pick. PhaseStudio.tsx phaseExprCtx now
+   gives every alias its own parameter list (equipment-module blocks get A_COMMAND.CV, A_PV.CV, A_TARGET.CV,
+   A_ABT_ON_NEW_CMD.CV via the new EM_PARAMETER_NAMES export in batchStore.ts); AliasBrowser shows that list.
+   Typecheck clean; npm run test:course6 9/9 before the commit.
+ - WORK IN PROGRESS (committed 2026-10-27, not written this session): PhaseStudio.tsx ActionDialog has a half-finished rebuild into the
+   DeltaV two-tab Action Properties dialog (General tab with Delay as Time value / Expression, Confirm tab with
+   "Confirm action for pulse qualifier") - the "Candidate follow-up: rebuild as the two-tab dialog" listed under Step 7g
+   above.    Only the logic/state half exists (tab, delayMode, initialTab prop, pulse/timed/confirmOn); the dialog's JSX is
+   unchanged, so tab/delayMode/timed are unused and the Confirm tab does not render yet. Committed as work in
+   progress (an empty Confirm expression still means "no confirm", so the current flat dialog behaves as before).
+   It is not described anywhere else in these .txt files beyond that one candidate-follow-up line. To finish it:
+   render the General/Confirm tabs and the Delay Time value / Expression choice in ActionDialog, then re-run
+   npm run typecheck and npm run test:course6.
+
+WHERE WE LEFT OFF (2026-10-27):
+- Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Last pushed
+  commit 40c79c6. Open item: the unfinished two-tab ActionDialog rebuild described above (committed as WIP).
+- Everything else as in the 2026-10-26 end-of-day section below.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and
