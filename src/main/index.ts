@@ -1,7 +1,11 @@
-import { app, shell, BrowserWindow, Menu, powerSaveBlocker } from 'electron'
+import { app, shell, BrowserWindow, Menu, powerSaveBlocker, powerMonitor } from 'electron'
 import { join } from 'path'
 
 const isDev = !app.isPackaged
+
+// Chromium's window-occlusion tracking decides an idle or locked-screen window is hidden and stops painting it; the
+// window then stays a blank grey rectangle until something forces a repaint (a click). Turn the tracking off.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 // Windows taskbar needs an .ico; other platforms use the PNG.
 const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
@@ -29,6 +33,18 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // Belt and braces for the grey-window problem: force a repaint whenever the window could have been hidden or the
+  // machine could have slept, and reload if the renderer process itself dies.
+  const repaint = (): void => { if (!mainWindow.isDestroyed()) mainWindow.webContents.invalidate() }
+  mainWindow.on('show', repaint)
+  mainWindow.on('restore', repaint)
+  mainWindow.on('focus', repaint)
+  const afterWake = (): void => { repaint(); setTimeout(repaint, 500) }
+  powerMonitor.on('resume', afterWake)
+  powerMonitor.on('unlock-screen', afterWake)
+  mainWindow.webContents.on('render-process-gone', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.reload() })
+  mainWindow.webContents.on('unresponsive', () => repaint())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

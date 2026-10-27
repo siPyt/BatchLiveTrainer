@@ -686,6 +686,14 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
        (last 20 entries: killed / frozen / blank / error).
    If the grey screen returns, note which of those messages appears (or none) and where the app is being viewed
    (VS Code browser tab, Edge/Chrome, desktop app) - that decides the next fix.
+ - Grey screen follow-up: the student runs the DESKTOP (Electron) app and the grey area goes away when he clicks
+   anywhere in it. That is Chromium no longer painting a window it believes is hidden (Windows native window occlusion
+   tracking after a long idle / display off / lock). Fix in src/main/index.ts: the switch
+   --disable-features=CalculateNativeWinOcclusion, a forced repaint (webContents.invalidate) on show / restore / focus,
+   on powerMonitor resume and unlock-screen, a reload if the renderer process dies, and backgroundThrottling stays off.
+   Built and smoke-launched (starts cleanly); NOT yet confirmed against a real idle period. Needs a new build of the
+   desktop app (npm run dist:win) or npm start to pick it up. If it still happens, next options are
+   app.disableHardwareAcceleration() and a periodic invalidate.
 
 TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
 trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
