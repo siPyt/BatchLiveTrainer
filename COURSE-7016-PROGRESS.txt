@@ -682,7 +682,8 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
      * Blank-page watchdog: an empty #root reloads the page (max 3 per minute); also checked when the tab becomes visible.
      * Diagnostics, so the next occurrence explains itself: a heartbeat + clean-exit flag report "the page was reloaded
        after the browser stopped it without closing it (last active ...)" and a 1 s timer reports "the browser paused
-       this page for N s". Both show as an in-app message and are kept in localStorage 'batchlive-health'
+       this page for N s". These are NO LONGER shown as pop-ups (the student did not want them); they are only kept in
+       localStorage 'batchlive-health'
        (last 20 entries: killed / frozen / blank / error).
    If the grey screen returns, note which of those messages appears (or none) and where the app is being viewed
    (VS Code browser tab, Edge/Chrome, desktop app) - that decides the next fix.
@@ -714,7 +715,7 @@ TRAINER-ONLY FUNCTIONALITY (NOT DELTAV) - added for the learning environment, do
     desktop app is not covered (Electron cannot show a custom message there).
  2. Idle / blank-screen protection (components/AppErrorBoundary.tsx, engine/health.ts, engine/keepAwake.ts, ui/uiSession.ts,
     src/main/index.ts): wake lock + no display sleep, error screen instead of a blank page, reload when #root is empty,
-    messages when the browser stopped or paused the page, and the open screen / Control Studio windows restored after a
+    silently logged (no pop-up) when the browser stopped or paused the page, and the open screen / Control Studio windows restored after a
     reload. Real DeltaV has none of this.
  3. FlexLock accounts: every account uses the password admin123 and an extra account named admin123 exists.
  4. Default Expression, Delay-group defaults, wrong-level errors and the other trainer choices are tracked in the next

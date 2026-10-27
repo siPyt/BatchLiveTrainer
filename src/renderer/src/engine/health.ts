@@ -33,12 +33,12 @@ function record(kind: HealthEntry['kind'], detail: string): void {
 }
 export const recordCrash = (detail: string): void => record('error', detail)
 
-export function startHealthMonitor(notify: (message: string) => void): void {
+export function startHealthMonitor(): void {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
   const now = Date.now()
   const last = Number(localStorage.getItem(BEAT)) || null
   const exitMessage = unexpectedExitNotice(last, localStorage.getItem(CLEAN) === '1', now)
-  if (exitMessage) { record('killed', exitMessage); notify(exitMessage) }
+  if (exitMessage) record('killed', exitMessage)
   localStorage.setItem(CLEAN, '0')
 
   const beat = (): void => { try { localStorage.setItem(BEAT, String(Date.now())) } catch { /* ignore */ } }
@@ -53,7 +53,7 @@ export function startHealthMonitor(notify: (message: string) => void): void {
     const t = Date.now()
     const message = frozenNotice(t - tickAt)
     tickAt = t
-    if (message) { record('frozen', message); notify(message) }
+    if (message) record('frozen', message)
   }, 1000)
 
   window.addEventListener('error', e => record('error', `${e.message} (${e.filename ?? ''}:${e.lineno ?? ''})`))

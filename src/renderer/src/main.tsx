@@ -24,7 +24,7 @@ startCourseAutosave()
 restoreUiSession()
 startUiSessionSave()
 startKeepAwake()
-startHealthMonitor(message => useNotices.getState().push(message))
+startHealthMonitor()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
