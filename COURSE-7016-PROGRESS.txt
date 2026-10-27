@@ -596,20 +596,19 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    gives every alias its own parameter list (equipment-module blocks get A_COMMAND.CV, A_PV.CV, A_TARGET.CV,
    A_ABT_ON_NEW_CMD.CV via the new EM_PARAMETER_NAMES export in batchStore.ts); AliasBrowser shows that list.
    Typecheck clean; npm run test:course6 9/9 before the commit.
- - WORK IN PROGRESS (committed 2026-10-27, not written this session): PhaseStudio.tsx ActionDialog has a half-finished rebuild into the
-   DeltaV two-tab Action Properties dialog (General tab with Delay as Time value / Expression, Confirm tab with
-   "Confirm action for pulse qualifier") - the "Candidate follow-up: rebuild as the two-tab dialog" listed under Step 7g
-   above.    Only the logic/state half exists (tab, delayMode, initialTab prop, pulse/timed/confirmOn); the dialog's JSX is
-   unchanged, so tab/delayMode/timed are unused and the Confirm tab does not render yet. Committed as work in
-   progress (an empty Confirm expression still means "no confirm", so the current flat dialog behaves as before).
-   It is not described anywhere else in these .txt files beyond that one candidate-follow-up line. To finish it:
-   render the General/Confirm tabs and the Delay Time value / Expression choice in ActionDialog, then re-run
-   npm run typecheck and npm run test:course6.
+ - FINISHED (2026-10-27): the Action Properties dialog (PhaseStudio.tsx ActionDialog) is now the DeltaV two-tab dialog of
+   slides 6-5 / 6-7, the "Candidate follow-up" under Step 7g above. General tab: Name, Description, Action type,
+   Qualifier, a Delay group (Time value / Expression with Expression Assistant; the expression choice is Pulse only),
+   Action expression + parser output. Confirm tab: checkbox "Confirm action for pulse qualifier" (enabled only for P),
+   Confirm expression with Expression Assistant, Confirm timeout. Validation errors switch to the tab that needs fixing.
+   Changing the qualifier away from P clears confirm/delay expression. Still different from DeltaV: no "Default
+   Expression" button and the confirm timeout is a number only (no Expression choice).
+   Test: course7016-ch6.test.cjs renders both tabs. Typecheck clean; full suite 781/782 (dv09-audit only, as before).
 
 WHERE WE LEFT OFF (2026-10-27):
-- Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Last pushed
-  commit 40c79c6. Open item: the unfinished two-tab ActionDialog rebuild described above (committed as WIP).
-- Everything else as in the 2026-10-26 end-of-day section below.
+- Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). The Action dialog
+  is now two-tab (General / Confirm): set qualifier P on General, then tick the Confirm checkbox on the Confirm tab.
+- Nothing is left unfinished from this session. Everything else as in the 2026-10-26 end-of-day section below.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and

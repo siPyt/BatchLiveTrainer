@@ -307,7 +307,11 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   const html = renderToStaticMarkup(React.createElement(ActionDialog, {
     step: 'TEST', composite: 'RUN_LOGIC', ctx: { check }, action: act("'/X.CV' := 1;"), existing: [], onOk: () => {}, onClose: () => {}
   }))
-  for (const label of ['Pulse delay condition', 'Confirm expression', 'Confirm timeout', 'Non-Boolean']) assert.ok(html.includes(label), label)
+  for (const label of ['Pulse delay condition', 'Delay time', 'Non-Boolean', 'Qualifier']) assert.ok(html.includes(label), label)
+  const confirmTab = renderToStaticMarkup(React.createElement(ActionDialog, {
+    step: 'TEST', composite: 'RUN_LOGIC', ctx: { check }, action: act("'/X.CV' := 1;", { confirm: "'/X.CV' = 1", confirmTimeout: 5 }), existing: [], onOk: () => {}, onClose: () => {}, initialTab: 'Confirm'
+  }))
+  for (const label of ['Confirm action for pulse qualifier', 'Confirm expression', 'Confirm timeout', 'Expression Assistant']) assert.ok(confirmTab.includes(label), label)
 
   // FAIL_MONITOR: blocks come from the palette and are wired pin to pin, exactly as the course slide shows.
   let blocks = {}
