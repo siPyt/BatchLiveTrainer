@@ -695,6 +695,11 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    desktop app (npm run dist:win) or npm start to pick it up. If it still happens, next options are
    app.disableHardwareAcceleration() and a periodic invalidate.
 
+ - Process picture (ProcessDisplay.tsx UnitLink): the unit name (UM_BL_500 / UM_BL_600 ...) and its phase state sat on the
+   tank legs in 8 px text and were hard to read. Now each unit has a white label plate below the tank, left of the outlet
+   pipe and clear of the pump: name 11 px dark, state 10.5 px blue ("AGITATE Running"), failure 10 px red (clipped to 26
+   characters, full text in the tooltip). Same component for all five unit tanks, so 500, 600 and the colour tanks match.
+
 TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
 trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
 2026-10-27: keep as is, match later. When you check, tell the assistant what the real system does:

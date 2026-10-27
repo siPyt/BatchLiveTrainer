@@ -92,8 +92,9 @@ function Running({ tag, children }: { tag: string; children: (running: boolean) 
 
 const pct = (value: number, capacity: number): number => (value / capacity) * 100
 
-/** Clicking a tank opens the faceplate of the unit that contains its LI/XV modules. */
-function UnitLink({ n, cx, y = 91, h = 128 }: { n: number; cx: number; y?: number; h?: number }): JSX.Element | null {
+/** Clicking a tank opens the faceplate of the unit that contains its LI/XV modules. The name and phase state sit on a plate
+ *  below the tank, to the left of its outlet pipe, so they never overlap the legs, the pipe or the pump. */
+function UnitLink({ n, cx, y = 91, h = 128, dy = 4, gap = 16 }: { n: number; cx: number; y?: number; h?: number; dy?: number; gap?: number }): JSX.Element | null {
   const unit = useBatch(s => s.contained[`LI-${n}04`] ?? s.contained[`XV-${n}01`] ?? null)
   const deployed = useBatch(s => (unit ? !!s.deployedUnits[unit] : false))
   const status = useBatch(s => {
@@ -104,12 +105,19 @@ function UnitLink({ n, cx, y = 91, h = 128 }: { n: number; cx: number; y?: numbe
   const failure = useBatch(s => Object.values(s.active).filter(a => a.unit === unit && phaseHasFailure(a.rt))
     .map(a => `${a.phase}: ${a.rt.message || `Failure ${a.rt.failIndex}`}`).join(', '))
   if (!unit) return null
+  const clip = (t: string): string => (t.length > 26 ? `${t.slice(0, 25)}…` : t)
+  const lines = [{ text: unit, fill: '#14202b', size: 11 }, ...(status ? [{ text: clip(status), fill: '#0b4f9e', size: 10.5 }] : []),
+    ...(failure ? [{ text: clip(failure), fill: '#b00020', size: 10 }] : [])]
+  const LINE = 14
+  const plateW = Math.max(...lines.map(l => l.text.length * (l.size * 0.62))) + 14
+  const plateH = lines.length * LINE + 6
+  const px = cx - gap - plateW
+  const py = y + h + dy
   return <g data-unit-link={unit} style={{ cursor: 'pointer' }} onClick={() => useBatchUi.getState().openUnit(unit)}>
-    <title>{deployed ? `${unit} — open the unit faceplate` : `${unit} has not been downloaded yet`}</title>
+    <title>{[deployed ? `${unit} — open the unit faceplate` : `${unit} has not been downloaded yet`, status, failure].filter(Boolean).join('\n')}</title>
     <rect x={cx - 44} y={y} width={88} height={h} fill="transparent" stroke="transparent" />
-    <text x={cx} y={y + h + 13} textAnchor="middle" fill={PALE_TEXT} fontSize={8.5} fontWeight={700}>{unit}</text>
-    {status && <text x={cx} y={y + h + 24} textAnchor="middle" fill="#1f5fa8" fontSize={8} fontWeight={700}>{status}</text>}
-    {failure && <text x={cx} y={y + h + 35} textAnchor="middle" fill="#b00020" fontSize={8} fontWeight={700}>{failure}</text>}
+    <rect data-unit-plate={unit} x={px} y={py} width={plateW} height={plateH} rx={3} fill="#ffffff" fillOpacity={0.92} stroke="#5b6b7a" strokeWidth={0.8} />
+    {lines.map((l, i) => <text key={i} x={px + 7} y={py + 3 + (i + 1) * LINE - 3.5} fill={l.fill} fontSize={l.size} fontWeight={700}>{l.text}</text>)}
   </g>
 }
 
@@ -185,7 +193,7 @@ export function ProcessDisplay(): JSX.Element {
             <StageLabel tag={`XV-${b.n === '500' ? '502' : '602'}`} x={xc + 14} y={362} />
             <ClassicTank x={xc - 55} y={410} w={110} h={140} level={level(b.key, BLENDER_CAPACITY)} label="" />
             <ClassicLabel x={xc} y={500} text={`Blender ${b.n}`} />
-            <UnitLink n={Number(b.n) / 100} cx={xc} y={414} h={124} />
+            <UnitLink n={Number(b.n) / 100} cx={xc} y={414} h={124} dy={26} gap={26} />
             <Running tag={b.agit}>{running => <ClassicAgitatorDrive x={xc + 30} y={413} running={running} tag={b.agit} />}</Running>
             <LevelReadout tag={b.li} x={xc + (b.liX - b.cx)} y={470} />
             <ClassicPipe d={`M${xc},534 V590`} width={PIPE} />
