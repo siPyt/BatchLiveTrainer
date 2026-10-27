@@ -273,10 +273,23 @@ test('Chapter 6: guide spellings are accepted, while states that do not exist ar
   assert.match(expr.checkExpression("'//#BLNDR_OUTLET#/A_COMMAND.CV' := 'EM-Outlet_State:Close - CAS';", 'action', check)[0], /has no state Close - CAS/)
   assert.match(expr.checkExpression("'//#BLNDR_OUTLET#/A_COMMAND.CV' := 'EM-Nope:Closed - CAS';", 'action', check)[0], /Named set EM-Nope does not exist/)
   assert.deepEqual(cfg.nonBooleanErrors("'/BLEND_TIMER'", { checkRef: () => null }), [])
+  for (const form of ["'^/BLEND_TIMER'", "'/BLEND_TIMER'", "'^/BLEND_TIMER.CV'", "'^/RUN_LOGIC/BLEND_TIMER'", "'/BLEND_TIMER';"]) {
+    assert.deepEqual(cfg.nonBooleanErrors(form, { checkRef: () => null }), [], form)
+    assert.equal(cfg.nonBooleanBlock({ name: 'S', expression: form }, { BLEND_TIMER: {} }), 'BLEND_TIMER', form)
+  }
   assert.match(cfg.nonBooleanErrors("'/BLEND_TIMER/START.CV' := 1;", { checkRef: () => null })[0], /composite block it starts/)
   assert.equal(cfg.nonBooleanBlock({ name: 'S', expression: "'/BLEND_TIMER'" }, { BLEND_TIMER: {} }), 'BLEND_TIMER')
   assert.equal(cfg.nonBooleanBlock({ name: 'BLEND_TIMER', expression: '' }, { BLEND_TIMER: {} }), 'BLEND_TIMER')
   assert.equal(cfg.nonBooleanBlock({ name: 'S', expression: '' }, { BLEND_TIMER: {} }), null)
+  for (const expression of ["'^/BLEND_TIMER'", "'/BLEND_TIMER'"]) {
+    const pc = cfg.newPhaseClass('TEST', 'General')
+    pc.logic.RUN_LOGIC = sequence([['S', [act('', { name: 'START_IT', type: 'Non-Boolean', qualifier: 'N', expression })], 'FALSE']])
+    pc.logic.RUN_LOGIC.blocks = { BLEND_TIMER: { type: 'TIMER_SEC', expression: '', inputs: [], disabled: false } }
+    let rt = cfg.commandPhase(cfg.newRuntime({}), 'START')
+    const env = { read: ref => { throw Error(ref) }, write: ref => { throw Error(ref) }, named: () => 0, log: () => {} }
+    for (let i = 0; i < 3; i++) rt = cfg.stepPhase(rt, pc.logic, env, 0.1)
+    assert.equal(rt.params['RUN_LOGIC/BLEND_TIMER/ACTIVE'], 1, `${expression} starts the BLEND_TIMER block`)
+  }
   const values = {}
   expr.runProgram("'/A.CV' := LN(8) / LN(2) + 4; '/B.CV' := EXP(0) + SQRT(9) + LOG(100);", { read: r => values[r], write: (r, v) => { values[r] = v }, named: () => 0, log: () => {} })
   assert.ok(Math.abs(values['/A.CV'] - 7) < 1e-9)

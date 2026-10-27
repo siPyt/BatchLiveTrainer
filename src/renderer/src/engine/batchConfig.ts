@@ -59,7 +59,7 @@ export interface ActionDef {
 }
 export interface StepDef { id: string; name: string; description: string; actions: ActionDef[] }
 
-const NON_BOOLEAN_REF = /^\s*'(?:\^?\/)?([A-Za-z_][A-Za-z0-9_$-]*)'\s*;?\s*$/
+const NON_BOOLEAN_REF = /^\s*'(?:\^?\/)?(?:[A-Za-z_][A-Za-z0-9_$-]*\/)?([A-Za-z_][A-Za-z0-9_$-]*)(?:\.CV)?'\s*;?\s*$/
 /**
  * The composite block a Non-Boolean action invokes. Slide 6-18 writes it as the action expression ('/BLEND_TIMER');
  * an action named after the block with an empty expression keeps working as before. Null when neither names a block.
@@ -72,7 +72,7 @@ export function nonBooleanBlock(a: Pick<ActionDef, 'name' | 'expression'>, block
 export function nonBooleanErrors(expression: string, check: CheckEnv): string[] {
   if (!expression.trim()) return []
   const m = NON_BOOLEAN_REF.exec(expression)
-  if (!m) return ["A Non-Boolean action's expression is the composite block it starts, for example '/BLEND_TIMER'"]
+  if (!m) return ["A Non-Boolean action's expression is the composite block it starts, for example '^/BLEND_TIMER' or '/BLEND_TIMER'"]
   const problem = check.checkRef(`/${m[1]}`, false)
   return problem ? [problem] : []
 }

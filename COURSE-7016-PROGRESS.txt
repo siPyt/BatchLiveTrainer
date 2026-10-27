@@ -687,8 +687,12 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     course writes both; engine/namedSetMatch.ts), curly quotes and the modifier letter U+02C6 are read as ' " ^
     (engine/phaseExpr.ts tokenize), state names are case-insensitive. Real DeltaV is probably exact about these.
     Question: does the real system reject 'EM-Outlet_State' when the named set is EM_Outlet_State?
- 4. Non-Boolean action: the trainer accepts the block as the action expression ('/BLEND_TIMER', slide 6-18) or as the
-    action name with an empty expression. Question: what does the real dialog require?
+ 4. Non-Boolean action: the trainer accepts the block as the action expression ('/BLEND_TIMER', '^/BLEND_TIMER',
+    '^/RUN_LOGIC/BLEND_TIMER', also with a trailing .CV) or as the action name with an empty expression. Slide 6-18 only
+    says "Start BLEND_TIMER linked composite. Action is Non-Boolean and Non-Stored." (no expression printed); the
+    '/BLEND_TIMER' form comes from the course guide, '^/BLEND_TIMER' from the student's own attempt. Edit Expression >
+    Insert Internal Parameter shows "Insert Composite Block" for a Non-Boolean action and inserts '^/BLEND_TIMER'
+    (no .CV). Question: what does the real dialog require / insert?
  5. Expression functions LN, LOG, EXP, SQRT were added (slide 6-40 uses LN). Question: exact names/arguments of the
     real functions, and whether FAIL_INDEX truncates or rounds a non-integer such as LN(8)/LN(2)+4.
  6. References such as '/FAIL_MONITOR/...' and '/RUN_LOGIC/BLEND_TIMER/...' written from another composite (the course

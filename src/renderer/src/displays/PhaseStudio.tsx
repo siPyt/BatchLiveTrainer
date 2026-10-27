@@ -39,6 +39,8 @@ export interface ExprCtx {
   check: CheckEnv
   internal: { key: string; text: string; note?: string; insert: string }[]
   internalNote: string
+  /** Composite blocks (BLEND_TIMER ...) a Non-Boolean action can start; each inserts as a bare block reference. */
+  blocks?: { key: string; text: string; note?: string; insert: string }[]
   aliases: { name: string; note?: string; params: string[] }[] | null
   aliasNote: string
 }
@@ -56,6 +58,7 @@ export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitCla
       ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter', insert: `'^/${n}.CV'` })),
       ...phaseInternalNames(pc).map(n => ({ key: n, text: n, note: 'Phase logic parameter', insert: `'^/${n}.CV'` }))],
     internalNote: `Parameters of phase class ${pc.name}. ^/ refers one level up, from the composite to the phase.`,
+    blocks: COMPOSITES.flatMap(c => Object.keys(pc.logic[c].blocks ?? {}).map(n => ({ key: `${c}/${n}`, text: n, note: `Composite block in ${c}`, insert: `'^/${n}'` }))),
     aliases,
     aliasNote: owners.length ? `Aliases of unit class ${owners.map(o => o.name).join(', ')} (owners of ${pc.name}). Each unit module resolves the alias to its own module.` :
       `${pc.name} is not assigned to a unit class yet; showing every unit class alias.`
@@ -966,7 +969,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
         </div>
         <p className="exp-hint">{timed ? 'No delay unless Time value or Expression is selected. Click the selected one again to clear it.' : 'The delay applies to Pulse, Time delayed and Time limited actions.'}</p>
       </fieldset>
-      {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression, for example '/BLEND_TIMER' (a Non-Stored N action). An action named after the block with no expression also works.</p>}
+      {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression, for example '^/BLEND_TIMER' or '/BLEND_TIMER' (use Edit Expression..., then Insert Internal Parameter to pick it), with qualifier N (Non-Stored). An action named after the block with no expression also works.</p>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
         onChange={e => setV({ ...v, expression: e.target.value })} /></label>
       <ParserOutput text={v.expression} kind={actionKind} ctx={ctx} />
@@ -1205,7 +1208,7 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
       </div>
     </div>
     <DlgButtons onOk={submit} onClose={onClose} />
-    {browse === 'internal' && <InternalBrowser ctx={ctx} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
+    {browse === 'internal' && <InternalBrowser ctx={ctx} kind={kind} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'external' && <ExternalBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'named' && <NamedStateBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'alias' && ctx.aliases && <AliasBrowser ctx={ctx} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
@@ -1220,13 +1223,15 @@ function ListPick({ label, items, value, onChange, onDouble }: { label: string; 
   </div>
 }
 
-function InternalBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
-  const [v, setV] = useState<string | null>(ctx.internal[0]?.key ?? null)
-  const pick = (k = v): void => { const row = ctx.internal.find(r => r.key === k); if (row) onPick(row.insert) }
-  return <SimulatorDialog className="module-download-dialog dvd" label="Insert Internal Parameter" onClose={onClose}>
-    <p className="exp-hint">{ctx.internalNote}</p>
-    <ListPick label="Internal parameters" items={ctx.internal.map(r => ({ key: r.key, text: r.text, note: r.note }))} value={v} onChange={setV} onDouble={k => pick(k)} />
-    <p className="exp-hint ps-code">{ctx.internal.find(r => r.key === v)?.insert ?? ''}</p>
+function InternalBrowser({ ctx, kind, onPick, onClose }: { ctx: ExprCtx; kind: ExprKind; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
+  // A Non-Boolean action starts a composite block, so it picks a block (inserted without .CV) rather than a parameter.
+  const rows = kind === 'block' && ctx.blocks?.length ? ctx.blocks : ctx.internal
+  const [v, setV] = useState<string | null>(rows[0]?.key ?? null)
+  const pick = (k = v): void => { const row = rows.find(r => r.key === k); if (row) onPick(row.insert) }
+  return <SimulatorDialog className="module-download-dialog dvd" label={kind === 'block' ? 'Insert Composite Block' : 'Insert Internal Parameter'} onClose={onClose}>
+    <p className="exp-hint">{kind === 'block' ? 'Composite blocks of this phase class. A Non-Boolean action starts the block itself, so no parameter (.CV) is added.' : ctx.internalNote}</p>
+    <ListPick label={kind === 'block' ? 'Composite blocks' : 'Internal parameters'} items={rows.map(r => ({ key: r.key, text: r.text, note: r.note }))} value={v} onChange={setV} onDouble={k => pick(k)} />
+    <p className="exp-hint ps-code">{rows.find(r => r.key === v)?.insert ?? ''}</p>
     <DlgButtons onOk={() => pick()} onClose={onClose} />
   </SimulatorDialog>
 }
