@@ -601,9 +601,14 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    Qualifier, a Delay group (Time value / Expression with Expression Assistant; the expression choice is Pulse only),
    Action expression + parser output. Confirm tab: checkbox "Confirm action for pulse qualifier" (enabled only for P),
    Confirm expression with Expression Assistant, Confirm timeout. Validation errors switch to the tab that needs fixing.
-   Changing the qualifier away from P clears confirm/delay expression. Still different from DeltaV: no "Default
-   Expression" button and the confirm timeout is a number only (no Expression choice).
-   Test: course7016-ch6.test.cjs renders both tabs. Typecheck clean; full suite 781/782 (dv09-audit only, as before).
+   Changing the qualifier away from P clears confirm/delay expression. Also like DeltaV (slides 6-5 / 6-7): the Confirm tab
+   has a Default Expression button (new engine/phaseConfirm.ts: reads back what the action wrote - CAS_SP/SP_D with
+   a named state becomes the matching -pv set's state, e.g. 'mtr2-sp:STOP' -> '//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED',
+   valves use PV.CV, A_COMMAND -> A_PV.CV, MODE.TARGET -> MODE.ACTUAL; other writes get an explanatory message) and
+   Confirm Timeout is Time value or Expression (ActionDef.confirmTimeoutExpression; the confirm fails as soon as the
+   expression is TRUE before the confirm expression is, evaluated like a transition condition in batchConfig.stepPhase).
+   Tests: course7016-ch6.test.cjs (timeout expression runtime, the five slide-6-5 actions' default expressions, both
+   tabs render). Typecheck clean; full suite 782/783 (dv09-audit only, as before).
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). The Action dialog

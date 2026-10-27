@@ -54,6 +54,8 @@ export interface ActionDef {
   delayExpression?: string
   confirm?: string
   confirmTimeout?: number
+  /** Confirm Timeout "Expression": the confirm fails when this condition becomes TRUE before the confirm expression does. */
+  confirmTimeoutExpression?: string
 }
 export interface StepDef { id: string; name: string; description: string; actions: ActionDef[] }
 export interface TransitionDef { id: string; name: string; description: string; condition: string }
@@ -341,6 +343,7 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
         for (const a of step.actions.filter(a => a.confirm && pos.executed.includes(a.name))) {
           if (pos.confirmed!.includes(a.name) || pos.failedConfirms!.includes(a.name)) continue
           if (evalCondition(a.confirm!, localEnv)) pos.confirmed!.push(a.name)
+          else if (a.confirmTimeoutExpression?.trim()) { if (evalCondition(a.confirmTimeoutExpression, localEnv)) pos.failedConfirms!.push(a.name) }
           else if ((a.confirmTimeout ?? 0) > 0 && pos.stepTime - pos.firedAt![a.name] >= a.confirmTimeout!) pos.failedConfirms!.push(a.name)
         }
         next.params[`${composite}/${step.name}/TIME`] = pos.stepTime

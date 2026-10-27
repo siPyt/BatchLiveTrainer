@@ -19,6 +19,7 @@ import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm, askValue } from '../components/AppNotices'
 import { ensureTrailingSemicolon } from '../engine/phaseExpr'
+import { defaultConfirmExpression } from '../engine/phaseConfirm'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
 // one Sequential Function Chart per composite state, the "All SFC Items" palette with the
@@ -877,10 +878,18 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
   const [tab, setTab] = useState<'General' | 'Confirm'>(initialTab)
   const [delayMode, setDelayMode] = useState<'time' | 'expression'>(action?.delayExpression ? 'expression' : 'time')
   const [editor, setEditor] = useState(false)
-  const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | null>(null)
+  const [condEditor, setCondEditor] = useState<'confirm' | 'delay' | 'timeout' | null>(null)
   const pulse = v.qualifier === 'P'
   const timed = pulse || v.qualifier === 'D' || v.qualifier === 'L'
   const [confirmOn, setConfirmOn] = useState(action?.confirm !== undefined)
+  const [timeoutMode, setTimeoutMode] = useState<'time' | 'expression'>(action?.confirmTimeoutExpression ? 'expression' : 'time')
+  const namedSets = useStore(s => s.namedSets.configured)
+  const defaultConfirm = (): void => {
+    const r = defaultConfirmExpression(v.expression, namedSets)
+    if (!r.ok) { setError(r.error); return }
+    setError(null)
+    setV({ ...v, confirm: r.expression, confirmTimeout: v.confirmTimeout ?? 0 })
+  }
   const submit = (): void => {
     const name = v.name.trim().toUpperCase()
     if (!isNameValid(name)) { setError(NAME_RULE); return }
@@ -891,13 +900,16 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     if (pulse && delayMode === 'expression' && !delayExpr) { setError('Enter a delay expression on the General tab, or choose Time value'); setTab('General'); return }
     if (confirmOn && !pulse) { setError('Only Pulse actions offer confirmation'); return }
     if (confirmOn && !v.confirm?.trim()) { setError('Enter a confirm expression on the Confirm tab, or clear "Confirm action for pulse qualifier"'); setTab('Confirm'); return }
-    if (confirmOn && (!Number.isFinite(v.confirmTimeout) || (v.confirmTimeout ?? 0) < 0)) { setError('Enter a confirmation timeout >= 0 (0 waits indefinitely)'); setTab('Confirm'); return }
-    for (const expression of [confirmOn ? v.confirm : undefined, delayExpr]) {
+    if (confirmOn && timeoutMode === 'time' && (!Number.isFinite(v.confirmTimeout) || (v.confirmTimeout ?? 0) < 0)) { setError('Enter a confirmation timeout >= 0 (0 waits indefinitely)'); setTab('Confirm'); return }
+    const timeoutExpr = confirmOn && timeoutMode === 'expression' ? v.confirmTimeoutExpression?.trim() : ''
+    if (confirmOn && timeoutMode === 'expression' && !timeoutExpr) { setError('Enter a confirm timeout expression, or choose Time value'); setTab('Confirm'); return }
+    for (const expression of [confirmOn ? v.confirm : undefined, delayExpr, timeoutExpr]) {
       const errors = expression?.trim() ? checkExpression(expression, 'condition', ctx.check) : []
       if (errors.length) { setError(errors.join('\n')); return }
     }
     const saved: ActionDef = { ...v, name, delayExpression: delayExpr || undefined,
-      confirm: confirmOn ? v.confirm?.trim() : undefined, confirmTimeout: confirmOn ? v.confirmTimeout ?? 0 : undefined }
+      confirm: confirmOn ? v.confirm?.trim() : undefined,
+      confirmTimeout: confirmOn && timeoutMode === 'time' ? v.confirmTimeout ?? 0 : undefined, confirmTimeoutExpression: timeoutExpr || undefined }
     const problems = v.expression.trim() ? checkExpression(v.expression, 'action', ctx.check) : []
     if (!problems.length) { onOk(saved); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk(saved) })
@@ -915,8 +927,8 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
           <option>Assignment</option><option>Boolean</option><option>Non-Boolean</option></select></label>
         <label>Qualifier:<select aria-label="Action qualifier" value={v.qualifier} onChange={e => {
           const q = e.target.value as ActionQualifier
-          if (q !== 'P') { setConfirmOn(false); setDelayMode('time') }
-          setV({ ...v, qualifier: q, ...(q !== 'P' ? { confirm: undefined, confirmTimeout: undefined, delayExpression: undefined } : {}) })
+          if (q !== 'P') { setConfirmOn(false); setDelayMode('time'); setTimeoutMode('time') }
+          setV({ ...v, qualifier: q, ...(q !== 'P' ? { confirm: undefined, confirmTimeout: undefined, confirmTimeoutExpression: undefined, delayExpression: undefined } : {}) })
         }}>
           {(Object.keys(QUALIFIER_LABEL) as ActionQualifier[]).map(q => <option key={q} value={q}>{QUALIFIER_LABEL[q]}</option>)}</select></label>
       </div>
@@ -943,17 +955,35 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       {!pulse && <p className="exp-hint">Only Pulse (P) actions offer confirmation. Set the qualifier to P - Pulse on the General tab.</p>}
       <div className="dvd-inline"><label style={{ flex: 1 }}>Confirm expression:<input aria-label="Confirm expression" value={v.confirm ?? ''} disabled={!confirmOn}
         onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
+        <button type="button" className="tbtn sm" disabled={!confirmOn} onClick={defaultConfirm}>Default Expression</button>
         <button type="button" className="tbtn sm" disabled={!confirmOn} onClick={() => setCondEditor('confirm')}>Expression Assistant...</button></div>
-      <label>Confirm timeout (s, 0 = no timeout):<input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} disabled={!confirmOn}
-        onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
+      <fieldset className="dvd-group" disabled={!confirmOn}>
+        <legend>Confirm Timeout</legend>
+        <div className="dvd-inline">
+          <label><input type="radio" name="action-confirm-timeout" aria-label="Timeout as time value" checked={timeoutMode === 'time'} onChange={() => setTimeoutMode('time')} /> Time value (s, 0 = no timeout):
+            <input aria-label="Confirm timeout" type="number" min={0} value={v.confirmTimeout ?? 0} disabled={!confirmOn || timeoutMode !== 'time'}
+              onChange={e => setV({ ...v, confirmTimeout: Number(e.target.value) })} /></label>
+        </div>
+        <div className="dvd-inline">
+          <label style={{ flex: 1 }}><input type="radio" name="action-confirm-timeout" aria-label="Timeout as expression" checked={timeoutMode === 'expression'} onChange={() => setTimeoutMode('expression')} /> Expression:
+            <input aria-label="Confirm timeout expression" value={v.confirmTimeoutExpression ?? ''} disabled={!confirmOn || timeoutMode !== 'expression'}
+              onChange={e => setV({ ...v, confirmTimeoutExpression: e.target.value })} /></label>
+          <button type="button" className="tbtn sm" disabled={!confirmOn || timeoutMode !== 'expression'} onClick={() => setCondEditor('timeout')}>Expression Assistant...</button>
+        </div>
+        <p className="exp-hint">With an expression the confirm fails as soon as the expression is TRUE before the confirm expression is, for example '/INITIALIZE_EQUIP/TIME.CV' &gt; 10.</p>
+      </fieldset>
     </div>}
     <DlgButtons onOk={submit} onClose={onClose} extra={<button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button>} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
     {editor && <ExpressionDialog title={`${composite}/${step}/${v.name} Action Expression`} kind="action" ctx={ctx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
-    {condEditor && <ExpressionDialog title={`${composite}/${step}/${v.name} ${condEditor === 'confirm' ? 'Confirm' : 'Pulse Delay'} Expression`} kind="condition" ctx={ctx}
-      value={(condEditor === 'confirm' ? v.confirm : v.delayExpression) ?? ''} onClose={() => setCondEditor(null)}
-      onOk={text => { const value = text.trim().replace(/;$/, ''); setV(condEditor === 'confirm' ? { ...v, confirm: value, confirmTimeout: v.confirmTimeout ?? 0 } : { ...v, delayExpression: value }); setCondEditor(null) }} />}
+    {condEditor && <ExpressionDialog title={`${composite}/${step}/${v.name} ${condEditor === 'confirm' ? 'Confirm' : condEditor === 'timeout' ? 'Confirm Timeout' : 'Pulse Delay'} Expression`} kind="condition" ctx={ctx}
+      value={(condEditor === 'confirm' ? v.confirm : condEditor === 'timeout' ? v.confirmTimeoutExpression : v.delayExpression) ?? ''} onClose={() => setCondEditor(null)}
+      onOk={text => {
+        const value = text.trim().replace(/;$/, '')
+        setV(condEditor === 'confirm' ? { ...v, confirm: value, confirmTimeout: v.confirmTimeout ?? 0 } : condEditor === 'timeout' ? { ...v, confirmTimeoutExpression: value } : { ...v, delayExpression: value })
+        setCondEditor(null)
+      }} />}
   </SimulatorDialog>
 }
 

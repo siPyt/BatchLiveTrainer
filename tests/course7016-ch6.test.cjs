@@ -208,6 +208,36 @@ test('Chapter 6: pulse delay, confirmation timeout and step timing have measurab
   assert.equal(rt.params['RUN_LOGIC/CONFIRM_FAIL'], true)
 })
 
+test('Chapter 6: confirm timeout can be an expression, and Default Expression reads back what the action wrote', () => fixture(() => {
+  const pc = cfg.newPhaseClass('TEST', 'General')
+  pc.logic.RUN_LOGIC = sequence([['WAIT', [act("'/VALUE.CV' := 1;", { confirm: 'FALSE', confirmTimeout: 0, confirmTimeoutExpression: "'/WAIT/TIME.CV' >= 1" })], "'/WAIT/PENDING_CONFIRMS.CV' = 0"]])
+  let rt = cfg.commandPhase(cfg.newRuntime({ VALUE: 0 }), 'START')
+  const env = { read: ref => { throw Error(ref) }, write: ref => { throw Error(ref) }, named: () => 0, log: () => {} }
+  for (let i = 0; i < 8; i++) rt = cfg.stepPhase(rt, pc.logic, env, 0.1)
+  assert.equal(rt.params['RUN_LOGIC/WAIT/PENDING_CONFIRMS'], 1, 'still waiting before the timeout expression is TRUE')
+  assert.equal(rt.params['RUN_LOGIC/WAIT/FAILED_CONFIRMS'], 0)
+  for (let i = 0; i < 6; i++) rt = cfg.stepPhase(rt, pc.logic, env, 0.1)
+  assert.equal(rt.params['RUN_LOGIC/WAIT/FAILED_CONFIRMS'], 1, 'the timeout expression turning TRUE fails the confirm')
+  assert.equal(rt.params['RUN_LOGIC/CONFIRM_FAIL'], true)
+
+  const { defaultConfirmExpression } = require('../src/renderer/src/engine/phaseConfirm.ts')
+  const sets = M().namedSets.configured
+  const want = {
+    "'//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP';": "'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'",
+    "'//#BASE_IN_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE';": "'//#BASE_IN_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'",
+    "'//#BLNDR_COLOR#/A_COMMAND.CV' := 'EM-vlvnc-2stage:Close';": "'//#BLNDR_COLOR#/A_PV.CV' = 'EM-vlvnc-2stage:Close'",
+    "'//#BLNDR_OUTLET#/A_COMMAND.CV' := 'EM_Outlet_State:Closed - CAS';": "'//#BLNDR_OUTLET#/A_PV.CV' = 'EM_Outlet_State:Closed - CAS'",
+    "'^/COLOR_IN_VLV/CAS_SP.CV' := 'vlvnc2stage-sp:DRIBBLE';": "'^/COLOR_IN_VLV/PV.CV' = 'vlvnc2stage-pv:DRIBBLE'"
+  }
+  for (const [action, confirm] of Object.entries(want)) {
+    const r = defaultConfirmExpression(action, sets)
+    assert.equal(r.ok && r.expression, confirm, action)
+    assert.deepEqual(expr.checkExpression(confirm, 'condition', { checkRef: () => null, checkNamed: () => null }), [], confirm)
+  }
+  assert.equal(defaultConfirmExpression("'^/STEP_INDEX.CV' := 2;", sets).ok, false)
+  assert.equal(defaultConfirmExpression('', sets).ok, false)
+}))
+
 test('Chapter 6: both real blender instances run, retain time on Hold, recover all five failures, and survive save/restore', () => fixture(() => {
   blenders()
   agitate()
@@ -311,7 +341,7 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   const confirmTab = renderToStaticMarkup(React.createElement(ActionDialog, {
     step: 'TEST', composite: 'RUN_LOGIC', ctx: { check }, action: act("'/X.CV' := 1;", { confirm: "'/X.CV' = 1", confirmTimeout: 5 }), existing: [], onOk: () => {}, onClose: () => {}, initialTab: 'Confirm'
   }))
-  for (const label of ['Confirm action for pulse qualifier', 'Confirm expression', 'Confirm timeout', 'Expression Assistant']) assert.ok(confirmTab.includes(label), label)
+  for (const label of ['Confirm action for pulse qualifier', 'Confirm expression', 'Confirm timeout', 'Expression Assistant', 'Default Expression', 'Confirm timeout expression', 'Timeout as expression']) assert.ok(confirmTab.includes(label), label)
 
   // FAIL_MONITOR: blocks come from the palette and are wired pin to pin, exactly as the course slide shows.
   let blocks = {}
