@@ -4699,6 +4699,8 @@ button {
 .cs-tabs button.on { background: #ffffff; color: var(--dv-text); font-weight: 600; }
 .cs-diagram-wrap { overflow: auto; background: #ffffff; min-width: 0; }
 .cs-diagram { display: block; user-select: none; }
+/* Centre the chart and the state diagram in the Control Studio pane (auto margins never push content off the left edge). */
+.ps-canvas > .ps-sfc, .ps-canvas > .ps-state-diagram { margin-left: auto; margin-right: auto; }
 .cs-block { fill: #eceeef; stroke: #414141; stroke-width: 1; }
 .cs-block.sel { stroke: #005fb8; stroke-width: 2; }
 .cs-block-head { fill: #e4e6e7; stroke: #626262; cursor: grab; }

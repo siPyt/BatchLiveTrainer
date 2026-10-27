@@ -11,6 +11,7 @@ const { useUi } = require('../src/renderer/src/ui/uiStore.ts')
 const { useWindows } = require('../src/renderer/src/ui/windowStore.ts')
 const { snapshotUiSession, restoreUiSession } = require('../src/renderer/src/ui/uiSession.ts')
 const { startKeepAwake } = require('../src/renderer/src/engine/keepAwake.ts')
+const { unexpectedExitNotice, frozenNotice } = require('../src/renderer/src/engine/health.ts')
 
 function withStorage(fn) {
   const store = new Map()
@@ -67,3 +68,15 @@ test('keep-awake asks for a screen wake lock and holds a Web Lock for the life o
     if (oldDoc === undefined) delete global.document; else global.document = oldDoc
   }
 })
+
+test('health: an unclean previous exit and a frozen page are reported; a normal restart is silent', () => {
+  const now = 1_000_000
+  assert.equal(unexpectedExitNotice(null, false, now), null, 'first ever start')
+  assert.equal(unexpectedExitNotice(now - 600_000, true, now), null, 'closed or refreshed normally')
+  assert.match(unexpectedExitNotice(now - 40_000, false, now), /stopped it without closing it \(last active 40 s before\)/)
+  assert.match(unexpectedExitNotice(now - 20 * 60_000, false, now), /last active 20 min before/)
+  assert.equal(frozenNotice(1100), null, 'a normal 1 s tick')
+  assert.match(frozenNotice(45_000), /paused this page for 45 s/)
+  assert.match(frozenNotice(10 * 60_000), /paused this page for 10 min/)
+})
+

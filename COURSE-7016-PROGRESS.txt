@@ -668,6 +668,25 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    real DeltaV has it is unverified. Also fixed: the taller two-tab Action dialog could run off the bottom of a short
    window (OK unreachable); it is now top-anchored and scrolls (.ps-action-dialog in styles.css).
 
+ - SFC chart layout (PhaseStudio.tsx SfcDiagram): the chart was a 720px canvas with the step column 260px from the left,
+   so it hugged the left edge, long transition conditions were clipped on the left and the action text overlapped the
+   transition names. Now the canvas is 980px with the step column in the middle (CX 450), the action text starts 150px
+   right of it, and the chart is centred in the pane (.ps-canvas > .ps-sfc auto margins in styles.css). Measured in the
+   browser: nothing clipped, transition names clear of the action text. On a narrow pane the chart scrolls sideways.
+ - Student report: "I still get a grey blank screen like it times out and goes to sleep." NOT reproduced: the simulation
+   ran 100 s at 10x with no errors and flat memory. Likely causes: the browser / VS Code browser tab suspending or
+   discarding the idle page, or a render error with nothing to catch it (only faceplates had an error boundary, so any
+   other render error blanked the whole app). Added (engine/health.ts, components/AppErrorBoundary.tsx, main.tsx):
+     * AppErrorBoundary around the whole app: shows the error text instead of a blank page, clears the saved screen
+       (so a bad restored screen cannot crash it again) and reloads once.
+     * Blank-page watchdog: an empty #root reloads the page (max 3 per minute); also checked when the tab becomes visible.
+     * Diagnostics, so the next occurrence explains itself: a heartbeat + clean-exit flag report "the page was reloaded
+       after the browser stopped it without closing it (last active ...)" and a 1 s timer reports "the browser paused
+       this page for N s". Both show as an in-app message and are kept in localStorage 'batchlive-health'
+       (last 20 entries: killed / frozen / blank / error).
+   If the grey screen returns, note which of those messages appears (or none) and where the app is being viewed
+   (VS Code browser tab, Edge/Chrome, desktop app) - that decides the next fix.
+
 TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
 trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
 2026-10-27: keep as is, match later. When you check, tell the assistant what the real system does:

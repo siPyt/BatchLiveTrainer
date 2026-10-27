@@ -6,6 +6,8 @@ import './engine/batchStore'
 import { useStore } from './engine/store'
 import { restoreCourseDatabase, startCourseAutosave } from './engine/courseSave'
 import { startKeepAwake } from './engine/keepAwake'
+import { startHealthMonitor } from './engine/health'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { restoreUiSession, startUiSessionSave } from './ui/uiSession'
 import { useNotices } from './components/AppNotices'
 
@@ -22,9 +24,12 @@ startCourseAutosave()
 restoreUiSession()
 startUiSessionSave()
 startKeepAwake()
+startHealthMonitor(message => useNotices.getState().push(message))
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>
 )

@@ -78,7 +78,10 @@ function stepTops(sfc: PhaseSfc): number[] {
   let y = 30
   return sfc.steps.map(s => { const top = y; y += stepPitch(s); return top })
 }
-const CX = 260
+// The step column sits in the middle of the canvas: transition conditions run to its left, action text to its right.
+const CX = 450
+const SFC_W = 980
+const ACTION_X = CX + 150
 
 const STATE_COMPOSITE: Partial<Record<PhaseState, CompositeName>> = {
   RUNNING: 'RUN_LOGIC', HOLDING: 'HOLD_LOGIC', RESTARTING: 'RESTART_LOGIC', STOPPING: 'STOP_LOGIC', ABORTING: 'ABORT_LOGIC'
@@ -658,7 +661,7 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
   const tops = stepTops(sfc)
   const last = sfc.steps.length - 1
   const height = last < 0 ? 100 : tops[last] + stepPitch(sfc.steps[last]) + 70
-  const W = 720
+  const W = SFC_W
   const clip = (s: string): string => (s.length > 64 ? s.slice(0, 61) + '...' : s)
   return <svg className="cs-diagram ps-sfc" width={W * zoom} height={height * zoom} viewBox={`0 0 ${W} ${height}`} role="img" aria-label="Sequential function chart">
     <defs><pattern id="psGrid2" width={20} height={20} patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} /></pattern></defs>
@@ -677,8 +680,8 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
           <rect x={CX - STEP_W / 2} y={y} width={STEP_W} height={STEP_H} className={'ps-step' + (stepSel ? ' sel' : '') + (live ? ' live' : '')} />
           {i === 0 && <rect x={CX - STEP_W / 2 + 4} y={y + 4} width={STEP_W - 8} height={STEP_H - 8} className="ps-step-inner" />}
           <text x={CX} y={y + 21} textAnchor="middle" className="ps-step-label">{s.name}</text>
-          {s.actions.length > 0 && <text x={CX + STEP_W / 2 + 8} y={y + 14} className="ps-step-actions">{s.actions.length} action{s.actions.length === 1 ? '' : 's'}</text>}
-          {s.actions.map((a, ai) => <text key={a.name} x={CX + STEP_W / 2 + 8} y={y + 26 + ai * ACTION_LINE} className="ps-step-action-text">{clip(`${a.name}: ${a.expression}`)}</text>)}
+          {s.actions.length > 0 && <text x={ACTION_X} y={y + 14} className="ps-step-actions">{s.actions.length} action{s.actions.length === 1 ? '' : 's'}</text>}
+          {s.actions.map((a, ai) => <text key={a.name} x={ACTION_X} y={y + 26 + ai * ACTION_LINE} className="ps-step-action-text">{clip(`${a.name}: ${a.expression}`)}</text>)}
         </g>
         {tr && <>
           <line x1={CX} y1={y + STEP_H} x2={CX} y2={y + pitch - 30 + (i === sfc.steps.length - 1 ? 10 : 30)} className="ps-link" />
