@@ -3,7 +3,7 @@ import { useUi } from '../ui/uiStore'
 import { useBatchUi } from '../ui/batchUi'
 import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
-import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, phaseInternalNames, systemParam } from '../engine/batchStore'
+import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, systemParam } from '../engine/batchStore'
 import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
 import { addBranch, connectEdge, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
 import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
@@ -18,7 +18,7 @@ import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm, askValue } from '../components/AppNotices'
-import { ensureTrailingSemicolon } from '../engine/phaseExpr'
+import { ensureTrailingSemicolon, warnExpression } from '../engine/phaseExpr'
 import { defaultConfirmExpression } from '../engine/phaseConfirm'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
@@ -45,20 +45,33 @@ export interface ExprCtx {
   aliasNote: string
 }
 
-export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitClass>): ExprCtx {
+export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitClass>, composite?: CompositeName | null): ExprCtx {
   const owners = Object.values(unitClasses).filter(u => u.phaseClasses.includes(pc.name))
   const pool = owners.length ? owners : Object.values(unitClasses)
   const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => {
     const block = Object.values(u.modules ?? {}).find(b => b.name === a.name)
     return [a.name, { name: a.name, note: a.description || u.name, params: block?.kind === 'em' ? EM_PARAMETER_NAMES : ALIAS_FIELDS }] as const
   }))).values()]
+  // DeltaV paths: '/' is the composite being edited, '^/' goes up to the phase (and back down to another composite).
+  const rel = (c: CompositeName, path: string, field = '.CV'): string => (c === composite ? `'/${path}${field}'` : `'^/${c}/${path}${field}'`)
+  const where = (c: CompositeName, path: string): string => (c === composite ? path : `${c}/${path}`)
+  const logicRows = COMPOSITES.flatMap(c => {
+    const sfc = pc.logic[c]
+    return [
+      { key: `${c}/CONFIRM_FAIL`, text: where(c, 'CONFIRM_FAIL'), note: 'Composite parameter', insert: rel(c, 'CONFIRM_FAIL') },
+      ...sfc.steps.flatMap(s => ['TIME', 'PENDING_CONFIRMS', 'FAILED_CONFIRMS', 'CONFIRM_FAIL'].map(p => ({
+        key: `${c}/${s.name}/${p}`, text: where(c, `${s.name}/${p}`), note: `Step parameter (${c})`, insert: rel(c, `${s.name}/${p}`) }))),
+      ...Object.entries(sfc.blocks ?? {}).flatMap(([b, blk]) => Object.keys(phaseBlockDefaults(blk)).map(p => ({
+        key: `${c}/${b}/${p}`, text: where(c, `${b}/${p}`), note: `Block parameter (${c})`, insert: rel(c, `${b}/${p}`) })))
+    ]
+  })
   return {
-    check: phaseCheckEnv(pc.name, pc),
+    check: phaseCheckEnv(pc.name, pc, composite),
     internal: [...Object.values(pc.params).map(p => ({ key: p.name, text: p.name, note: `${p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()}` : p.kind} · ${p.type}${p.units ? ` · ${p.units}` : ''}`, insert: `'^/${p.name}.CV'` })),
       ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, text: n, note: 'Phase system parameter', insert: `'^/${n}.CV'` })),
-      ...phaseInternalNames(pc).map(n => ({ key: n, text: n, note: 'Phase logic parameter', insert: `'^/${n}.CV'` }))],
-    internalNote: `Parameters of phase class ${pc.name}. ^/ refers one level up, from the composite to the phase.`,
-    blocks: COMPOSITES.flatMap(c => Object.keys(pc.logic[c].blocks ?? {}).map(n => ({ key: `${c}/${n}`, text: n, note: `Composite block in ${c}`, insert: `'^/${n}'` }))),
+      ...logicRows],
+    internalNote: `Parameters of phase class ${pc.name}. '/' is ${composite ?? 'the composite you are editing'}; '^/' goes up one level to the phase, for example '^/STEP_INDEX.CV'.`,
+    blocks: COMPOSITES.flatMap(c => Object.keys(pc.logic[c].blocks ?? {}).map(n => ({ key: `${c}/${n}`, text: where(c, n), note: `Composite block in ${c}`, insert: c === composite ? `'/${n}'` : `'^/${c}/${n}'` }))),
     aliases,
     aliasNote: owners.length ? `Aliases of unit class ${owners.map(o => o.name).join(', ')} (owners of ${pc.name}). Each unit module resolves the alias to its own module.` :
       `${pc.name} is not assigned to a unit class yet; showing every unit class alias.`
@@ -142,7 +155,7 @@ export function PhaseStudio(): JSX.Element {
   }
 
   const live = online.find(o => o.key === onlineKey) ?? null
-  const ctx = phaseExprCtx(pc, unitClasses)
+  const ctx = phaseExprCtx(pc, unitClasses, composite)
   const sfc: PhaseSfc | null = composite ? pc.logic[composite] : null
   const edit = (fn: (d: PhaseClass) => string | null | void): boolean => {
     const r = useBatch.getState().editPhaseDraft(name, fn)
@@ -972,7 +985,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
         </div>
         <p className="exp-hint">{timed ? 'No delay unless Time value or Expression is selected. Click the selected one again to clear it.' : 'The delay applies to Pulse, Time delayed and Time limited actions.'}</p>
       </fieldset>
-      {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression, for example '^/BLEND_TIMER' or '/BLEND_TIMER' (use Edit Expression..., then Insert Internal Parameter to pick it), with qualifier N (Non-Stored). An action named after the block with no expression also works.</p>}
+      {v.type === 'Non-Boolean' && <p className="exp-hint">A composite block only executes while an active step starts it with a Non-Boolean action. Enter the block as the action expression: inside RUN_LOGIC a block of that state is '/BLEND_TIMER' ('/' is the state you are editing, '^/' goes up to the phase). Use Edit Expression..., then Insert Internal Parameter to pick it, with qualifier N (Non-Stored). An action named after the block with no expression also works.</p>}
       <label>Expression:<textarea aria-label="Action expression" className="ps-code ps-expr-text" rows={4} value={v.expression}
         onChange={e => setV({ ...v, expression: e.target.value })} /></label>
       <ParserOutput text={v.expression} kind={actionKind} ctx={ctx} />
@@ -1160,10 +1173,17 @@ export function CompositeBlockDialog({ existing, onOk, onClose }: {
 
 function ParserOutput({ text, kind, ctx }: { text: string; kind: ExprKind; ctx: ExprCtx }): JSX.Element {
   const problems = text.trim() ? checkText(text, kind, ctx.check) : []
+  // A Non-Boolean action is a single block reference; everything else is parsed for references written at the wrong level.
+  const warnings = !text.trim() ? [] : kind === 'block'
+    ? [ctx.check.warnRef?.(text.trim().replace(/;$/, '').replace(/^'|'$/g, '').replace(/\.CV$/i, ''), false)].filter((w): w is string => !!w)
+    : warnExpression(text, ctx.check)
   return <div className="ps-parser" role="status" aria-label="Parser output">
     <span className="ps-parser-head">Parser output:</span>
     {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : kind === 'block' ? 'Empty: the action name is the composite block.' : 'Empty expression.'}</span> :
-      problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), 0 warning(s)</span>}
+      <>
+        {problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), {warnings.length} warning(s)</span>}
+        {warnings.map((w, i) => <div key={`w${i}`} className="ps-parser-warn">Warning: {w}</div>)}
+      </>}
   </div>
 }
 

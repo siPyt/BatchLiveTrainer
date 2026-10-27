@@ -296,6 +296,37 @@ test('Chapter 6: guide spellings are accepted, while states that do not exist ar
   assert.equal(values['/B.CV'], 6)
 }))
 
+test('Chapter 6: references written at the wrong level (^/ versus /) get a DeltaV warning, never an error', () => fixture(() => {
+  blenders(); agitate()
+  const warnings = (src, kind, composite) => expr.warnExpression(src, phaseCheckEnv('AGITATE', undefined, composite))
+  const errors = (src, kind, composite) => expr.checkExpression(src, kind, phaseCheckEnv('AGITATE', undefined, composite))
+  const none = [
+    ["'/BLEND_TIMER/RESET.CV' := 1;", 'action', 'RUN_LOGIC'],
+    ["'/INITIALIZE_EQUIP/PENDING_CONFIRMS.CV' = 0", 'condition', 'RUN_LOGIC'],
+    ["'/RESET_EQUIP/TIME.CV' >= 3", 'condition', 'RUN_LOGIC'],
+    ["'^/STEP_INDEX.CV' := 1;", 'action', 'RUN_LOGIC'],
+    ["'/BLEND_TIMER/ELAPSED_TIME.CV' >= '^/R_BLEND_TIME.CV'", 'condition', 'RUN_LOGIC'],
+    ["'^/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", 'action', 'HOLD_LOGIC'],
+    ["'^/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;", 'action', 'RESTART_LOGIC'],
+    ["'//#AGITATOR#/DC1/MODE.TARGET' := CAS;", 'action', 'RUN_LOGIC']
+  ]
+  for (const [src, kind, composite] of none) assert.deepEqual(warnings(src, kind, composite), [], `${composite}: ${src}`)
+  const warned = [
+    ["'^/BLEND_TIMER/RESET.CV' := 1;", 'action', 'RUN_LOGIC', /write '\/BLEND_TIMER\/RESET\.CV'/],
+    ["'^/INITIALIZE_EQUIP/PENDING_CONFIRMS.CV' = 0", 'condition', 'RUN_LOGIC', /write '\/INITIALIZE_EQUIP\/PENDING_CONFIRMS\.CV'/],
+    ["'^/RESET_EQUIP/TIME.CV' >= 3", 'condition', 'RUN_LOGIC', /write '\/RESET_EQUIP\/TIME\.CV'/],
+    ["'/STEP_INDEX.CV' := 1;", 'action', 'RUN_LOGIC', /Write '\^\/STEP_INDEX\.CV'/],
+    ["'/R_BLEND_TIME.CV' > 1", 'condition', 'RUN_LOGIC', /Write '\^\/R_BLEND_TIME\.CV'/],
+    ["'/FAIL_MONITOR/AGITATOR_STOPPED/DISABLE.CV' := 0;", 'action', 'RUN_LOGIC', /another composite state.*'\^\/FAIL_MONITOR\/AGITATOR_STOPPED\/DISABLE\.CV'/],
+    ["'/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", 'action', 'HOLD_LOGIC', /'\^\/RUN_LOGIC\/BLEND_TIMER\/START\.CV'/]
+  ]
+  for (const [src, kind, composite, re] of warned) {
+    assert.match(warnings(src, kind, composite).join(' | '), re, `${composite}: ${src}`)
+    assert.deepEqual(errors(src, kind, composite), [], `a wrong level is advice, not an error: ${src}`)
+  }
+  assert.deepEqual(expr.warnExpression("'^/BLEND_TIMER/RESET.CV' := 1;", phaseCheckEnv('AGITATE')), [], 'no composite context, no advice')
+}))
+
 test('Chapter 6: pulse delay, confirmation timeout and step timing have measurable semantics', () => {
   const pc = cfg.newPhaseClass('TEST', 'General')
   pc.logic.RUN_LOGIC = sequence([['WAIT', [act("'/VALUE.CV' := 1;", { time: 0.5, confirm: 'FALSE', confirmTimeout: 0.3 })], "'/WAIT/PENDING_CONFIRMS.CV' = 0"]])
