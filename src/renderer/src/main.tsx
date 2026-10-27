@@ -5,6 +5,8 @@ import { useLibrary } from './engine/libraryStore'
 import './engine/batchStore'
 import { useStore } from './engine/store'
 import { restoreCourseDatabase, startCourseAutosave } from './engine/courseSave'
+import { startKeepAwake } from './engine/keepAwake'
+import { restoreUiSession, startUiSessionSave } from './ui/uiSession'
 import { useNotices } from './components/AppNotices'
 
 // Messages appear inside the app (some hosts, such as automated/embedded browsers, suppress native alert popups).
@@ -16,6 +18,10 @@ import './styles.css'
 useLibrary.getState().installCourseProject()
 if (restoreCourseDatabase()) useStore.getState().logEvent('CONFIGURE', 'DV_School', 'Saved Course 7016 database restored')
 startCourseAutosave()
+// Stay on the same screen across reloads and keep the display awake (an idle tab that sleeps reloads to Process).
+restoreUiSession()
+startUiSessionSave()
+startKeepAwake()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -610,6 +610,21 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    Tests: course7016-ch6.test.cjs (timeout expression runtime, the five slide-6-5 actions' default expressions, both
    tabs render). Typecheck clean; full suite 782/783 (dv09-audit only, as before).
 
+ - Student report: "my screen goes to sleep after a while and goes back to the Process screen. I don't want that."
+   Cause: nothing in the app navigates to Process on a timer (no idle/auto-logoff/FlexLock timer exists); a browser that
+   sleeps or discards an idle tab reloads the page, and a reload started on the default Process display and lost the
+   open Control Studio / Explorer windows. Fixed two ways:
+     1. No sleep: engine/keepAwake.ts holds a screen Wake Lock (re-acquired when the tab becomes visible again) and a
+        Web Lock for the life of the page (browsers do not freeze/discard a tab holding one); src/main/index.ts
+        (Electron) starts powerSaveBlocker 'prevent-display-sleep' and sets backgroundThrottling: false.
+     2. Same screen after any reload: ui/uiSession.ts saves the active display, history, studio targets (class / phase +
+        composite / EM), selected tag and the Explorer / Control Studio window state (open, minimized, maximized, size)
+        to localStorage 'batchlive-ui-session' and restores it at startup (main.tsx). Unsaved edits inside an open
+        dialog are not kept across a reload (the course database itself autosaves every 5 s).
+   Tests: tests/ui-session.test.cjs (3). Typecheck, production build clean; full suite 785/786 (dv09-audit only).
+   Not under the app's control: Windows' own screen-off / sleep settings when running the plain browser version
+   (Settings > System > Power); the desktop (Electron) app blocks them while it is open.
+
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). The Action dialog
   is now two-tab (General / Confirm): set qualifier P on General, then tick the Confirm checkbox on the Confirm tab.

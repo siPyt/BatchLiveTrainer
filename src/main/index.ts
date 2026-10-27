@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
+import { app, shell, BrowserWindow, Menu, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 
 const isDev = !app.isPackaged
@@ -21,7 +21,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false
     }
   })
 
@@ -72,6 +73,8 @@ app.whenReady().then(() => {
     app.setAppUserModelId('com.batchlivetrainer.app')
   }
   buildMenu()
+  // The simulator must never go to sleep: no display sleep, no system sleep while the app is open.
+  powerSaveBlocker.start('prevent-display-sleep')
   createWindow()
 
   app.on('activate', () => {
