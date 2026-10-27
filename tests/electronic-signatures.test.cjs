@@ -87,7 +87,7 @@ test('DV09-080/085 the write is staged: nothing changes until the required signa
   assert.equal(request.tag, 'FEED-01')
   assert.ok(has(store, /SECURITY\|FEED-01\|Electronic signature required for SP_D := 1/))
 
-  assert.match(store().submitSignature(request.id, { comment: '  ', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'Supervisor1', password: 'supervisor1' } }), /comment is required/)
+  assert.match(store().submitSignature(request.id, { comment: '  ', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'Supervisor1', password: 'admin123' } }), /comment is required/)
   assert.equal(store().modules['FEED-01'].commanded, false)
   assert.equal(store().signaturePending.length, 1, 'a missing comment keeps the request staged')
 }))
@@ -98,16 +98,16 @@ test('DV09-080 failed confirmation and failed verification are three distinct ou
   const id = store().signaturePending[0].id
   const good = { user: 'admin', password: 'admin123' }
 
-  assert.match(store().submitSignature(id, { comment: 'start', confirm: { user: 'admin', password: 'nope' }, verify: { user: 'Supervisor1', password: 'supervisor1' } }), /Confirm failed/)
+  assert.match(store().submitSignature(id, { comment: 'start', confirm: { user: 'admin', password: 'nope' }, verify: { user: 'Supervisor1', password: 'admin123' } }), /Confirm failed/)
   assert.match(store().submitSignature(id, { comment: 'start', confirm: good, verify: { user: 'Supervisor1', password: 'wrong' } }), /Verify failed/)
   assert.match(store().submitSignature(id, { comment: 'start', confirm: good }), /verifier signature is required/)
-  assert.match(store().submitSignature(id, { comment: 'start', confirm: { user: 'Supervisor1', password: 'supervisor1' }, verify: { user: 'OperatorA', password: 'operatora' } }), /does not hold the Action Verify key/)
+  assert.match(store().submitSignature(id, { comment: 'start', confirm: { user: 'Supervisor1', password: 'admin123' }, verify: { user: 'OperatorA', password: 'admin123' } }), /does not hold the Action Verify key/)
   assert.match(store().submitSignature(id, { comment: 'start', confirm: good, verify: good }), /same person/)
   assert.equal(store().modules['FEED-01'].commanded, false, 'every failure leaves the value unwritten')
   assert.ok(has(store, /SECURITY\|FEED-01\|Electronic signature attempt for SP_D := 1 failed: Verify failed/))
   assert.ok(has(store, /failed: Confirm failed/))
 
-  assert.equal(store().submitSignature(id, { comment: 'Start feed pump per batch 12', confirm: good, verify: { user: 'Supervisor1', password: 'supervisor1' } }), null)
+  assert.equal(store().submitSignature(id, { comment: 'Start feed pump per batch 12', confirm: good, verify: { user: 'Supervisor1', password: 'admin123' } }), null)
   assert.equal(store().modules['FEED-01'].commanded, true, 'the change is written once confirmed and verified')
   assert.equal(store().signaturePending.length, 0)
   const log = events(store)
@@ -137,7 +137,7 @@ test('DV09-080 one-signature policies need only the confirmer; cancel writes not
   assert.equal(store().cancelSignature(999), false)
 
   useStore.getState().startMotor('FEED-01')
-  assert.equal(store().submitSignature(store().signaturePending[0].id, { comment: 'ok', confirm: { user: 'Supervisor1', password: 'supervisor1' } }), null)
+  assert.equal(store().submitSignature(store().signaturePending[0].id, { comment: 'ok', confirm: { user: 'Supervisor1', password: 'admin123' } }), null)
   assert.equal(store().modules['FEED-01'].commanded, true)
   assert.ok(has(store, /confirmed by Supervisor1: ok/))
 }))
@@ -173,7 +173,7 @@ test('DV09-080 staged writes are not signature-gated for the signature bypass it
   assert.equal(store().signaturePending.length, 1, 'the startup request is staged, not written')
   assert.equal(store().signaturePending[0].parameter, 'MESSAGE')
   assert.equal(alerts.length, 0, 'the underlying write has not run yet')
-  assert.match(store().submitSignature(store().signaturePending[0].id, { comment: 'startup', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'OperatorA', password: 'operatora' } }), /Action Verify/)
+  assert.match(store().submitSignature(store().signaturePending[0].id, { comment: 'startup', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'OperatorA', password: 'admin123' } }), /Action Verify/)
   assert.equal(store().signaturePending.length, 1, 'denied verification keeps the SFC request staged')
 }))
 

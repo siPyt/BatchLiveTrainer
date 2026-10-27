@@ -116,7 +116,7 @@ test('DV09-085 MESSAGE startup under a two-signature policy: request, denied ver
     // denied verification: a verifier without Action Verify
     const id = useStore.getState().signaturePending[0].id
     const confirm = { user: 'admin', password: 'admin123' }
-    assert.match(useStore.getState().submitSignature(id, { comment: 'start T101', confirm, verify: { user: 'OperatorA', password: 'operatora' } }), /Action Verify/)
+    assert.match(useStore.getState().submitSignature(id, { comment: 'start T101', confirm,     verify: { user: 'OperatorA', password: 'admin123' } }), /Action Verify/)
     assert.equal(message(), 255)
     store.tick(0.1)
     assert.equal(useStore.getState().sfcs[NAME].active, 0)
@@ -129,7 +129,7 @@ test('DV09-085 MESSAGE startup under a two-signature policy: request, denied ver
     // a fresh request approved by an administrator with the Action Verify key
     assert.equal(useStore.getState().writeSfcNamedValue(NAME, 'MESSAGE', 1), false)
     const second = useStore.getState().signaturePending[0].id
-    assert.equal(useStore.getState().submitSignature(second, { comment: 'start T101', confirm, verify: { user: 'Supervisor1', password: 'supervisor1' } }), null)
+    assert.equal(useStore.getState().submitSignature(second, { comment: 'start T101', confirm, verify: { user: 'Supervisor1', password: 'admin123' } }), null)
     assert.equal(message(), 1)
     store.tick(0.1)
     assert.equal(useStore.getState().sfcs[NAME].active, 1, 'the approved MESSAGE releases the waiting transition')

@@ -231,20 +231,22 @@ interface SecurityState {
 }
 
 // Seeded from the DV-09 "Defining Users" workshop (OperatorA / Supervisor1)
-// plus full-access accounts so nothing is locked out of the box.
+// plus full-access accounts so nothing is locked out of the box. Every account uses the password admin123.
+const DEFAULT_PASSWORD = 'admin123'
 const DEFAULT_USERS: DvUser[] = [
-  { name: 'admin', fullName: 'Administrator', password: 'admin123', locks: [...ALL_LOCKS] },
-  { name: 'ENGINEER', fullName: 'System Engineer', password: 'engineer', locks: [...ALL_LOCKS] },
+  { name: 'admin', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  { name: 'admin123', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  { name: 'ENGINEER', fullName: 'System Engineer', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
   {
     name: 'Supervisor1',
     fullName: 'Sarge Supervisor',
-    password: 'supervisor1',
+    password: DEFAULT_PASSWORD,
     locks: ['CONTROL', 'RESTRICTED_CONTROL', 'TUNING', 'ALARMS', 'BATCH_OPERATE', 'CAN_DOWNLOAD', 'ACTION_VERIFY']
   },
   {
     name: 'OperatorA',
     fullName: 'Alpha Operator',
-    password: 'operatora',
+    password: DEFAULT_PASSWORD,
     locks: ['CONTROL', 'ALARMS', 'BATCH_OPERATE']
   }
 ]

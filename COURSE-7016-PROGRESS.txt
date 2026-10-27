@@ -625,6 +625,11 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    Not under the app's control: Windows' own screen-off / sleep settings when running the plain browser version
    (Settings > System > Power); the desktop (Electron) app blocks them while it is open.
 
+ - FlexLock / Log On accounts (security.ts DEFAULT_USERS): every account now uses the password admin123, and a new
+   account named admin123 (ALL keys) was added alongside admin, ENGINEER, Supervisor1 and OperatorA (names stay
+   different, as account names must be unique). Tests that logged on with the old per-account passwords were updated;
+   FLEXLOCK-LOGINS.txt lists the new table. Full suite 785/786 (dv09-audit only).
+
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). The Action dialog
   is now two-tab (General / Confirm): set qualifier P on General, then tick the Confirm checkbox on the Confirm tab.

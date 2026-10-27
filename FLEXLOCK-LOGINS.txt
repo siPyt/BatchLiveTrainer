@@ -7,11 +7,15 @@ plant or Emerson credentials. Names are not case sensitive; passwords are.
 Name         Password      Full name          Keys (permissions)
 -----------  ------------  -----------------  ---------------------------------
 admin        admin123      Administrator      ALL keys
-ENGINEER     engineer      System Engineer    ALL keys
-Supervisor1  supervisor1   Sarge Supervisor   CONTROL, RESTRICTED_CONTROL,
+admin123     admin123      Administrator      ALL keys
+ENGINEER     admin123      System Engineer    ALL keys
+Supervisor1  admin123      Sarge Supervisor   CONTROL, RESTRICTED_CONTROL,
                                               TUNING, ALARMS, BATCH_OPERATE,
                                               CAN_DOWNLOAD
-OperatorA    operatora     Alpha Operator     CONTROL, ALARMS, BATCH_OPERATE
+OperatorA    admin123      Alpha Operator     CONTROL, ALARMS, BATCH_OPERATE
+
+Every account uses the password admin123 (changed 2026-10-27; it used to be a
+different password per account).
 
 Notes
 -----
