@@ -207,6 +207,7 @@ function splitModulePath(path: string): { module: string; param: string; field: 
 }
 
 const MODE_CODES: Record<number, string> = { 128: 'OOS', 16: 'CAS', 8: 'AUTO', 4: 'MAN', 2: 'ROUT', 1: 'RCAS' }
+export const EM_PARAMETER_NAMES = ['A_COMMAND.CV', 'A_PV.CV', 'A_TARGET.CV', 'A_ABT_ON_NEW_CMD.CV']
 function modeWord(v: Value): string {
   if (typeof v === 'number') { const w = MODE_CODES[v]; if (!w) throw new EvalError(`${v} is not a mode value`); return w }
   const w = String(v).toUpperCase()
@@ -216,7 +217,7 @@ function modeWord(v: Value): string {
 
 export function moduleParamNames(m: AnyModule | undefined, simParams?: string[], emTag?: string): string[] {
   if (simParams) return simParams
-  if (emTag && useEm.getState().instances[emTag]) return ['A_COMMAND.CV', 'A_PV.CV', 'A_TARGET.CV', 'A_ABT_ON_NEW_CMD.CV']
+  if (emTag && useEm.getState().instances[emTag]) return EM_PARAMETER_NAMES
   if (!m) return []
   if (m.type === 'VALVE' || m.type === 'MOTOR') return ['CAS_SP.CV', 'MODE.TARGET', 'MODE.ACTUAL', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']
   if (m.type === 'AI') return ['AI1/PV.CV', 'AI1/OUT.CV', 'PV.CV', 'OUT.CV']

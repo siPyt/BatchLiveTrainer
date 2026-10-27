@@ -3,7 +3,7 @@ import { useUi } from '../ui/uiStore'
 import { useBatchUi } from '../ui/batchUi'
 import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
-import { useBatch, moduleParamNames, phaseCheckEnv, phaseInternalNames, systemParam } from '../engine/batchStore'
+import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, phaseInternalNames, systemParam } from '../engine/batchStore'
 import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
 import { addBranch, connectEdge, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
 import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
@@ -36,14 +36,17 @@ export interface ExprCtx {
   check: CheckEnv
   internal: { key: string; text: string; note?: string; insert: string }[]
   internalNote: string
-  aliases: { name: string; note?: string }[] | null
+  aliases: { name: string; note?: string; params: string[] }[] | null
   aliasNote: string
 }
 
 export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitClass>): ExprCtx {
   const owners = Object.values(unitClasses).filter(u => u.phaseClasses.includes(pc.name))
   const pool = owners.length ? owners : Object.values(unitClasses)
-  const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => [a.name, { name: a.name, note: a.description || u.name }] as const))).values()]
+  const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => {
+    const block = Object.values(u.modules ?? {}).find(b => b.name === a.name)
+    return [a.name, { name: a.name, note: a.description || u.name, params: block?.kind === 'em' ? EM_PARAMETER_NAMES : ALIAS_FIELDS }] as const
+  }))).values()]
   return {
     check: phaseCheckEnv(pc.name, pc),
     internal: [...Object.values(pc.params).map(p => ({ key: p.name, text: p.name, note: `${p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()}` : p.kind} · ${p.type}${p.units ? ` · ${p.units}` : ''}`, insert: `'^/${p.name}.CV'` })),
@@ -1192,13 +1195,14 @@ function AliasBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: stri
   const aliases = ctx.aliases ?? []
   const [alias, setAlias] = useState<string | null>(aliases[0]?.name ?? null)
   const [field, setField] = useState<string | null>(null)
+  const fields = aliases.find(x => x.name === alias)?.params ?? ALIAS_FIELDS
   const pick = (f = field): void => { if (alias && f) onPick(f === ALIAS_FIELDS[0] ? `'//#${alias}#'` : `'//#${alias}#/${f}'`) }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Insert Alias" onClose={onClose}>
     <p className="exp-hint">{ctx.aliasNote}</p>
     <div className="dvd-split ps-ext">
       <div><div className="exp-props-subhead">Alias</div><ListPick label="Aliases" items={aliases.map(x => ({ key: x.name, text: x.name, note: x.note }))}
         value={alias} onChange={a => { setAlias(a); setField(null) }} /></div>
-      <div><div className="exp-props-subhead">Parameter</div><ListPick label="Alias parameters" items={ALIAS_FIELDS.map(f => ({ key: f, text: f }))}
+      <div><div className="exp-props-subhead">Parameter</div><ListPick label="Alias parameters" items={fields.map(f => ({ key: f, text: f }))}
         value={field} onChange={setField} onDouble={f => pick(f)} /></div>
     </div>
     <DlgButtons onOk={() => pick()} onClose={onClose} />
