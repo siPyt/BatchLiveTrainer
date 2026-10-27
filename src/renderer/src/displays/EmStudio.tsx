@@ -16,6 +16,7 @@ import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { ActionDialog, PaletteGlyph, SequenceDialog, SfcDiagram, StepDialog, TransitionDialog, type ExprCtx } from './PhaseStudio'
 import { askConfirm } from '../components/AppNotices'
+import { confirmCloseStudio } from '../components/StudioSaveReminder'
 
 // Control Studio on an Equipment Module Class (course 7016 pp 5-14..5-24) and on-line on an
 // equipment module instance (pp 5-40..5-50): command-driven COMMAND_0000n sequences or the
@@ -114,12 +115,7 @@ export function EmStudio(): JSX.Element {
   const close = (): void => {
     const leave = (): void => { useUi.getState().closeEmStudio(); useUi.getState().navigate('explorer') }
     if (online || !useEm.getState().drafts[className]) { leave(); return }
-    void (async () => {
-      if (await askConfirm(`Save changes to ${className}?`)) save()
-      else if (await askConfirm(`Discard the unsaved changes to ${className}?`)) useEm.getState().discardDraft(className)
-      else return
-      leave()
-    })()
+    void confirmCloseStudio().then(ok => { if (ok) leave() })
   }
   const drill = (b: string | null): void => { setContentSel(null); useUi.getState().openEmStudio(className, instance, b) }
   const afterIndex = (): number => (sel ? sel.i : sfc ? sfc.steps.length - 1 : 0)

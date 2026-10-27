@@ -707,8 +707,11 @@ TRAINER-ONLY FUNCTIONALITY (NOT DELTAV) - added for the learning environment, do
     lost." (plus which item is unsaved, and "File -> Save" as the alternative). Buttons: "Back to Control Studio" (default,
     keeps the window and the changes) and "Close without saving" (closes and discards the unsaved draft, so the message is
     true). Pressing Ctrl+S while the dialog is showing saves and dismisses it. With nothing unsaved the X closes at once.
-    Real DeltaV instead asks "Save changes?" on close. File > Close inside a studio still uses the trainer's existing
-    Save? / Discard? prompts. Closing the whole desktop app is not covered (Electron cannot show a custom message there).
+    Real DeltaV instead asks "Save changes?" on close. This dialog is used for BOTH exits: the window's X and the
+    in-studio File > Close (phase, control module and equipment module studios). Earlier the phase and equipment module
+    studios chained two prompts ("Save changes?" then "Discard?") and cancelling the second left the student stuck inside;
+    fixed 2026-10-27 - there are now only the two clear choices, so the student can always leave. Closing the whole
+    desktop app is not covered (Electron cannot show a custom message there).
  2. Idle / blank-screen protection (components/AppErrorBoundary.tsx, engine/health.ts, engine/keepAwake.ts, ui/uiSession.ts,
     src/main/index.ts): wake lock + no display sleep, error screen instead of a blank page, reload when #root is empty,
     messages when the browser stopped or paused the page, and the open screen / Control Studio windows restored after a

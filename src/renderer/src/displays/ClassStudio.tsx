@@ -16,6 +16,7 @@ import { isValidDeltaVTag } from '../engine/naming'
 import type { AlarmPriority } from '../engine/types'
 import { fmt } from '../utils/format'
 import { askConfirm } from '../components/AppNotices'
+import { confirmCloseStudio } from '../components/StudioSaveReminder'
 
 // Control Studio on a Control Module Class (course 7016 pp 1-19..1-25), drawn with the same ribbon,
 // Hierarchy / Diagram / Palette / Parameter / Alarm panes and status bar as BatchLive's Control Studio
@@ -143,10 +144,7 @@ export function ClassStudio(): JSX.Element {
   const save = (): void => { alertResult(useLibrary.getState().saveClass(className)) }
   const closeStudio = (): void => {
     if (!dirty) { close(); return }
-    void askConfirm(`Save changes to ${className}?`).then(ok => {
-      if (ok && !alertResult(useLibrary.getState().saveClass(className))) return
-      close()
-    })
+    void confirmCloseStudio().then(ok => { if (ok) close() })
   }
   const deleteWire = (i: number): void => { if (edit(draft => { draft.wires.splice(i, 1) })) setSelectedWire(null) }
   const pos = (id: string): { x: number; y: number } => {

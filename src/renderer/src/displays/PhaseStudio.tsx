@@ -18,6 +18,7 @@ import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm, askValue } from '../components/AppNotices'
+import { confirmCloseStudio } from '../components/StudioSaveReminder'
 import { ensureTrailingSemicolon } from '../engine/phaseExpr'
 import { defaultConfirmExpression } from '../engine/phaseConfirm'
 
@@ -175,12 +176,7 @@ export function PhaseStudio(): JSX.Element {
   const close = (): void => {
     const leave = (): void => { useUi.getState().closePhaseStudio(); useUi.getState().navigate('explorer') }
     if (!useBatch.getState().phaseDrafts[name]) { leave(); return }
-    void (async () => {
-      if (await askConfirm(`Save changes to phase class ${name}?`)) save()
-      else if (await askConfirm(`Discard the unsaved changes to ${name}?`)) useBatch.getState().discardPhaseDraft(name)
-      else return
-      leave()
-    })()
+    void confirmCloseStudio().then(ok => { if (ok) leave() })
   }
   const itemCount = sfc ? sfc.steps.length + sfc.transitions.length : 0
   const sequenceComposite = !!sfc && composite !== 'FAIL_MONITOR'
