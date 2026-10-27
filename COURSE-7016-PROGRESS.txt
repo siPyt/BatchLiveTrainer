@@ -660,6 +660,14 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    expression) -> Confirm tab -> tick the checkbox -> Default Expression. A stale page also hides the button: refresh.
    Also confirmed live: after a page reload the Control Studio window on AGITATE/RUN_LOGIC came back (session restore).
 
+ - Step Properties > Actions tab (PhaseStudio.tsx StepDialog) only had "Edit last..." / "Delete last", which is not how
+   DeltaV works (you select any action and edit or delete it). Now: click a row to highlight it (double-click edits),
+   Add... / Edit... / Delete act on the highlighted action; Delete asks for confirmation; Edit and Delete stay greyed
+   until a row is selected. Checked in a browser on an isolated origin (port 5207): added A1-A3, edited the top one,
+   deleted a middle one, then the top one. The action order cannot be changed in the trainer (no Up/Down); whether
+   real DeltaV has it is unverified. Also fixed: the taller two-tab Action dialog could run off the bottom of a short
+   window (OK unreachable); it is now top-anchored and scrolls (.ps-action-dialog in styles.css).
+
 TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
 trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
 2026-10-27: keep as is, match later. When you check, tell the assistant what the real system does:

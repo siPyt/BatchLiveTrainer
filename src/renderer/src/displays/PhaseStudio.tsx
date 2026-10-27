@@ -835,6 +835,16 @@ export function StepDialog({ sfc, index, composite, ctx, onOk, onClose }: {
   const [v, setV] = useState(step)
   const [error, setError] = useState<string | null>(null)
   const [action, setAction] = useState<{ index: number | null } | null>(null)
+  const [selected, setSelected] = useState<number | null>(null)
+  const deleteSelected = (): void => {
+    if (selected === null || !v.actions[selected]) return
+    const gone = v.actions[selected].name
+    void askConfirm(`Delete action ${gone} from step ${v.name}?`).then(ok => {
+      if (!ok) return
+      setV(cur => ({ ...cur, actions: cur.actions.filter(a => a.name !== gone) }))
+      setSelected(null)
+    })
+  }
   const submit = (): void => {
     const name = v.name.trim().toUpperCase()
     const e = renameError(sfc, step.name, name)
@@ -852,13 +862,15 @@ export function StepDialog({ sfc, index, composite, ctx, onOk, onClose }: {
     </div> : <div className="dvd-panel">
       <table className="studio-param-table" aria-label="Step actions">
         <thead><tr><th>Action</th><th>Type</th><th>Qualifier</th><th>Expression</th></tr></thead>
-        <tbody>{v.actions.map((a, i) => <tr key={a.name} onDoubleClick={() => setAction({ index: i })}><td>{a.name}</td><td>{a.type}</td><td>{a.qualifier}</td><td className="ps-code">{a.expression}</td></tr>)}
+        <tbody>{v.actions.map((a, i) => <tr key={a.name} className={i === selected ? 'sel' : undefined} aria-selected={i === selected} onClick={() => setSelected(i)}
+          onDoubleClick={() => { setSelected(i); setAction({ index: i }) }}><td>{a.name}</td><td>{a.type}</td><td>{a.qualifier}</td><td className="ps-code">{a.expression}</td></tr>)}
           {!v.actions.length && <tr><td colSpan={4}>No actions.</td></tr>}</tbody>
       </table>
+      <p className="exp-hint">Click an action to select it, then Edit or Delete. Double-click also edits.</p>
       <div className="dvd-buttons">
         <button className="tbtn sm" onClick={() => setAction({ index: null })}>Add...</button>
-        <button className="tbtn sm" disabled={!v.actions.length} onClick={() => setAction({ index: v.actions.length - 1 })}>Edit last...</button>
-        <button className="tbtn sm" disabled={!v.actions.length} onClick={() => setV({ ...v, actions: v.actions.slice(0, -1) })}>Delete last</button>
+        <button className="tbtn sm" disabled={selected === null} onClick={() => selected !== null && setAction({ index: selected })}>Edit...</button>
+        <button className="tbtn sm" disabled={selected === null} onClick={deleteSelected}>Delete</button>
       </div>
     </div>}
     <DlgButtons onOk={submit} onClose={onClose} />
@@ -919,7 +931,7 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
     if (!problems.length) { onOk(saved); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the action anyway?`).then(ok => { if (ok) onOk(saved) })
   }
-  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${composite}/${step}/${v.name || 'A1'} Action`} onClose={onClose}>
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide ps-action-dialog" label={`${composite}/${step}/${v.name || 'A1'} Action`} onClose={onClose}>
     <div className="dvd-tabs" role="tablist">{(['General', 'Confirm'] as const).map(t => <button key={t} role="tab" aria-selected={t === tab}
       className={t === tab ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</div>
     {tab === 'General' ? <div className="lib-dlg-fields dvd-panel">
