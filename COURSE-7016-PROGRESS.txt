@@ -631,9 +631,14 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    FLEXLOCK-LOGINS.txt lists the new table. Full suite 785/786 (dv09-audit only).
 
 WHERE WE LEFT OFF (2026-10-27):
-- Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). The Action dialog
-  is now two-tab (General / Confirm): set qualifier P on General, then tick the Confirm checkbox on the Confirm tab.
-- Nothing is left unfinished from this session. Everything else as in the 2026-10-26 end-of-day section below.
+- Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
+  Alias... list for A_COMMAND / A_PV on BLNDR_COLOR / BLNDR_OUTLET; in the two-tab Action dialog set qualifier P on
+  General, then on Confirm tick the checkbox, use Default Expression (or type the comparison) and set the timeout.
+- Pushed today (all on origin/main, last 5c96fce): 40c79c6 Insert Alias A_COMMAND/A_PV; 8d26ea7 + 0c3bbab two-tab
+  Action Properties; 6609e2d Default Expression + Confirm Timeout as Time value / Expression; b44e97d keep awake +
+  restore the open screen after a reload; 5c96fce FlexLock accounts all use admin123 (+ new admin123 account).
+- Nothing is left unfinished or uncommitted. Everything else as in the 2026-10-26 end-of-day section above.
+- Tests: npm test 785/786 (dv09-audit needs pdf_om.txt, as before); npm run test:course6 10/10; typecheck and build clean.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and
