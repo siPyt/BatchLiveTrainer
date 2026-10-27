@@ -660,6 +660,31 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    expression) -> Confirm tab -> tick the checkbox -> Default Expression. A stale page also hides the button: refresh.
    Also confirmed live: after a page reload the Control Studio window on AGITATE/RUN_LOGIC came back (session restore).
 
+TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
+trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
+2026-10-27: keep as is, match later. When you check, tell the assistant what the real system does:
+ 1. Action Properties > Confirm tab > "Default Expression" button. The course slides (6-5, 6-7) show the button but not
+    what it generates. The trainer writes the readback of what the action wrote (engine/phaseConfirm.ts):
+      '//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP'          -> '//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'
+      '//#BASE_IN_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE'     -> '//#BASE_IN_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'
+      '//#X#/A_COMMAND.CV' := 'SET:State'                 -> '//#X#/A_PV.CV' = 'SET:State'
+      '//#X#/DC1/MODE.TARGET' := CAS                      -> '//#X#/MODE.ACTUAL' = CAS
+    Questions: what does the real button insert for these? Does it do anything for STEP_INDEX / non-device writes?
+ 2. Confirm Timeout "Expression": the trainer fails the confirm as soon as the expression is TRUE before the confirm
+    expression is (borrowed from the DV09 SFC feature, engine/batchConfig.ts stepPhase). Questions: is that the real
+    meaning (TRUE = timed out)? Is the time value 0 = wait forever? Is the delay "Expression" a TRUE-to-fire condition?
+ 3. Looser input than DeltaV: named set names match ignoring "-" vs "_" (EM-Outlet_State = EM_Outlet_State, because the
+    course writes both; engine/namedSetMatch.ts), curly quotes and the modifier letter U+02C6 are read as ' " ^
+    (engine/phaseExpr.ts tokenize), state names are case-insensitive. Real DeltaV is probably exact about these.
+    Question: does the real system reject 'EM-Outlet_State' when the named set is EM_Outlet_State?
+ 4. Non-Boolean action: the trainer accepts the block as the action expression ('/BLEND_TIMER', slide 6-18) or as the
+    action name with an empty expression. Question: what does the real dialog require?
+ 5. Expression functions LN, LOG, EXP, SQRT were added (slide 6-40 uses LN). Question: exact names/arguments of the
+    real functions, and whether FAIL_INDEX truncates or rounds a non-integer such as LN(8)/LN(2)+4.
+ 6. References such as '/FAIL_MONITOR/...' and '/RUN_LOGIC/BLEND_TIMER/...' written from another composite (the course
+    guide prints them that way) work in the trainer. Question: does the real system need '^/FAIL_MONITOR/...' there?
+ 7. The new account name admin123 and the shared password admin123 on every FlexLock account are trainer-only.
+
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
   Alias... list for A_COMMAND / A_PV on BLNDR_COLOR / BLNDR_OUTLET; in the two-tab Action dialog set qualifier P on
