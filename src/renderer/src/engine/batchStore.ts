@@ -409,28 +409,40 @@ function phaseEnv(key: string) {
   }
 }
 
+/** Writing feedback (PV_D, PV, A_PV ...) is refused when the phase runs; the editor says so up front. */
+function readOnlyWriteError(path: string): string | null {
+  const last = path.split('/').filter(Boolean).pop() ?? ''
+  const [name, field = 'CV'] = last.toUpperCase().split('.')
+  if (name === 'MODE' && field === 'ACTUAL') return 'MODE.ACTUAL is feedback and cannot be written. Write MODE.TARGET.'
+  if (['PV_D', 'PV', 'PV_STATE', 'A_PV', 'A_TARGET', 'A_STATE'].includes(name))
+    return `${name} is feedback and cannot be written. Use it in a Confirm expression or a transition condition, and write the setpoint (CAS_SP, SP_D or A_COMMAND).`
+  return null
+}
+
 /** Reference checker used by the Control Studio expression editor for a phase class (composite = the state being edited). */
 export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass, composite?: CompositeName | null): CheckEnv {
+  // DeltaV paths: '/' is the composite state being edited, '^/' goes up one level to the phase (and down into another composite).
+  const levelError = (ref: string): string | null => {
+    const s = useBatch.getState()
+    const pc = draft ?? s.phaseDrafts[phaseClass] ?? s.phaseClasses[phaseClass]
+    if (!composite || !pc) return null
+    const m = /^(\^\/|\/)(?!\/)([^/.]+)(.*)$/.exec(ref.trim())
+    if (!m) return null
+    const [, prefix, seg, rest] = m
+    const up = seg.toUpperCase()
+    const sfc = pc.logic[composite]
+    const local = Object.keys(sfc.blocks ?? {}).some(b => b.toUpperCase() === up) || sfc.steps.some(st => st.name.toUpperCase() === up)
+    const phaseLevel = !!pc.params[seg] || SYSTEM_PHASE_PARAMS.some(([n]) => n === up)
+    const otherComposite = COMPOSITES.some(c => c === up)
+    if (prefix === '^/' && local && !phaseLevel && !otherComposite) return `'^/' goes up to the phase, but ${seg} is inside ${composite}. In ${composite} write '/${seg}${rest}'.`
+    if (prefix === '/' && !local && phaseLevel) return `${seg} is a phase parameter, one level up from ${composite}. Write '^/${seg}${rest}'.`
+    if (prefix === '/' && !local && otherComposite && up !== composite) return `${seg} is another composite state, one level up from ${composite}. Write '^/${seg}${rest}'.`
+    return null
+  }
   return {
-    warnRef: ref => {
-      const s = useBatch.getState()
-      const pc = draft ?? s.phaseDrafts[phaseClass] ?? s.phaseClasses[phaseClass]
-      if (!composite || !pc) return null
-      // '/X...' (not '//') and '^/X...' : X is the first path segment.
-      const m = /^(\^\/|\/)(?!\/)([^/.]+)(.*)$/.exec(ref.trim())
-      if (!m) return null
-      const [, prefix, seg, rest] = m
-      const up = seg.toUpperCase()
-      const sfc = pc.logic[composite]
-      const local = Object.keys(sfc.blocks ?? {}).some(b => b.toUpperCase() === up) || sfc.steps.some(st => st.name.toUpperCase() === up)
-      const phaseLevel = !!pc.params[seg] || SYSTEM_PHASE_PARAMS.some(([n]) => n === up)
-      const otherComposite = COMPOSITES.some(c => c === up)
-      if (prefix === '^/' && local && !phaseLevel && !otherComposite) return `'^/' goes up to the phase, but ${seg} is inside ${composite}. In ${composite} write '/${seg}${rest}'.`
-      if (prefix === '/' && !local && phaseLevel) return `${seg} is a phase parameter, one level up from ${composite}. Write '^/${seg}${rest}'.`
-      if (prefix === '/' && !local && otherComposite && up !== composite) return `${seg} is another composite state, one level up from ${composite}. Write '^/${seg}${rest}'.`
-      return null
-    },
     checkRef: (ref, write) => {
+      const level = levelError(ref)
+      if (level) return level
       const c = classifyRef(ref)
       if (typeof c === 'string') return c
       const s = useBatch.getState()
@@ -447,6 +459,7 @@ export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass, composite?
       }
 
       const aliases = [...c.path.matchAll(/#([^#]+)#/g)].map(m => m[1].toUpperCase())
+      if (write) { const readOnly = readOnlyWriteError(c.path); if (readOnly) return readOnly }
       for (const al of aliases) if (!aliasPool.some(u => u.aliases[al])) return `#${al}# is not an alias of ${owners.length ? owners.map(o => o.name).join(', ') : 'any unit class'}`
       if (aliases.length) return null
       const sp = splitModulePath(c.path)

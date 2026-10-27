@@ -102,7 +102,7 @@ function blenders() {
 
 function guideLogic(d) {
   const A = (expression, extra = {}) => act(expression, extra)
-  const DIS = (n, v) => `'/FAIL_MONITOR/${n}/DISABLE.CV' := ${v};`
+  const DIS = (n, v) => `'^/FAIL_MONITOR/${n}/DISABLE.CV' := ${v};`
   const ALL5 = ['AGITATOR_STOPPED', 'PRODUCT_VLV_OPEN', 'WASTE_VLV_OPEN', 'BASE_VLV_OPEN', 'COLOR_VLV_OPEN']
   const confirmedG = (action, confirm, extra = {}) => A(action, { confirm, confirmTimeout: 10, ...extra })
   const PUMP_STOP = "'//#OUT_PUMP#/CAS_SP.CV' := 'mtr2-sp:STOP';", PUMP_STOPPED = "'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'"
@@ -121,7 +121,7 @@ function guideLogic(d) {
     ['START_TIMER', ["'^/STEP_INDEX.CV' := 4;", A("'/BLEND_TIMER'", { name: 'BLEND_TIMER', type: 'Non-Boolean', qualifier: 'N' }),
       "'/BLEND_TIMER/START.CV' := 1;", "'/BLEND_TIMER/TIME_DURATION.CV' := '^/R_BLEND_TIME.CV';", DIS('AGITATOR_STOPPED', 0)],
       "'/BLEND_TIMER/ELAPSED_TIME.CV' >= '^/R_BLEND_TIME.CV'"],
-    ['STOP_AGIT', ["'^/STEP_INDEX.CV' := 5;", AGIT_CAS, DIS('AGITATOR_STOPPED', 1), A(AGIT_STOP, { delayExpression: "'/FAIL_MONITOR/AGITATOR_STOPPED/DISABLE.CV' = 1" })], AGIT_STOPPED],
+    ['STOP_AGIT', ["'^/STEP_INDEX.CV' := 5;", AGIT_CAS, DIS('AGITATOR_STOPPED', 1), A(AGIT_STOP, { delayExpression: "'^/FAIL_MONITOR/AGITATOR_STOPPED/DISABLE.CV' = 1" })], AGIT_STOPPED],
     ['RESET_EQUIP', ["'^/STEP_INDEX.CV' := 0;", "'//#OUT_PUMP#/DC1/MODE.TARGET' := AUTO;", "'//#BASE_IN_VLV#/MODE.TARGET' := AUTO;",
       "'//#BLNDR_OUTLET#/A_COMMAND.CV' := 'EM-Outlet_State:Auto Mode';", "'//#BLNDR_COLOR#/A_COMMAND.CV' := 'EM-vlvnc-2stage:Auto mode';",
       "'//#AGITATOR#/DC1/MODE.TARGET' := AUTO;", "'^/RPT_BLEND_TIME.CV' := '/BLEND_TIMER/ELAPSED_TIME.CV';", "'/BLEND_TIMER/START.CV' := 0;",
@@ -138,7 +138,7 @@ function guideLogic(d) {
     expression: "IF ('^/FAIL_INDEX.CV' = 0) AND ('/BFI1/OUT_D.CV' = 1) THEN\n    '^/FAIL_INDEX.CV' := '/MESSAGE/OUT1.CV';\nENDIF;" }
   d.logic.FAIL_MONITOR.blocks = fm
   d.logic.HOLD_LOGIC = sequence([
-    ['HOLD_STATE', [...ALL5.map(n => DIS(n, 1)), "'/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;"]],
+    ['HOLD_STATE', [...ALL5.map(n => DIS(n, 1)), "'^/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;"]],
     ['NULL', []],
     ['FAIL_SAFE', ["'//#BASE_IN_VLV#/MODE.TARGET' := CAS;", "'//#OUT_PUMP#/DC1/MODE.TARGET' := CAS;", AGIT_CAS, confirmedG(COLOR_CLOSE, COLOR_CLOSED),
       confirmedG(BASE_CLOSE, BASE_CLOSED), confirmedG(PUMP_STOP, PUMP_STOPPED),
@@ -153,11 +153,11 @@ function guideLogic(d) {
     { from: 'FAIL_SAFE', to: 'NULL1', condition: "'/FAIL_SAFE/PENDING_CONFIRMS.CV' = 0" }
   ]
   d.logic.RESTART_LOGIC = sequence([
-    ['RESTARTING', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:Continue';", "'/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;"]],
+    ['RESTARTING', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:Continue';", "'^/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;"]],
     ['RESTART_TOP', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:From_Start';"]],
     ['START_AGITATOR', [AGIT_CAS, "'//#AGITATOR#/CAS_SP.CV' := 'mtr2-sp:START';"], AGIT_RUNNING],
     ['ENABLE_PC', ALL5.map(n => DIS(n, 0))],
-    ['INIT_TIMER', ["'/RUN_LOGIC/BLEND_TIMER/START.CV' := 1;"]],
+    ['INIT_TIMER', ["'^/RUN_LOGIC/BLEND_TIMER/START.CV' := 1;"]],
     ['NULL', []]
   ])
   d.logic.RESTART_LOGIC.routes = [
@@ -166,7 +166,7 @@ function guideLogic(d) {
     { from: 'RESTARTING', to: 'NULL', condition: 'TRUE' },
     { from: 'RESTART_TOP', to: 'NULL', condition: 'TRUE' }
   ]
-  for (const c of ['STOP_LOGIC', 'ABORT_LOGIC']) d.logic[c] = sequence([['SAFE', [...ALL5.map(n => DIS(n, 1)), "'/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", AGIT_CAS, AGIT_STOP], AGIT_STOPPED]])
+  for (const c of ['STOP_LOGIC', 'ABORT_LOGIC']) d.logic[c] = sequence([['SAFE', [...ALL5.map(n => DIS(n, 1)), "'^/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", AGIT_CAS, AGIT_STOP], AGIT_STOPPED]])
 }
 
 function agitate(variant = 'code') {
@@ -296,11 +296,10 @@ test('Chapter 6: guide spellings are accepted, while states that do not exist ar
   assert.equal(values['/B.CV'], 6)
 }))
 
-test('Chapter 6: references written at the wrong level (^/ versus /) get a DeltaV warning, never an error', () => fixture(() => {
+test('Chapter 6: references must use the DeltaV level (/ is this composite, ^/ is the phase), and feedback cannot be written', () => fixture(() => {
   blenders(); agitate()
-  const warnings = (src, kind, composite) => expr.warnExpression(src, phaseCheckEnv('AGITATE', undefined, composite))
   const errors = (src, kind, composite) => expr.checkExpression(src, kind, phaseCheckEnv('AGITATE', undefined, composite))
-  const none = [
+  const fine = [
     ["'/BLEND_TIMER/RESET.CV' := 1;", 'action', 'RUN_LOGIC'],
     ["'/INITIALIZE_EQUIP/PENDING_CONFIRMS.CV' = 0", 'condition', 'RUN_LOGIC'],
     ["'/RESET_EQUIP/TIME.CV' >= 3", 'condition', 'RUN_LOGIC'],
@@ -308,23 +307,29 @@ test('Chapter 6: references written at the wrong level (^/ versus /) get a Delta
     ["'/BLEND_TIMER/ELAPSED_TIME.CV' >= '^/R_BLEND_TIME.CV'", 'condition', 'RUN_LOGIC'],
     ["'^/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", 'action', 'HOLD_LOGIC'],
     ["'^/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;", 'action', 'RESTART_LOGIC'],
-    ["'//#AGITATOR#/DC1/MODE.TARGET' := CAS;", 'action', 'RUN_LOGIC']
+    ["'//#AGITATOR#/DC1/MODE.TARGET' := CAS;", 'action', 'RUN_LOGIC'],
+    ["'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'", 'condition', 'RUN_LOGIC'],
+    ["'//#OUT_PUMP#/MODE.ACTUAL' = CAS", 'condition', 'RUN_LOGIC']
   ]
-  for (const [src, kind, composite] of none) assert.deepEqual(warnings(src, kind, composite), [], `${composite}: ${src}`)
-  const warned = [
+  for (const [src, kind, composite] of fine) assert.deepEqual(errors(src, kind, composite), [], `${composite}: ${src}`)
+  const wrong = [
     ["'^/BLEND_TIMER/RESET.CV' := 1;", 'action', 'RUN_LOGIC', /write '\/BLEND_TIMER\/RESET\.CV'/],
     ["'^/INITIALIZE_EQUIP/PENDING_CONFIRMS.CV' = 0", 'condition', 'RUN_LOGIC', /write '\/INITIALIZE_EQUIP\/PENDING_CONFIRMS\.CV'/],
     ["'^/RESET_EQUIP/TIME.CV' >= 3", 'condition', 'RUN_LOGIC', /write '\/RESET_EQUIP\/TIME\.CV'/],
     ["'/STEP_INDEX.CV' := 1;", 'action', 'RUN_LOGIC', /Write '\^\/STEP_INDEX\.CV'/],
     ["'/R_BLEND_TIME.CV' > 1", 'condition', 'RUN_LOGIC', /Write '\^\/R_BLEND_TIME\.CV'/],
     ["'/FAIL_MONITOR/AGITATOR_STOPPED/DISABLE.CV' := 0;", 'action', 'RUN_LOGIC', /another composite state.*'\^\/FAIL_MONITOR\/AGITATOR_STOPPED\/DISABLE\.CV'/],
-    ["'/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", 'action', 'HOLD_LOGIC', /'\^\/RUN_LOGIC\/BLEND_TIMER\/START\.CV'/]
+    ["'/RUN_LOGIC/BLEND_TIMER/START.CV' := 0;", 'action', 'HOLD_LOGIC', /'\^\/RUN_LOGIC\/BLEND_TIMER\/START\.CV'/],
+    ["'//#OUT_PUMP#/DC1/PV_D.CV' := 'mtr2-pv:STOPPED';", 'action', 'RUN_LOGIC', /PV_D is feedback and cannot be written/],
+    ["'//#BLNDR_OUTLET#/A_PV.CV' := 1;", 'action', 'RUN_LOGIC', /A_PV is feedback/],
+    ["'//#OUT_PUMP#/MODE.ACTUAL' := CAS;", 'action', 'RUN_LOGIC', /MODE\.ACTUAL is feedback.*MODE\.TARGET/]
   ]
-  for (const [src, kind, composite, re] of warned) {
-    assert.match(warnings(src, kind, composite).join(' | '), re, `${composite}: ${src}`)
-    assert.deepEqual(errors(src, kind, composite), [], `a wrong level is advice, not an error: ${src}`)
-  }
-  assert.deepEqual(expr.warnExpression("'^/BLEND_TIMER/RESET.CV' := 1;", phaseCheckEnv('AGITATE')), [], 'no composite context, no advice')
+  for (const [src, kind, composite, re] of wrong) assert.match(errors(src, kind, composite).join(' | '), re, `${composite}: ${src}`)
+  assert.deepEqual(expr.checkExpression("'^/BLEND_TIMER/RESET.CV' := 1;", 'action', phaseCheckEnv('AGITATE')), [], 'no composite context, no level check')
+  // A Non-Boolean action names the block at its own level too.
+  const run = phaseCheckEnv('AGITATE', undefined, 'RUN_LOGIC')
+  assert.deepEqual(cfg.nonBooleanErrors("'/BLEND_TIMER'", run), [])
+  assert.match(cfg.nonBooleanErrors("'^/BLEND_TIMER'", run)[0], /write '\/BLEND_TIMER'/)
 }))
 
 test('Chapter 6: pulse delay, confirmation timeout and step timing have measurable semantics', () => {
@@ -374,11 +379,12 @@ test('Chapter 6: confirm timeout can be an expression, and Default Expression re
   assert.equal(defaultConfirmExpression('', sets).ok, false)
 }))
 
-for (const variant of ['code', 'guide']) test(`Chapter 6 (${variant === 'guide' ? 'expressions typed exactly as the course guide prints them' : 'built with the app forms'}): both real blender instances run, retain time on Hold, recover all five failures, and survive save/restore`, () => fixture(() => {
+for (const variant of ['code', 'guide']) test(`Chapter 6 (${variant === 'guide' ? 'expressions typed as the course guide prints them, at the DeltaV levels' : 'built with the app forms'}): both real blender instances run, retain time on Hold, recover all five failures, and survive save/restore`, () => fixture(() => {
   blenders()
   agitate(variant)
-  const pc = B().phaseClasses.AGITATE, check = phaseCheckEnv('AGITATE')
+  const pc = B().phaseClasses.AGITATE
   for (const c of cfg.COMPOSITES) {
+    const check = phaseCheckEnv('AGITATE', undefined, c)
     for (const step of pc.logic[c].steps) for (const a of step.actions) {
       const problems = a.type === 'Non-Boolean' ? cfg.nonBooleanErrors(a.expression, check) : expr.checkExpression(a.expression, 'action', check)
       assert.deepEqual(problems, [], a.expression)

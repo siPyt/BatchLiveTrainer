@@ -18,7 +18,7 @@ import { BatchIcon } from '../components/BatchExplorer'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm, askValue } from '../components/AppNotices'
-import { ensureTrailingSemicolon, warnExpression } from '../engine/phaseExpr'
+import { ensureTrailingSemicolon } from '../engine/phaseExpr'
 import { defaultConfirmExpression } from '../engine/phaseConfirm'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
@@ -1173,17 +1173,10 @@ export function CompositeBlockDialog({ existing, onOk, onClose }: {
 
 function ParserOutput({ text, kind, ctx }: { text: string; kind: ExprKind; ctx: ExprCtx }): JSX.Element {
   const problems = text.trim() ? checkText(text, kind, ctx.check) : []
-  // A Non-Boolean action is a single block reference; everything else is parsed for references written at the wrong level.
-  const warnings = !text.trim() ? [] : kind === 'block'
-    ? [ctx.check.warnRef?.(text.trim().replace(/;$/, '').replace(/^'|'$/g, '').replace(/\.CV$/i, ''), false)].filter((w): w is string => !!w)
-    : warnExpression(text, ctx.check)
   return <div className="ps-parser" role="status" aria-label="Parser output">
     <span className="ps-parser-head">Parser output:</span>
     {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : kind === 'block' ? 'Empty: the action name is the composite block.' : 'Empty expression.'}</span> :
-      <>
-        {problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), {warnings.length} warning(s)</span>}
-        {warnings.map((w, i) => <div key={`w${i}`} className="ps-parser-warn">Warning: {w}</div>)}
-      </>}
+      problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), 0 warning(s)</span>}
   </div>
 }
 

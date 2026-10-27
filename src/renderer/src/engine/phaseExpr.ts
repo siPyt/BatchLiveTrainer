@@ -211,24 +211,6 @@ export interface CheckEnv {
   /** Error text when a reference cannot be resolved, otherwise null. */
   checkRef: (ref: string, write: boolean) => string | null
   checkNamed: (set: string, state: string) => string | null
-  /** Advice (not an error) when a reference resolves but uses the wrong level: '/' is this composite, '^/' is the phase. */
-  warnRef?: (ref: string, write: boolean) => string | null
-}
-
-/** Parser-output warnings for references that work in the trainer but are written at the wrong level for DeltaV. */
-export function warnExpression(src: string, env: CheckEnv): string[] {
-  if (!env.warnRef || !src.trim()) return []
-  let program: Program
-  try { program = parseProgram(src) } catch { return [] }
-  const out: string[] = []
-  const node = (n: Node): void => { if (n.k === 'ref') { const w = env.warnRef!(n.v, false); if (w) out.push(w) } }
-  const stmt = (s: Statement): void => {
-    if (s.k === 'if') { walk(s.condition, node); s.yes.forEach(stmt); s.no.forEach(stmt); return }
-    if (s.k === 'assign') { const w = env.warnRef!(s.target, true); if (w) out.push(w) }
-    walk(s.expr, node)
-  }
-  program.statements.forEach(stmt)
-  return [...new Set(out)]
 }
 
 function walk(n: Node, fn: (n: Node) => void): void {

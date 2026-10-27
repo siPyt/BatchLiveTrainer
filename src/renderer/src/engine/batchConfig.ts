@@ -72,8 +72,9 @@ export function nonBooleanBlock(a: Pick<ActionDef, 'name' | 'expression'>, block
 export function nonBooleanErrors(expression: string, check: CheckEnv): string[] {
   if (!expression.trim()) return []
   const m = NON_BOOLEAN_REF.exec(expression)
-  if (!m) return ["A Non-Boolean action's expression is the composite block it starts, for example '^/BLEND_TIMER' or '/BLEND_TIMER'"]
-  const problem = check.checkRef(`/${m[1]}`, false)
+  if (!m) return ["A Non-Boolean action's expression is the composite block it starts, for example '/BLEND_TIMER' in the state that contains it"]
+  // Check the path as typed, so a wrong level ('^/BLEND_TIMER' inside RUN_LOGIC) is reported like any other reference.
+  const problem = check.checkRef(expression.trim().replace(/;$/, '').slice(1, -1).replace(/\.CV$/i, ''), false)
   return problem ? [problem] : []
 }
 export interface TransitionDef { id: string; name: string; description: string; condition: string }

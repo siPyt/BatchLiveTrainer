@@ -4899,7 +4899,6 @@ button {
 .ps-parser { margin-top: 6px; border: 1px solid var(--dv-border); background: #ffffff; padding: 4px 6px; font-size: 11px; min-height: 34px; }
 .ps-parser-head { display: block; color: var(--dv-text-dim); margin-bottom: 2px; }
 .ps-parser-err { color: #c0392b; }
-.ps-parser-warn { color: #8a5a00; }
 .ps-parser-ok { color: #1f7a3a; }
 .ps-expr-text { width: 100%; box-sizing: border-box; background: #ffffff; border: 1px solid var(--dv-border); padding: 4px; resize: vertical; }
 .ps-expr-text.tall { min-height: 200px; }

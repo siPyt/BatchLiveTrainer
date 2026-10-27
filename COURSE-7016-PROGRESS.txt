@@ -717,7 +717,7 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
  4. Non-Boolean action: the trainer accepts the block as the action expression ('/BLEND_TIMER', '^/BLEND_TIMER',
     '^/RUN_LOGIC/BLEND_TIMER', also with a trailing .CV) or as the action name with an empty expression. Slide 6-18 only
     says "Start BLEND_TIMER linked composite. Action is Non-Boolean and Non-Stored." (no expression printed). In
-    RUN_LOGIC the right level is '/BLEND_TIMER' (the picker inserts that; '^/BLEND_TIMER' is accepted with a warning).
+    RUN_LOGIC the right level is '/BLEND_TIMER' (the picker inserts that; '^/BLEND_TIMER' is reported as a level error).
     Edit Expression > Insert Internal Parameter shows "Insert Composite Block" for a Non-Boolean action
     (no .CV). Question: what does the real dialog require / insert?
  5. Expression functions LN, LOG, EXP, SQRT were added (slide 6-40 uses LN). Question: exact names/arguments of the
@@ -726,9 +726,13 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     (a block or step inside RUN_LOGIC is '/BLEND_TIMER/RESET.CV', '/INITIALIZE_EQUIP/PENDING_CONFIRMS.CV',
     '/RESET_EQUIP/TIME.CV'); '^/' = one level up, the phase ('^/STEP_INDEX.CV', '^/R_BLEND_TIME.CV', '^/FAIL_INDEX.CV'),
     and from there down into another composite ('^/FAIL_MONITOR/BFI1/RESET_IN.CV', '^/RUN_LOGIC/BLEND_TIMER/START.CV').
-    The trainer still ACCEPTS the wrong level (it resolves by name) but now shows a parser-output WARNING with the
-    right form (batchStore phaseCheckEnv warnRef, phaseExpr warnExpression), and Insert Internal Parameter / Insert
-    Composite Block insert the correct level for the state being edited. The course slides (6-16, 6-24, 6-43) only
+    The trainer still RUNS the wrong level (the engine resolves by name, so phases already built keep working) but Edit
+    Expression now reports it as an ERROR with the right form (batchStore phaseCheckEnv levelError), and Insert Internal
+    Parameter / Insert Composite Block insert the correct level for the state being edited. The Action dialog's
+    "save anyway?" prompt still lets a student keep it. Writes to feedback (PV_D, PV, A_PV, MODE.ACTUAL ...) are also
+    an editor error now (the engine already refused them when the phase ran: "Fail Index 255: MTR-505/PV_D cannot be
+    written"). DECISION 2026-10-27: the student asked to treat the second AI's rule as DeltaV for the trainer's
+    purposes; it is NOT proven on a real system.
     write shorthand (BLEND_TIMER/RESET.CV := 1), so the prefix itself is not in the course; the convention was agreed
     with a second AI review the student pasted. The course guide's '/FAIL_MONITOR/...' from RUN_LOGIC and
     '/RUN_LOGIC/BLEND_TIMER/...' from HOLD_LOGIC therefore get a warning. Earlier trainer notes that '/STEP_INDEX.CV'
