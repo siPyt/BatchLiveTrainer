@@ -649,6 +649,17 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    into NULL1 then HELD, RESTART branches (From_Start vs Continue), ENABLE_PC, BFI1/RESET_IN, FAIL_INDEX 4-8.
    Tests: course7016-ch6.test.cjs 13/13; full suite 787/788 (dv09-audit only).
 
+ - Student asked whether the Confirm tab's Default Expression should render an expression ("it is not"). Checked in a
+   browser on an isolated origin (port 5207, not the student's project): for every Step 7 confirmed action it fills the
+   expected confirm ('...OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED', A_PV for the two EMs, PV.CV for BASE_IN_VLV,
+   MODE.ACTUAL for MODE.TARGET writes). It deliberately declines when the action expression is empty or is not a
+   readable write (e.g. '^/STEP_INDEX.CV' := 2); the explanation used to appear at the very bottom of the dialog and
+   was easy to miss. Now: the note shows right under the Confirm expression field ("Enter the action expression on the
+   General tab first ..." for an empty action), and the button's tooltip says to tick "Confirm action for pulse
+   qualifier" first (the button is disabled until it is ticked). Order that works: General tab (qualifier P + action
+   expression) -> Confirm tab -> tick the checkbox -> Default Expression. A stale page also hides the button: refresh.
+   Also confirmed live: after a page reload the Control Studio window on AGITATE/RUN_LOGIC came back (session restore).
+
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
   Alias... list for A_COMMAND / A_PV on BLNDR_COLOR / BLNDR_OUTLET; in the two-tab Action dialog set qualifier P on

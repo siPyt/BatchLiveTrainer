@@ -887,9 +887,11 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
   const [confirmOn, setConfirmOn] = useState(action?.confirm !== undefined)
   const [timeoutMode, setTimeoutMode] = useState<'time' | 'expression'>(action?.confirmTimeoutExpression ? 'expression' : 'time')
   const namedSets = useStore(s => s.namedSets.configured)
+  const [defaultNote, setDefaultNote] = useState<string | null>(null)
   const defaultConfirm = (): void => {
     const r = defaultConfirmExpression(v.expression, namedSets)
-    if (!r.ok) { setError(r.error); return }
+    if (!r.ok) { setDefaultNote(v.expression.trim() ? r.error : 'Enter the action expression on the General tab first; the default confirm expression is built from it.'); return }
+    setDefaultNote(null)
     setError(null)
     setV({ ...v, confirm: r.expression, confirmTimeout: v.confirmTimeout ?? 0 })
   }
@@ -958,8 +960,9 @@ export function ActionDialog({ step, composite, ctx, action, existing, onOk, onC
       {!pulse && <p className="exp-hint">Only Pulse (P) actions offer confirmation. Set the qualifier to P - Pulse on the General tab.</p>}
       <div className="dvd-inline"><label style={{ flex: 1 }}>Confirm expression:<input aria-label="Confirm expression" value={v.confirm ?? ''} disabled={!confirmOn}
         onChange={e => setV({ ...v, confirm: e.target.value, confirmTimeout: v.confirmTimeout ?? 0 })} /></label>
-        <button type="button" className="tbtn sm" disabled={!confirmOn} onClick={defaultConfirm}>Default Expression</button>
+        <button type="button" className="tbtn sm" disabled={!confirmOn} title={confirmOn ? undefined : 'Tick "Confirm action for pulse qualifier" first'} onClick={defaultConfirm}>Default Expression</button>
         <button type="button" className="tbtn sm" disabled={!confirmOn} onClick={() => setCondEditor('confirm')}>Expression Assistant...</button></div>
+      {defaultNote && <p role="alert" className="lib-dlg-error">{defaultNote}</p>}
       <fieldset className="dvd-group" disabled={!confirmOn}>
         <legend>Confirm Timeout</legend>
         <div className="dvd-inline">
