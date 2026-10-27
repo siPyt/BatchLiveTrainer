@@ -18,6 +18,7 @@ import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { BatchDialogHost } from './components/BatchDialogs'
 import { NoticeHost } from './components/AppNotices'
+import { SaveReminderHost } from './components/StudioSaveReminder'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
 import { ProcessDisplay } from './displays/ProcessDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
@@ -102,6 +103,7 @@ export function App(): JSX.Element {
       <BatchWindows />
       <BatchDialogHost />
       <NoticeHost />
+      <SaveReminderHost />
       <AccessDeniedToast />
       <FlexLockOverlay />
       <SignatureDialog />

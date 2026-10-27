@@ -700,6 +700,23 @@ Session of 2026-10-27 (student working Chapter 6 by hand, slide 6-16 Step 7 - IN
    pipe and clear of the pump: name 11 px dark, state 10.5 px blue ("AGITATE Running"), failure 10 px red (clipped to 26
    characters, full text in the tooltip). Same component for all five unit tanks, so 500, 600 and the colour tanks match.
 
+TRAINER-ONLY FUNCTIONALITY (NOT DELTAV) - added for the learning environment, do not expect it on a real system:
+ 1. Control Studio "save reminder" (2026-10-27, components/StudioSaveReminder.tsx, App.tsx, AppWindows.tsx). If the student
+    clicks the Control Studio window's X while a phase class / control module class / equipment module class has UNSAVED
+    changes, a small dialog says: "Press Ctrl+S to save your changes in Control Studio, or the unsaved changes will be
+    lost." (plus which item is unsaved, and "File -> Save" as the alternative). Buttons: "Back to Control Studio" (default,
+    keeps the window and the changes) and "Close without saving" (closes and discards the unsaved draft, so the message is
+    true). Pressing Ctrl+S while the dialog is showing saves and dismisses it. With nothing unsaved the X closes at once.
+    Real DeltaV instead asks "Save changes?" on close. File > Close inside a studio still uses the trainer's existing
+    Save? / Discard? prompts. Closing the whole desktop app is not covered (Electron cannot show a custom message there).
+ 2. Idle / blank-screen protection (components/AppErrorBoundary.tsx, engine/health.ts, engine/keepAwake.ts, ui/uiSession.ts,
+    src/main/index.ts): wake lock + no display sleep, error screen instead of a blank page, reload when #root is empty,
+    messages when the browser stopped or paused the page, and the open screen / Control Studio windows restored after a
+    reload. Real DeltaV has none of this.
+ 3. FlexLock accounts: every account uses the password admin123 and an extra account named admin123 exists.
+ 4. Default Expression, Delay-group defaults, wrong-level errors and the other trainer choices are tracked in the next
+    section ("TO VERIFY ON A REAL DELTAV").
+
 TO VERIFY ON A REAL DELTAV (student has no DeltaV system at hand now; will check at the plant and report back so the
 trainer can be matched). Everything below is trainer behaviour that is NOT proven to be authentic DeltaV. Decision
 2026-10-27: keep as is, match later. When you check, tell the assistant what the real system does:

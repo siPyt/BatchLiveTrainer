@@ -6,6 +6,7 @@ import { ControlStudioDisplay } from '../displays/ControlStudioDisplay'
 import { ClassStudio } from '../displays/ClassStudio'
 import { PhaseStudio } from '../displays/PhaseStudio'
 import { EmStudio } from '../displays/EmStudio'
+import { confirmCloseStudio } from './StudioSaveReminder'
 
 const TITLE: Record<WindowId, string> = { explorer: 'DeltaV Explorer', studio: 'Control Studio' }
 const MIN_W = 480
@@ -79,7 +80,8 @@ function AppWindow({ id, size }: { id: WindowId; size: Size }): JSX.Element {
         <button type="button" aria-label={`Minimize ${TITLE[id]}`} title="Minimize" onClick={() => minimize(id)}>&#x2013;</button>
         <button type="button" aria-label={`${win.maximized ? 'Restore' : 'Maximize'} ${TITLE[id]}`} title={win.maximized ? 'Restore Down' : 'Maximize'}
           onClick={() => toggleMaximize(id)}>{win.maximized ? '\u2750' : '\u25A1'}</button>
-        <button type="button" className="close" aria-label={`Close ${TITLE[id]}`} title="Close" onClick={() => close(id)}>&#x2715;</button>
+        <button type="button" className="close" aria-label={`Close ${TITLE[id]}`} title="Close"
+          onClick={() => { if (id === 'studio') void confirmCloseStudio().then(ok => { if (ok) close(id) }); else close(id) }}>&#x2715;</button>
       </span>
     </header>
     <div className="app-window-body">{id === 'explorer' ? <ExplorerDisplay /> : id === 'studio' ? <StudioBody /> : null}</div>
