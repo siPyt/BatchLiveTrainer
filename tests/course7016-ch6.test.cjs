@@ -325,7 +325,8 @@ test('Chapter 6: confirm timeout can be an expression, and Default Expression re
     assert.equal(r.ok && r.expression, confirm, action)
     assert.deepEqual(expr.checkExpression(confirm, 'condition', { checkRef: () => null, checkNamed: () => null }), [], confirm)
   }
-  assert.equal(defaultConfirmExpression("'^/STEP_INDEX.CV' := 2;", sets).ok, false)
+  assert.deepEqual(defaultConfirmExpression("'//#OUT_PUMP#/DC1/PV_D.CV':='mtr2-pv:STOPPED';", sets), { ok: true, expression: "'//#OUT_PUMP#/DC1/PV_D.CV' = 'mtr2-pv:STOPPED'" })
+  assert.deepEqual(defaultConfirmExpression("'^/STEP_INDEX.CV' := 2;", sets), { ok: true, expression: "'^/STEP_INDEX.CV' = 2" })
   assert.equal(defaultConfirmExpression('', sets).ok, false)
 }))
 

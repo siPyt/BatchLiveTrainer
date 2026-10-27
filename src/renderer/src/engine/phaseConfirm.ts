@@ -21,7 +21,8 @@ export function defaultConfirmExpression(action: string, sets: Record<string, Na
 
   if (leaf === 'A_COMMAND') return { ok: true, expression: `'${base}/A_PV.CV' = ${rhs}` }
   if (leaf === 'MODE.TARGET') return { ok: true, expression: `'${base}/MODE.ACTUAL' = ${rhs}` }
-  if (leaf !== 'CAS_SP' && leaf !== 'SP_D') return fail(`No default confirm expression for ${target}. Write the readback comparison yourself.`)
+  // Anything that is not a setpoint with a known readback: compare the target with the value the action assigns.
+  if (leaf !== 'CAS_SP' && leaf !== 'SP_D') return { ok: true, expression: `'${target}' = ${rhs}` }
 
   const named = /^'([^:']+):([^']+)'$/.exec(rhs)
   if (!named) return { ok: true, expression: `'${base}/${leaf === 'CAS_SP' ? 'PV.CV' : 'DC1/PV_D.CV'}' = ${rhs}` }

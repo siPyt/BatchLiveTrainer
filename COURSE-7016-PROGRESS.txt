@@ -677,6 +677,8 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
       '//#BASE_IN_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE'     -> '//#BASE_IN_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'
       '//#X#/A_COMMAND.CV' := 'SET:State'                 -> '//#X#/A_PV.CV' = 'SET:State'
       '//#X#/DC1/MODE.TARGET' := CAS                      -> '//#X#/MODE.ACTUAL' = CAS
+      anything else (e.g. '//#OUT_PUMP#/DC1/PV_D.CV' := 'mtr2-pv:STOPPED', '^/STEP_INDEX.CV' := 2) -> the same target with
+      := turned into =   (fallback added 2026-10-27 so the button always gives something for a one-assignment action)
     Questions: what does the real button insert for these? Does it do anything for STEP_INDEX / non-device writes?
  2. Confirm Timeout "Expression": the trainer fails the confirm as soon as the expression is TRUE before the confirm
     expression is (borrowed from the DV09 SFC feature, engine/batchConfig.ts stepPhase). Questions: is that the real
