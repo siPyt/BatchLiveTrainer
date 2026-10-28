@@ -38,7 +38,7 @@ export function blockInputPins(block: PhaseBlock): string[] {
 export function blockOutputPins(block: PhaseBlock): string[] {
   switch (block.type) {
     case 'CND': return ['OUT_D']
-    case 'BFI': return ['OUT_D', 'FIRST_OUT', 'OUT_INT']
+    case 'BFI': return ['OUT_INT', 'OUT_D', 'FIRST_OUT']
     case 'CALC': return Array.from({ length: outputCount(block) }, (_, i) => `OUT${i + 1}`)
     case 'TIMER_SEC': return ['OUT_D']
   }
@@ -143,8 +143,8 @@ export function setBlockCounts(blocks: Record<string, PhaseBlock>, name: string,
 export function phaseBlockDefaults(block: PhaseBlock): Record<string, Value> {
   switch (block.type) {
     case 'CND': return { DISABLE: block.disabled ? 1 : 0, TIME_DURATION: block.timeDuration ?? 0, TIMER: 0, PRE_OUT_D: false, OUT_D: false }
-    case 'BFI': return { RESET_IN: 0, ARM_TRAP: 1, BCD: 0, OUT_D: false, FIRST_OUT: 0, OUT_INT: 0 }
-    case 'CALC': return Object.fromEntries(Array.from({ length: outputCount(block) }, (_, i) => [`OUT${i + 1}`, 0]))
+    case 'BFI': return { ...Object.fromEntries(Array.from({ length: inputCount(block) }, (_, i) => [`IN_D${i + 1}`, false])), RESET_IN: 0, ARM_TRAP: 1, BCD: 0, OUT_D: false, FIRST_OUT: 0, OUT_INT: 0 }
+    case 'CALC': return { ...Object.fromEntries(Array.from({ length: inputCount(block) }, (_, i) => [`IN${i + 1}`, 0])), ...Object.fromEntries(Array.from({ length: outputCount(block) }, (_, i) => [`OUT${i + 1}`, 0])) }
     case 'TIMER_SEC': return { ACTIVE: 0, START: 0, RESET: 0, TIME_DURATION: 0, ELAPSED_TIME: 0, OUT_D: false }
   }
 }
@@ -179,6 +179,7 @@ export function scanPhaseBlocks(blocks: Record<string, PhaseBlock>, env: EvalEnv
   for (const [name, b] of Object.entries(blocks)) if (b.type === 'BFI') {
     const reset = truthy(read(name, 'RESET_IN'))
     const mask = b.inputs.slice(0, BLOCK_MAX_PINS).reduce((n, ref, i) => n + (ref && truthy(env.read(ref)) ? 2 ** i : 0), 0)
+    for (let i = 0; i < inputCount(b); i++) write(name, `IN_D${i + 1}`, !!(mask & (1 << i)))
     const previous = num(name, 'OUT_INT', 0)
     const armed = num(name, 'ARM_TRAP', 1) !== 0
     let first = num(name, 'FIRST_OUT', 0)
@@ -214,6 +215,8 @@ export function scanPhaseBlocks(blocks: Record<string, PhaseBlock>, env: EvalEnv
         write(name, `OUT${m[2]}`, v)
       }
     }
+    // The input values are shown in the block's parameters, as in Control Studio's parameter list.
+    for (let i = 0; i < inputCount(b); i++) write(name, `IN${i + 1}`, b.inputs[i] ? toNum(env.read(b.inputs[i])) : 0)
     if (b.expression.trim()) runProgram(b.expression, calcEnv, { calc: true })
   }
   for (const [name, b] of Object.entries(blocks)) if (b.type === 'TIMER_SEC') {

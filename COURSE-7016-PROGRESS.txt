@@ -833,6 +833,22 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     composite) is not in the reference guide, so it still follows slide 6-12 only. The Chapter 1 AI block (L_TYPE,
     OUT_SCALE, SIMULATE, SIMULATE_IN, HI_ALM/LO_ALM) was checked against the guide and agrees. AWAITING DELTAV CONFIRMATION
     of the Control Studio screens (Extensible Parameters menu, Properties dialogs), which the guide does not describe.
+14. Accuracy audit of the blocks and expression features the 7016 workshops actually use (2026-10-28, second pass). Sources:
+    Function Block Reference (CND, BFI, CALC), System Configuration manual pp 58-75 (operators, functions, references; now in
+    pdf_extracted/system-configuration-expressions.txt) and the course slides 6-33, 6-35, 6-37, 6-38. Features the course uses:
+    references ('/', '^/', '//', #alias#, '/+/'), named states, :=, = != <> < > <= >=, + , AND/OR/NOT, IF/THEN/ELSE/ENDIF,
+    the ?: operator, LOG2, LN, SELSTR, LOGEVENT, and the blocks CND, BFI, CALC. Fixed in this pass:
+    - Operator precedence now follows the manual: ** > NOT/! > * / MOD > + - > comparisons > AND > XOR > OR > ?: (NOT used to bind
+      looser than =, XOR shared a level with OR, ** grouped right to left).
+    - BFI pins are drawn OUT_INT, OUT_D, FIRST_OUT as in the real Control Studio screenshot on slide 6-35.
+    - The "DISABLE = n" text on the face of a CND was removed (not on a real block; DISABLE is still in the parameters list).
+    - CALC and BFI parameter lists now include their input values (IN1.., IN_D1..) as in the slide 6-35 parameter pane.
+    - A block expression may use '^/BLOCK/PARAM' (slide 6-37) and '/+/PARAM' (the phase), as in the manual's internal reference table.
+    STILL NOT CONFIRMED (the documents do not say, so a DeltaV check is needed): BFI ARM_TRAP default (1 inferred), CND TIME_DURATION
+    default (0 inferred), and the exact Control Studio dialogs. NOT MODELED because the 7016 workshops do not use them: block status
+    values and BLOCK_ERR/BAD_MASK/ERROR_OPT/ALGO_OPTS, CALC temporary variables and VAR...END_VAR, bitwise operators (& | ^ ~),
+    the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
+    default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert

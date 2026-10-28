@@ -14,7 +14,7 @@ const CANVAS_W = 960
 const CANVAS_H = 560
 
 const rowsOf = (b: PhaseBlock): number => Math.max(blockInputPins(b).length, blockOutputPins(b).length, 1)
-const heightOf = (b: PhaseBlock): number => HEAD_H + 10 + rowsOf(b) * ROW_H + (b.type === 'CND' ? 18 : 8)
+const heightOf = (b: PhaseBlock): number => HEAD_H + 10 + rowsOf(b) * ROW_H + 8
 const pinY = (index: number): number => HEAD_H + 16 + index * ROW_H
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 const trim = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + '…' : s)
@@ -185,10 +185,6 @@ export function PhaseFbd({ blocks, zoom, selected, params, scope, readOnly, onSe
             <text x={BLOCK_W - 4} y={pinY(i) + 3} textAnchor="end" className="cs-pin-label">{pin}</text>
             {value(name, pin) !== null && <text x={BLOCK_W - 70} y={pinY(i) + 3} textAnchor="end" className="cs-pin-label dim">{value(name, pin)}</text>}
           </g>)}
-          {b.type === 'CND' && <>
-            <line x1={0} y1={h - 18} x2={BLOCK_W} y2={h - 18} className="cs-block-rule" />
-            <text x={6} y={h - 6} className="cs-pin-label dim">DISABLE = {value(name, 'DISABLE') ?? (b.disabled ? '1' : '0')}</text>
-          </>}
         </g>
       })}
     </svg>

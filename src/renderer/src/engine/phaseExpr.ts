@@ -142,12 +142,16 @@ class Parser {
     return { k: 'choose', condition, yes, no: this.expr() }
   }
   private or(): Node {
-    let a = this.and()
-    while (this.isWord('OR') || this.isWord('XOR')) { const op = this.peek()!.v.toUpperCase(); this.i++; a = { k: 'bin', op, a, b: this.and() } }
+    let a = this.xor()
+    while (this.isWord('OR')) { this.i++; a = { k: 'bin', op: 'OR', a, b: this.xor() } }
     return a
   }
-  private and(): Node { let a = this.not(); while (this.isWord('AND')) { this.i++; a = { k: 'bin', op: 'AND', a, b: this.not() } } return a }
-  private not(): Node { if (this.isWord('NOT') || this.isOp('!')) { this.i++; return { k: 'un', op: 'NOT', a: this.not() } } return this.cmp() }
+  private xor(): Node {
+    let a = this.and()
+    while (this.isWord('XOR')) { this.i++; a = { k: 'bin', op: 'XOR', a, b: this.and() } }
+    return a
+  }
+  private and(): Node { let a = this.cmp(); while (this.isWord('AND')) { this.i++; a = { k: 'bin', op: 'AND', a, b: this.cmp() } } return a }
   private cmp(): Node {
     const a = this.add()
     const t = this.peek()
@@ -171,16 +175,24 @@ class Parser {
     }
     return a
   }
+  // Operator precedence follows the System Configuration manual: ** binds tightest, then NOT/!, then * / MOD, then + -,
+  // then the comparisons, then AND, XOR, OR and the conditional ?: last. So NOT a = b reads as (NOT a) = b.
   private unary(): Node {
+    if (this.isWord('NOT') || this.isOp('!')) { this.i++; return { k: 'un', op: 'NOT', a: this.unary() } }
     if (this.isOp('-')) { this.i++; return { k: 'un', op: '-', a: this.unary() } }
     return this.power()
   }
-  // '**' raises to a power and binds tighter than the other operators.
+  // '**' raises to a power and groups left to right.
   private power(): Node {
-    const a = this.primary()
-    if (!this.isOp('**')) return a
-    this.i++
-    return { k: 'bin', op: '**', a, b: this.unary() }
+    let a = this.primary()
+    while (this.isOp('**')) {
+      this.i++
+      const neg = this.isOp('-')
+      if (neg) this.i++
+      const operand = this.primary()
+      a = { k: 'bin', op: '**', a, b: neg ? { k: 'un', op: '-', a: operand } : operand }
+    }
+    return a
   }
   private primary(): Node {
     const t = this.peek()

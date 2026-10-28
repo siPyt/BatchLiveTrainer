@@ -574,6 +574,34 @@ test('Chapter 6 CALC block: bare IN1/OUT1 pins, extensible pins, and LN/LOG retu
   assert.deepEqual(run("'/A.CV' := 2 ** 3; '/B.CV' := 13 MOD 5; '/C.CV' := EXPT(2, 10); '/D.CV' := TRUNC(2.7) + ROUND(2.5); '/E.CV' := LN(0); '/F.CV' := SQRT(-4);"),
     { '/A.CV': 8, '/B.CV': 3, '/C.CV': 1024, '/D.CV': 5, '/E.CV': 0, '/F.CV': -4 })
   assert.equal(run("IF TRUE XOR FALSE THEN '/A.CV' := 1; ENDIF;")['/A.CV'], 1)
+  // operator precedence from the manual: ** > NOT > * / MOD > + - > comparisons > AND > XOR > OR > ?:
+  const truth = src => run(`IF ${src} THEN '/R.CV' := 1; ELSE '/R.CV' := 0; ENDIF;`)['/R.CV']
+  assert.equal(truth('NOT 1 = 2'), 0, 'NOT binds tighter than =: (NOT 1) = 2')
+  assert.equal(truth('NOT (1 = 2)'), 1)
+  assert.equal(truth('TRUE OR TRUE XOR TRUE'), 1, 'XOR binds tighter than OR')
+  assert.equal(truth('TRUE AND FALSE OR TRUE'), 1)
+  assert.equal(truth('TRUE OR FALSE AND FALSE'), 1, 'AND binds tighter than OR')
+  assert.equal(run("'/A.CV' := 2 ** 3 ** 2;")['/A.CV'], 64, '** groups left to right')
+  assert.equal(run("'/A.CV' := 2 + 3 * 4;")['/A.CV'], 14)
+  assert.equal(run("'/A.CV' := 1 < 2 AND 3 > 2 ? 7 : 8;")['/A.CV'], 7)
+  assert.equal(run("'/A.CV' := 0 ? 1 : 0 ? 2 : 3;")['/A.CV'], 3, 'the conditional groups right to left')
+  // the slide 6-35 MESSAGE expression converts FIRST_OUT to the failure index 4-8
+  const msg = fio => run("'OUT1.CV' := 'IN1.CV' != 0 ? LOG2(2, 'IN1.CV') + 4 : 0;" .replace(/'IN1.CV'/g, `${fio}`).replace(/'OUT1.CV'/, "'/OUT1.CV'"))['/OUT1.CV']
+  assert.deepEqual([0, 1, 2, 4, 8, 16].map(msg), [0, 4, 5, 6, 7, 8])
+})
+
+test('Chapter 6 BFI draws OUT_INT, OUT_D, FIRST_OUT as Control Studio does and lists its input values', () => {
+  const fb = require('../src/renderer/src/engine/phaseBlocks.ts')
+  const bfi = { type: 'BFI', expression: '', inputs: ['/S1.CV', '/S2.CV'], disabled: false, inCount: 2 }
+  assert.deepEqual(fb.blockOutputPins(bfi), ['OUT_INT', 'OUT_D', 'FIRST_OUT'])
+  assert.deepEqual(fb.blockInputPins(bfi), ['RESET_IN', 'IN_D1', 'IN_D2'])
+  const calc = { type: 'CALC', expression: 'OUT1 := IN1 + IN2;', inputs: ['/S1.CV', '/S2.CV'], disabled: false, inCount: 2, outCount: 2 }
+  const blocks = { BFI1: bfi, MESSAGE: calc }
+  const env = blockEnv(blocks, { S1: 1, S2: 0 })
+  fb.scanPhaseBlocks(blocks, env, 0.1)
+  assert.equal(env.values['BFI1/IN_D1'], true); assert.equal(env.values['BFI1/IN_D2'], false)
+  assert.equal(env.values['MESSAGE/IN1'], 1); assert.equal(env.values['MESSAGE/IN2'], 0); assert.equal(env.values['MESSAGE/OUT1'], 1)
+  assert.deepEqual(Object.keys(fb.phaseBlockDefaults(calc)), ['IN1', 'IN2', 'OUT1', 'OUT2'])
 })
 
 test('Chapter 6: the function block palette lists the DeltaV groups and the editor accepts the slide 6-37 BLOCK1 expression', () => fixture(() => {
@@ -636,7 +664,7 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   assert.equal(typeof fb.connectBlocks(blocks, { block: 'CND1', pin: 'OUT_D' }, { block: 'CND2', pin: 'IN_D1' }), 'string')
   const fbd = renderToStaticMarkup(React.createElement(PhaseFbd, { blocks, zoom: 1, selected: 'BFI1', scope: 'FAIL_MONITOR', readOnly: false,
     onSelect: () => {}, onMove: () => {}, onConnect: () => null, onDisconnect: () => {}, onAdd: () => {}, onMenu: () => {}, onOpen: () => {} }))
-  for (const text of ['data-wire="CND1/OUT_D-&gt;BFI1/IN_D1"', 'data-wire="BFI1/FIRST_OUT-&gt;MESSAGE/IN1"', 'data-block-type="BFI"', 'RESET_IN', 'FIRST_OUT', 'DISABLE = 0']) {
+  for (const text of ['data-wire="CND1/OUT_D-&gt;BFI1/IN_D1"', 'data-wire="BFI1/FIRST_OUT-&gt;MESSAGE/IN1"', 'data-block-type="BFI"', 'RESET_IN', 'FIRST_OUT']) {
     assert.ok(fbd.includes(text), text)
   }
   blocks = fb.disconnectInput(blocks, 'BFI1', 0)
