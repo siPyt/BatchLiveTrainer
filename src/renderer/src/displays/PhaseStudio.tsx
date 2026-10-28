@@ -207,9 +207,9 @@ export function PhaseStudio(): JSX.Element {
     }
     if (editSfc(s => insertSequence(s, after, 1))) setSel({ k: 'step', i: Math.min(after + 1, sfc.steps.length) })
   }
-  const branch = (i: number): void => {
+  const branch = (i: number, side: 'left' | 'right' = 'right'): void => {
     if (!sfc) return
-    if (editSfc(s => addBranch(s, i))) setSel({ k: 'step', i: sfc.steps.length })
+    if (editSfc(s => addBranch(s, i, side))) setSel({ k: 'step', i: sfc.steps.length })
   }
   const removeStep = (i: number): void => {
     if (!sfc) return
@@ -229,7 +229,8 @@ export function PhaseStudio(): JSX.Element {
       { label: 'Add Action...', onClick: () => setActionDlg({ step: i, index: null }) },
       { separator: true, label: '' },
       { label: 'Add Sequence After...', onClick: () => addSequence(i, first ? { i, route: first.route } : null) },
-      { label: 'Add Alternate Branch', onClick: () => branch(i) },
+      { label: 'Add Alternate Branch Left', onClick: () => branch(i, 'left') },
+      { label: 'Add Alternate Branch Right', onClick: () => branch(i, 'right') },
       { label: 'Delete', danger: true, onClick: () => removeStep(i), disabled: sfc!.steps.length <= 1 ? 'A sequence needs at least its initial step' : undefined }
     ] })
   }
@@ -242,7 +243,8 @@ export function PhaseStudio(): JSX.Element {
       { label: 'Connect To...', onClick: () => setEdgeDlg(ref) },
       { separator: true, label: '' },
       { label: 'Add Sequence After...', onClick: () => addSequence(ref.i, ref) },
-      { label: 'Add Alternate Branch', onClick: () => branch(ref.i) },
+      { label: 'Add Alternate Branch Left', onClick: () => branch(ref.i, 'left') },
+      { label: 'Add Alternate Branch Right', onClick: () => branch(ref.i, 'right') },
       { label: 'Delete Branch', danger: true, disabled: ref.route === null ? 'Only alternate branches can be deleted' : undefined,
         onClick: () => { if (editSfc(s => deleteBranch(s, ref))) setSel(null) } }
     ] })
@@ -255,6 +257,11 @@ export function PhaseStudio(): JSX.Element {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = (e.clientY - rect.top + (e.currentTarget as HTMLElement).scrollTop) / zoom
     const after = branched ? afterIndex() : Math.max(0, stepTops(sfc).filter(top => top <= y).length - 1)
+    if (item === 'Branch' && sel) {
+      const x = (e.clientX - rect.left + (e.currentTarget as HTMLElement).scrollLeft) / zoom
+      branch(sel.i, x < (branched ? branchStepX(sfc, sel.i) : CX) ? 'left' : 'right')
+      return
+    }
     paletteAction(item, after)
   }
   const paletteAction = (item: string, after: number): void => {
@@ -327,6 +334,12 @@ export function PhaseStudio(): JSX.Element {
               <Btn glyph="stateItem" label="Step" size="small" onClick={sequenceComposite ? () => addPair(afterIndex()) : undefined} unavailable={sequenceComposite ? undefined : 'Select a sequence composite first'} />
               <Btn glyph="logic" label="Action" size="small" onClick={selStep ? () => setActionDlg({ step: sel!.i, index: null }) : undefined} unavailable={selStep ? undefined : 'Select a step first'} />
               <Btn glyph="logic" label="Branch" size="small" onClick={sequenceComposite && sel ? () => branch(sel.i) : undefined}
+                unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
+            </Stack>
+            <Stack>
+              <Btn glyph="logic" label="Branch Left" size="small" onClick={sequenceComposite && sel ? () => branch(sel.i, 'left') : undefined}
+                unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
+              <Btn glyph="logic" label="Branch Right" size="small" onClick={sequenceComposite && sel ? () => branch(sel.i, 'right') : undefined}
                 unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
             </Stack>
           </Group>
@@ -715,6 +728,10 @@ const BR_ROW = 124
 const BR_TOP = 30
 const trimTo = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 3) + '...' : s)
 
+const branchX0 = (layout: ReturnType<typeof layoutPhaseSfc>): number => 120 + layout.edges.filter(e => e.back).length * 12
+/** Horizontal centre of a step in SfcBranchDiagram coordinates. */
+export const branchStepX = (sfc: PhaseSfc, i: number): number => { const l = layoutPhaseSfc(sfc); return branchX0(l) + (l.col[i] ?? 0) * BR_COL }
+
 /** The chart of a composite that has alternate branches: legs fan out from a step, rejoin at a later step or terminate. */
 export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onEdgeOpen, onStepMenu, onEdgeMenu }: {
   sfc: PhaseSfc; zoom: number; sel: Sel; liveStep: string | null
@@ -722,8 +739,7 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
   onStepMenu: (i: number, e: React.MouseEvent) => void; onEdgeMenu: (ref: EdgeRef, e: React.MouseEvent) => void
 }): JSX.Element {
   const layout = useMemo(() => layoutPhaseSfc(sfc), [sfc])
-  const gutters = layout.edges.filter(e => e.back).length
-  const X0 = 120 + gutters * 12
+  const X0 = branchX0(layout)
   const cx = (c: number): number => X0 + c * BR_COL
   const top = (i: number): number => BR_TOP + layout.row[i] * BR_ROW
   const W = cx(layout.cols - 1) + 330

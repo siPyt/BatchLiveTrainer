@@ -770,6 +770,11 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     because the time is their parameter). Slide 6-5 only shows the group with Expression selected, not its default, so
     "unselected by default" is the student's belief, not confirmed. Question: what is selected on a brand-new action, and
     can the selection be cleared? (The Confirm Timeout group defaults to Time value = 0, which slide 6-7 does show.)
+ 9. Control Studio branch placement: BatchLiveTrainer now offers Add Alternate Branch Left and Add Alternate Branch
+    Right. The chart draws the step over its middle leg, places left branches on the left and right branches on the
+    right, and evaluates the routes left to right. This is a trainer implementation based on the course slide, NOT
+    verified DeltaV behavior and NOT a claim that BatchLiveTrainer is DeltaV. When the student checks how DeltaV
+    actually adds and orders branches, change BatchLiveTrainer to match the observed DeltaV behavior.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
@@ -780,6 +785,15 @@ WHERE WE LEFT OFF (2026-10-27):
   restore the open screen after a reload; 5c96fce FlexLock accounts all use admin123 (+ new admin123 account).
 - Nothing is left unfinished or uncommitted. Everything else as in the 2026-10-26 end-of-day section above.
 - Tests: npm test 785/786 (dv09-audit needs pdf_om.txt, as before); npm run test:course6 10/10; typecheck and build clean.
+
+WHERE WE LEFT OFF (2026-10-28):
+- Student is working on Chapter 6, slide 6-26 (AGITATE RESTART_LOGIC), and needs to create branches to both the left
+  and right of a step. BatchLiveTrainer now has left/right branch controls and a chart layout that places branches on
+  the requested side; route priority follows left-to-right order. This behavior is NOT verified against DeltaV.
+  See item 9 under "TO VERIFY ON A REAL DELTAV"; when the student checks the real system, update the trainer to match.
+- Chapter 6 tests pass (15/15) and the web TypeScript check passes. Full suite: 794/795; the existing
+  tests/dv09-audit.test.cjs cannot load because pdf_om.txt is absent.
+- Local changes for left/right branch placement, its test and the workshop note are uncommitted.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and

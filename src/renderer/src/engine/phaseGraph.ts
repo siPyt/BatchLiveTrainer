@@ -14,6 +14,8 @@ export interface PhaseEdge {
   route: number | null
   name: string
   condition: string
+  /** Drawn left of the step's trunk. */
+  left: boolean
   back: boolean
 }
 
@@ -36,12 +38,12 @@ export function phaseEdges(sfc: PhaseSfc): Omit<PhaseEdge, 'back'>[] {
     if (routed.length) {
       routed.forEach(({ r, route }, k) => {
         const to = r.to === null ? -1 : sfc.steps.findIndex(s => s.name === r.to)
-        out.push({ from: i, to: r.to === null || to < 0 ? null : to, route, name: routeName(r, k), condition: r.condition })
+        out.push({ from: i, to: r.to === null || to < 0 ? null : to, route, name: routeName(r, k), condition: r.condition, left: !!r.left })
       })
       return
     }
     const tr = sfc.transitions[i]
-    if (tr) out.push({ from: i, to: i + 1 < sfc.steps.length ? i + 1 : null, route: null, name: tr.name, condition: tr.condition })
+    if (tr) out.push({ from: i, to: i + 1 < sfc.steps.length ? i + 1 : null, route: null, name: tr.name, condition: tr.condition, left: false })
   })
   return out
 }
@@ -67,22 +69,34 @@ export function layoutPhaseSfc(sfc: PhaseSfc): PhaseLayout {
   const row = Array<number>(n).fill(0)
   for (const i of order) raw.forEach((e, k) => { if (e.from === i && e.to !== null && !back.has(k)) row[e.to] = Math.max(row[e.to], row[i] + 1) })
 
-  const col = Array<number | undefined>(n).fill(undefined)
-  const leg = Array<number>(raw.length).fill(0)
-  if (n) col[0] = 0
-  let nextCol = 1
-  for (const i of order) {
-    const outs = raw.map((e, k) => ({ e, k })).filter(x => x.e.from === i && !back.has(x.k))
-    outs.forEach(({ e, k }, j) => {
-      leg[k] = j === 0 ? col[i] ?? 0 : nextCol++
-      if (e.to !== null && col[e.to] === undefined) col[e.to] = leg[k]
-    })
-  }
+  // Columns are slots in a left-to-right list: a step's legs before its trunk get slots just left of the step,
+  // legs after it just right, so the step sits over its trunk as in DeltaV.
+  const slots: number[] = []
+  const slotOf = Array<number | undefined>(n).fill(undefined)
+  const legSlot = Array<number>(raw.length).fill(-1)
+  const pos = (s: number): number => slots.indexOf(s)
+  if (n) { slotOf[0] = 0; slots.push(0) }
+  let nextSlot = 1
   const incoming = (i: number): number[] => raw.flatMap((e, k) => (e.to === i && !back.has(k) ? [e.from] : []))
   for (const i of order) {
-    const parents = incoming(i)
-    if (parents.length > 1) col[i] = Math.min(...parents.map(p => col[p] ?? 0))
+    // Convergence: a step reached from several branches returns to the leftmost of them.
+    const parents = incoming(i).filter(p => slotOf[p] !== undefined)
+    if (parents.length > 1) slotOf[i] = parents.map(p => slotOf[p]!).reduce((a, b) => (pos(b) < pos(a) ? b : a))
+    const home = slotOf[i] ?? 0
+    const outs = raw.map((e, k) => ({ e, k })).filter(x => x.e.from === i && !back.has(x.k))
+    const firstRight = outs.findIndex(x => !x.e.left)
+    const trunk = firstRight < 0 ? outs.length - 1 : firstRight
+    let rightOf = home
+    outs.forEach(({ e, k }, j) => {
+      let s = home
+      if (j < trunk) { s = nextSlot++; slots.splice(pos(home), 0, s) }
+      else if (j > trunk) { s = nextSlot++; slots.splice(pos(rightOf) + 1, 0, s); rightOf = s }
+      legSlot[k] = s
+      if (e.to !== null && slotOf[e.to] === undefined) slotOf[e.to] = s
+    })
   }
+  const col = slotOf.map(s => (s === undefined ? undefined : pos(s)))
+  const leg = legSlot.map(s => (s < 0 ? 0 : pos(s)))
   // Steps unreachable from the initial step are stacked below the chart.
   const maxRow = Math.max(-1, ...order.map(i => row[i]))
   let extra = 0
@@ -111,8 +125,11 @@ function freezeLast(sfc: PhaseSfc): PhaseSfc {
   return sfc.steps.length ? explicit(sfc, sfc.steps.length - 1) : sfc
 }
 
-/** Alternate Branch: another transition leaves the step and starts a new leg that terminates until it is connected. */
-export function addBranch(sfc: PhaseSfc, i: number): PhaseSfc | string {
+/**
+ * Alternate Branch: another transition leaves the step and starts a new leg that terminates until it is connected.
+ * A left branch becomes the step's leftmost leg (evaluated first), a right branch its rightmost (evaluated last).
+ */
+export function addBranch(sfc: PhaseSfc, i: number, side: 'left' | 'right' = 'right'): PhaseSfc | string {
   const step = sfc.steps[i]
   if (!step) return 'Select a step or transition first'
   if (sfc.steps.length + sfc.transitions.length + 2 > 127) return 'Do not configure more than 127 steps and transitions in any level'
@@ -122,9 +139,11 @@ export function addBranch(sfc: PhaseSfc, i: number): PhaseSfc | string {
   const trDef: TransitionDef = { id: newId('t'), name: nextName(next, 'T'), description: '', condition: 'TRUE' }
   next = { ...next, transitions: [...next.transitions, trDef] }
   const legName = nextName(next, 'T')
-  return { ...next, routes: [...(next.routes ?? []),
-    { from: step.name, to: stepDef.name, condition: 'TRUE', name: legName },
-    { from: stepDef.name, to: null, condition: trDef.condition, name: trDef.name }] }
+  const routes = [...(next.routes ?? [])]
+  const leg: PhaseRoute = { from: step.name, to: stepDef.name, condition: 'TRUE', name: legName, ...(side === 'left' ? { left: true } : {}) }
+  if (side === 'left') routes.splice(routes.findIndex(r => r.from === step.name), 0, leg)
+  else routes.push(leg)
+  return { ...next, routes: [...routes, { from: stepDef.name, to: null, condition: trDef.condition, name: trDef.name }] }
 }
 
 /** Add Sequence/Step inside a branched chart: splice new steps onto the transition so the chain stays connected. */

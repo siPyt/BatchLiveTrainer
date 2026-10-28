@@ -560,6 +560,30 @@ test('Chapter 6: HOLD_LOGIC from the course diagram can be drawn with Branch, Ad
   assert.equal(graph.phaseEdges(graph.deleteBranch(renamed, { i: 1, route: leaving(1)[2].route })).filter(e => e.from === 1).length, 2)
 })
 
+test('Chapter 6: RESTART_LOGIC branches can be added left and right of the step as on slide 6-26', () => {
+  const graph = require('../src/renderer/src/engine/phaseGraph.ts')
+  let s = sequence([['RESTARTING', []], ['DONE', []]])
+  s = graph.addBranch(s, 0, 'left')
+  const leftStep = s.steps.length - 1
+  s = graph.addBranch(s, 0, 'right')
+  const rightStep = s.steps.length - 1
+  const laid = graph.layoutPhaseSfc(s)
+  const done = s.steps.findIndex(x => x.name === 'DONE')
+  assert.equal(laid.cols, 3)
+  assert.equal(laid.col[leftStep], 0, 'left leg is drawn left of the step')
+  assert.equal(laid.col[0], 1, 'the step stays over its trunk')
+  assert.equal(laid.col[done], 1)
+  assert.equal(laid.col[rightStep], 2)
+  // left-to-right is also priority order: the left leg is evaluated first, the right leg last
+  assert.deepEqual(graph.phaseEdges(s).filter(e => e.from === 0).map(e => e.to), [leftStep, done, rightStep])
+  // a second left branch becomes the new leftmost leg
+  s = graph.addBranch(s, 0, 'left')
+  const left2 = s.steps.length - 1
+  const laid2 = graph.layoutPhaseSfc(s)
+  assert.deepEqual([laid2.col[left2], laid2.col[leftStep], laid2.col[0], laid2.col[rightStep]], [0, 1, 2, 3])
+  assert.ok(new Set(laid2.row.map((r, i) => `${r}:${laid2.col[i]}`)).size === s.steps.length, 'no two steps share a position')
+})
+
 test('Chapter 6: optional holding agitation can loop with timed steps and Stop/Abort safely interrupt it', () => fixture(() => {
   blenders(); agitate()
   value(B().editPhaseDraft('AGITATE', d => {

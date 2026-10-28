@@ -79,7 +79,8 @@ export function nonBooleanErrors(expression: string, check: CheckEnv): string[] 
 }
 export interface TransitionDef { id: string; name: string; description: string; condition: string }
 /** A composite-state sequence: steps[i] is followed by transitions[i]; after the last transition the sequence terminates. */
-export interface PhaseRoute { from: string; to: string | null; condition: string; name?: string }
+/** `left` draws the leg left of the step's trunk; a step's routes are kept in left-to-right (priority) order. */
+export interface PhaseRoute { from: string; to: string | null; condition: string; name?: string; left?: boolean }
 export interface PhaseSfc {
   steps: StepDef[]; transitions: TransitionDef[]
   blocks?: Record<string, PhaseBlock>
