@@ -209,7 +209,8 @@ export function PhaseStudio(): JSX.Element {
   }
   const branch = (i: number, side: 'left' | 'right' = 'right'): void => {
     if (!sfc) return
-    if (editSfc(s => addBranch(s, i, side))) setSel({ k: 'step', i: sfc.steps.length })
+    // The parent stays selected so Branch Left/Right can be repeated on the same step.
+    if (editSfc(s => addBranch(s, i, side))) setSel({ k: 'step', i })
   }
   const removeStep = (i: number): void => {
     if (!sfc) return
