@@ -79,9 +79,15 @@ export function layoutPhaseSfc(sfc: PhaseSfc): PhaseLayout {
   let nextSlot = 1
   const incoming = (i: number): number[] => raw.flatMap((e, k) => (e.to === i && !back.has(k) ? [e.from] : []))
   for (const i of order) {
-    // Convergence: a step reached from several branches returns to the leftmost of them.
+    // Convergence: a step that several branches return to sits under the middle of the steps feeding it, like the
+    // joined legs on slide 6-28 (with two branches, the left one). Fall back to the leftmost if that place is taken.
     const parents = incoming(i).filter(p => slotOf[p] !== undefined)
-    if (parents.length > 1) slotOf[i] = parents.map(p => slotOf[p]!).reduce((a, b) => (pos(b) < pos(a) ? b : a))
+    if (parents.length > 1) {
+      const byPos = parents.map(p => slotOf[p]!).sort((a, b) => pos(a) - pos(b))
+      const taken = (s: number): boolean => sfc.steps.some((_, j) => j !== i && slotOf[j] === s && row[j] === row[i])
+      const middle = byPos[Math.floor((byPos.length - 1) / 2)]
+      slotOf[i] = taken(middle) ? byPos[0] : middle
+    }
     const home = slotOf[i] ?? 0
     const outs = raw.map((e, k) => ({ e, k })).filter(x => x.e.from === i && !back.has(x.k))
     const firstRight = outs.findIndex(x => !x.e.left)
@@ -179,6 +185,36 @@ export function connectEdge(sfc: PhaseSfc, ref: EdgeRef, target: string | null):
   const index = ref.route ?? (base.routes ?? []).findIndex(r => r.from === step.name)
   const routes = (base.routes ?? []).map((r, k) => (k === index ? { ...r, to: target } : r))
   return { ...base, routes }
+}
+
+/**
+ * Convergence (slide 6-28): every open leg end - a transition that terminates - joins the step `target`, so the
+ * branches come together there. Legs that already run on from `target` are left alone (joining them would make a loop).
+ */
+export function convergeBranches(sfc: PhaseSfc, target: number): PhaseSfc | string {
+  const step = sfc.steps[target]
+  if (!step) return 'Select the step the branches should join'
+  const edges = phaseEdges(sfc)
+  const reachable = (from: number[]): Set<number> => {
+    const seen = new Set<number>(from)
+    const todo = [...from]
+    while (todo.length) {
+      const cur = todo.pop()!
+      for (const e of edges) if (e.from === cur && e.to !== null && !seen.has(e.to)) { seen.add(e.to); todo.push(e.to) }
+    }
+    return seen
+  }
+  const live = reachable([0])
+  const below = reachable([target])
+  const open = edges.filter(e => e.to === null && live.has(e.from) && !below.has(e.from))
+  if (!open.length) return `No open branch ends to join to ${step.name}`
+  let next = sfc
+  for (const e of open) {
+    const r = connectEdge(next, { i: e.from, route: e.route }, step.name)
+    if (typeof r === 'string') return r
+    next = r
+  }
+  return next
 }
 
 export function editEdge(sfc: PhaseSfc, ref: EdgeRef, patch: { name: string; condition: string; description?: string }): PhaseSfc | string {

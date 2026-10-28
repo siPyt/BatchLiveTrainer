@@ -560,6 +560,32 @@ test('Chapter 6: HOLD_LOGIC from the course diagram can be drawn with Branch, Ad
   assert.equal(graph.phaseEdges(graph.deleteBranch(renamed, { i: 1, route: leaving(1)[2].route })).filter(e => e.from === 1).length, 2)
 })
 
+test('Chapter 6: open branches can be brought together on one step like slide 6-28', () => {
+  const graph = require('../src/renderer/src/engine/phaseGraph.ts')
+  let s = sequence([['RESTARTING', []], ['NULL', []]])
+  s = graph.addBranch(s, 0, 'left')
+  s = graph.addBranch(s, 0, 'right')
+  const nul = s.steps.findIndex(x => x.name === 'NULL')
+  assert.equal(graph.phaseEdges(s).filter(e => e.to === null).length, 3, 'two open legs and the end of NULL')
+  const joined = graph.convergeBranches(s, nul)
+  assert.equal(typeof joined, 'object')
+  const edges = graph.phaseEdges(joined)
+  assert.equal(edges.filter(e => e.to === nul).length, 3, 'trunk and both legs join NULL')
+  assert.equal(edges.filter(e => e.to === null).length, 1, 'only the end of NULL still terminates')
+  const laid = graph.layoutPhaseSfc(joined)
+  assert.equal(laid.col[nul], laid.col[0], 'the joined step sits under the middle leg')
+  assert.ok(laid.row[nul] > Math.max(...laid.row.filter((_, i) => i !== nul)), 'and below every leg')
+  assert.equal(laid.cols, 3)
+  assert.equal(typeof graph.convergeBranches(joined, nul), 'string', 'nothing left to join')
+  // Joining on the first step is refused: every open end already follows it, so it would only make loops.
+  assert.equal(typeof graph.convergeBranches(s, 0), 'string')
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
+  const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')
+  const html = renderToStaticMarkup(React.createElement(studio.SfcBranchDiagram, { sfc: joined, zoom: 1, sel: null, liveStep: null,
+    onSelect: () => {}, onStepOpen: () => {}, onEdgeOpen: () => {}, onStepMenu: () => {}, onEdgeMenu: () => {} }))
+  assert.equal([...html.matchAll(/data-edge="[^"]*&gt;NULL"/g)].length, 3)
+})
+
 test('Chapter 6: long transition conditions are stacked on several lines, never cut with "..."', () => {
   const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
   const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')

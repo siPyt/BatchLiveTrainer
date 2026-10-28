@@ -5,7 +5,7 @@ import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
 import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, systemParam } from '../engine/batchStore'
 import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
-import { addBranch, connectEdge, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
+import { addBranch, connectEdge, convergeBranches, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
 import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
@@ -229,6 +229,11 @@ export function PhaseStudio(): JSX.Element {
     // The parent stays selected so Branch Left/Right can be repeated on the same step.
     if (editSfc(s => addBranch(s, i, side))) setSel({ k: 'step', i })
   }
+  // Joins every open branch end to the selected step (slide 6-28).
+  const converge = (i: number): void => {
+    if (!sfc) return
+    editSfc(s => convergeBranches(s, i))
+  }
   const removeStep = (i: number): void => {
     if (!sfc) return
     const step = sfc.steps[i]
@@ -249,6 +254,7 @@ export function PhaseStudio(): JSX.Element {
       { label: 'Add Sequence After...', onClick: () => addSequence(i, first ? { i, route: first.route } : null) },
       { label: 'Add Alternate Branch Left', onClick: () => branch(i, 'left') },
       { label: 'Add Alternate Branch Right', onClick: () => branch(i, 'right') },
+      { label: 'Converge Open Branches Here', onClick: () => converge(i) },
       { label: 'Delete', danger: true, onClick: () => removeStep(i), disabled: sfc!.steps.length <= 1 ? 'A sequence needs at least its initial step' : undefined }
     ] })
   }
@@ -359,6 +365,8 @@ export function PhaseStudio(): JSX.Element {
                 unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
               <Btn glyph="logic" label="Branch Right" size="small" onClick={sequenceComposite && sel ? () => branch(sel.i, 'right') : undefined}
                 unavailable={sequenceComposite ? (sel ? undefined : 'Select the step or transition to branch from') : 'Select a sequence composite first'} />
+              <Btn glyph="logic" label="Converge" size="small" onClick={sequenceComposite && sel?.k === 'step' ? () => converge(sel.i) : undefined}
+                unavailable={sequenceComposite ? (sel?.k === 'step' ? undefined : 'Select the step the open branches should join') : 'Select a sequence composite first'} />
             </Stack>
           </Group>
           <Group label="Algorithm">

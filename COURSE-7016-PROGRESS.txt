@@ -775,6 +775,20 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     right, and evaluates the routes left to right. This is a trainer implementation based on the course slide, NOT
     verified DeltaV behavior and NOT a claim that BatchLiveTrainer is DeltaV. When the student checks how DeltaV
     actually adds and orders branches, change BatchLiveTrainer to match the observed DeltaV behavior.
+10. Control Studio chart details added 2026-10-28 (slides 6-26 .. 6-28). All of this is the trainer's best reading of
+    the course slides, NOT confirmed on a real DeltaV; AWAITING DELTAV CONFIRMATION. When the student checks, tell the
+    assistant what the real system does and the trainer will be changed to match:
+    a) Converge Open Branches Here (step right-click menu, and the Converge button in the Insert group): joins EVERY
+       open leg end (a transition that terminates) to the selected step in one action. Slide 6-28 shows the legs coming
+       together on a line above the NULL step. Question: how does DeltaV make a branch converge? (one leg at a time by
+       dragging/connecting? a Convergence palette item?) The trainer also still has "Connect To..." on each transition
+       for one leg at a time. The command refuses to join legs that already run on from the selected step (no loops).
+    b) Drawing: the joined legs meet on one horizontal line and drop into the step; the step is placed under the MIDDLE
+       of the steps that feed it (with two legs, under the left one) instead of under the leftmost, as on slide 6-28.
+    c) Transition expressions are stacked on several lines (about 30 characters per line) instead of ending in "...".
+    d) Actions are shown beside the step as "name: expression", stacked and wrapped, all of them (no "+N more");
+       a step with many action lines pushes its legs further down. Columns are 330 wide so the text fits.
+    e) After Branch Left / Branch Right the parent step stays selected so the buttons can be repeated on it.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
@@ -793,7 +807,10 @@ WHERE WE LEFT OFF (2026-10-28):
   See item 9 under "TO VERIFY ON A REAL DELTAV"; when the student checks the real system, update the trainer to match.
 - Chapter 6 tests pass (15/15) and the web TypeScript check passes. Full suite: 794/795; the existing
   tests/dv09-audit.test.cjs cannot load because pdf_om.txt is absent.
-- Local changes for left/right branch placement, its test and the workshop note are uncommitted.
+- Later the same day (all committed and pushed): the parent step stays selected after a branch, long transition
+  expressions and step actions are shown in full (stacked), and a Converge command joins all open branch ends on one
+  step like slide 6-28. See item 10 under "TO VERIFY ON A REAL DELTAV" - awaiting DeltaV confirmation.
+- Chapter 6 tests 17/17 and the web TypeScript check pass.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and
