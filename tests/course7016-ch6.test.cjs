@@ -490,6 +490,92 @@ for (const variant of ['code', 'guide']) test(`Chapter 6 (${variant}): early Hol
   }
 }))
 
+function blockEnv(blocks, values = {}) {
+  for (const [name, b] of Object.entries(blocks)) for (const [p, v] of Object.entries(require('../src/renderer/src/engine/phaseBlocks.ts').phaseBlockDefaults(b))) values[`${name}/${p}`] ??= v
+  const key = ref => ref.replace(/^\//, '').replace(/\.CV$/i, '').toUpperCase()
+  return { values, read: ref => { const k = key(ref); if (!(k in values)) throw new Error(`no ${k}`); return values[k] }, write: (ref, v) => { values[key(ref)] = v }, named: () => 0, log: () => {} }
+}
+
+test('Chapter 6 function blocks follow the Function Block Reference: CND timing and DISABLE, BFI first-out trap, CALC pins', () => {
+  const fb = require('../src/renderer/src/engine/phaseBlocks.ts')
+  const mk = (type, extra = {}) => ({ type, expression: '', inputs: [], disabled: false, ...extra })
+  const blocks = {
+    CND1: mk('CND', { expression: "'/SIG1.CV' = 1", disabled: true, timeDuration: 2 }),
+    CND2: mk('CND', { expression: "'/SIG2.CV' = 1" }),
+    BFI1: mk('BFI', { inputs: ['/CND1/OUT_D.CV', '/CND2/OUT_D.CV'] })
+  }
+  const env = blockEnv(blocks, { SIG1: 0, SIG2: 0 })
+  const v = env.values
+  const scan = (dt = 0.5) => fb.scanPhaseBlocks(blocks, env, dt)
+  // CND: the expression must be True for TIME_DURATION; DISABLE bypasses OUT_D but not PRE_OUT_D
+  scan(); assert.equal(v['CND1/OUT_D'], false)
+  v.SIG1 = 1
+  scan(); scan(); assert.equal(v['CND1/PRE_OUT_D'], false, 'not True for 2 s yet')
+  scan(); scan(); assert.equal(v['CND1/PRE_OUT_D'], true)
+  assert.equal(v['CND1/OUT_D'], false, 'DISABLE = 1 holds OUT_D False')
+  assert.equal(v['BFI1/FIRST_OUT'], 0)
+  v['CND1/DISABLE'] = 0
+  scan(); assert.equal(v['CND1/OUT_D'], true); assert.equal(v['BFI1/OUT_INT'], 1); assert.equal(v['BFI1/FIRST_OUT'], 1)
+  v.SIG1 = 0; scan(); assert.equal(v['CND1/TIMER'], 0, 'an expression that goes False resets the timer')
+  // BFI: weighted sum, the trap holds the first weighted value, RESET_IN clears it and the trap re-arms only after all inputs are False
+  assert.equal(v['BFI1/OUT_INT'], 0)
+  assert.equal(v['BFI1/FIRST_OUT'], 1, 'FIRST_OUT keeps its value after the input goes False')
+  v.SIG2 = 1; scan(); assert.equal(v['BFI1/FIRST_OUT'], 2, 'the next zero to non-zero transition traps the new value')
+  v.SIG1 = 1; v['CND1/PRE_OUT_D'] = true; v['CND1/TIMER'] = 5; scan(); scan()
+  assert.equal(v['BFI1/OUT_INT'], 3); assert.equal(v['BFI1/FIRST_OUT'], 2, 'later inputs do not change the trap')
+  v['BFI1/RESET_IN'] = 1; scan()
+  assert.equal(v['BFI1/FIRST_OUT'], 0); assert.equal(v['BFI1/RESET_IN'], 0, 'the block sets RESET_IN back to zero')
+  scan(); assert.equal(v['BFI1/FIRST_OUT'], 0, 'no re-trap while an input is still True')
+  v.SIG1 = 0; v.SIG2 = 0; scan(); scan(); v.SIG2 = 1; scan(); assert.equal(v['BFI1/FIRST_OUT'], 2)
+  v['BFI1/ARM_TRAP'] = 0; v['BFI1/RESET_IN'] = 1; scan(); v.SIG2 = 0; scan(); scan(); v.SIG2 = 1; scan()
+  assert.equal(v['BFI1/FIRST_OUT'], 0, 'ARM_TRAP = 0 disables the trap')
+  // BFI BCD parameter: each group of four inputs is one decimal digit
+  const wide = { BFI1: mk('BFI', { inCount: 6, inputs: ['/S1.CV', '/S2.CV', '/S3.CV', '/S4.CV', '/S5.CV', '/S6.CV'] }) }
+  const wideEnv = blockEnv(wide, { S1: 0, S2: 1, S3: 1, S4: 0, S5: 0, S6: 1 })
+  fb.scanPhaseBlocks(wide, wideEnv, 0.1)
+  assert.equal(wideEnv.values['BFI1/OUT_INT'], 38); assert.equal(wideEnv.values['BFI1/BCD'], 26)
+})
+
+test('Chapter 6 CALC block: bare IN1/OUT1 pins, extensible pins, and LN/LOG return 0 outside their range as the reference says', () => {
+  const fb = require('../src/renderer/src/engine/phaseBlocks.ts')
+  let blocks = { MESSAGE: { type: 'CALC', inputs: ['/SIG.CV'], disabled: false, inCount: 2, outCount: 2,
+    expression: 'OUT1 := LN(IN1) / LN(2) + 4;\nIF IN1 > 0 THEN OUT2 := 1; ELSE OUT2 := 0; END_IF;' } }
+  const env = blockEnv(blocks, { SIG: 8 })
+  fb.scanPhaseBlocks(blocks, env, 0.1)
+  assert.equal(env.values['MESSAGE/OUT1'], 7); assert.equal(env.values['MESSAGE/OUT2'], 1)
+  env.values.SIG = 0
+  fb.scanPhaseBlocks(blocks, env, 0.1)
+  assert.equal(env.values['MESSAGE/OUT1'], 4, 'LN of zero is 0, so FIRST_OUT = 0 does not stop the phase')
+  assert.equal(env.values['MESSAGE/OUT2'], 0)
+  // a pin the block does not have is an error until Extensible Parameters adds it
+  blocks.MESSAGE = { ...blocks.MESSAGE, expression: 'OUT3 := IN1;' }
+  assert.throws(() => fb.scanPhaseBlocks(blocks, env, 0.1), /no OUT3/)
+  blocks = fb.setBlockCounts(blocks, 'MESSAGE', { inCount: 3, outCount: 3 })
+  assert.equal(typeof blocks, 'object')
+  assert.deepEqual(fb.blockOutputPins(blocks.MESSAGE), ['OUT1', 'OUT2', 'OUT3'])
+  assert.deepEqual(fb.blockInputPins(blocks.MESSAGE), ['IN1', 'IN2', 'IN3'])
+  const env3 = blockEnv(blocks, { SIG: 5 }); fb.scanPhaseBlocks(blocks, env3, 0.1); assert.equal(env3.values['MESSAGE/OUT3'], 5)
+  // shrinking removes the wires that would be left dangling
+  const wired = { C: { type: 'CALC', expression: '', inputs: ['/A/OUT_D.CV', '', '/B/OUT_D.CV'], disabled: false, inCount: 3, outCount: 2 },
+    D: { type: 'CALC', expression: '', inputs: ['/C/OUT2.CV'], disabled: false, inCount: 2, outCount: 2 } }
+  const shrunk = fb.setBlockCounts(wired, 'C', { inCount: 2, outCount: 1 })
+  assert.deepEqual(shrunk.C.inputs, ['/A/OUT_D.CV']); assert.deepEqual(shrunk.D.inputs, [])
+  assert.equal(typeof fb.setBlockCounts(wired, 'C', { inCount: 17 }), 'string')
+  assert.equal(typeof fb.setBlockCounts({ X: { type: 'CND', expression: '', inputs: [], disabled: false } }, 'X', { inCount: 2 }), 'string')
+  assert.equal(typeof fb.connectBlocks({ ...blocks, S: { type: 'BFI', expression: '', inputs: [], disabled: false, inCount: 2 }, },
+    { block: 'S', pin: 'OUT_D' }, { block: 'MESSAGE', pin: 'IN4' }), 'string', 'IN4 does not exist')
+  // the editor accepts the bare pins in a CALC and still asks for quoted references elsewhere
+  const noCheck = { checkRef: () => null, checkNamed: () => null }
+  assert.deepEqual(expr.checkExpression('OUT1 := IN1;', 'action', { ...noCheck, calc: true }), [])
+  assert.match(expr.checkExpression('OUT1 := IN1;', 'action', noCheck)[0], /quoted parameter reference/)
+  assert.match(expr.checkExpression('OUT1 := LOG2(IN1);', 'action', { ...noCheck, calc: true })[0], /LOG2 takes two arguments/)
+  // operators and functions from the System Configuration expression tables
+  const run = src => { const v = {}; expr.runProgram(src, { read: r => v[r], write: (r, x) => { v[r] = x }, named: () => 0, log: () => {} }); return v }
+  assert.deepEqual(run("'/A.CV' := 2 ** 3; '/B.CV' := 13 MOD 5; '/C.CV' := EXPT(2, 10); '/D.CV' := TRUNC(2.7) + ROUND(2.5); '/E.CV' := LN(0); '/F.CV' := SQRT(-4);"),
+    { '/A.CV': 8, '/B.CV': 3, '/C.CV': 1024, '/D.CV': 5, '/E.CV': 0, '/F.CV': -4 })
+  assert.equal(run("IF TRUE XOR FALSE THEN '/A.CV' := 1; ENDIF;")['/A.CV'], 1)
+})
+
 test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-branch charts and Clear Failures', () => fixture(() => {
   const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
   const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')
@@ -523,7 +609,7 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   assert.equal(typeof fb.connectBlocks(blocks, { block: 'CND1', pin: 'OUT_D' }, { block: 'CND2', pin: 'IN_D1' }), 'string')
   const fbd = renderToStaticMarkup(React.createElement(PhaseFbd, { blocks, zoom: 1, selected: 'BFI1', scope: 'FAIL_MONITOR', readOnly: false,
     onSelect: () => {}, onMove: () => {}, onConnect: () => null, onDisconnect: () => {}, onAdd: () => {}, onMenu: () => {}, onOpen: () => {} }))
-  for (const text of ['data-wire="CND1/OUT_D-&gt;BFI1/IN_D1"', 'data-wire="BFI1/FIRST_OUT-&gt;MESSAGE/IN1"', 'data-block-type="BFI"', 'RESET_IN', 'FIRST_OUT', 'DISABLE = 1']) {
+  for (const text of ['data-wire="CND1/OUT_D-&gt;BFI1/IN_D1"', 'data-wire="BFI1/FIRST_OUT-&gt;MESSAGE/IN1"', 'data-block-type="BFI"', 'RESET_IN', 'FIRST_OUT', 'DISABLE = 0']) {
     assert.ok(fbd.includes(text), text)
   }
   blocks = fb.disconnectInput(blocks, 'BFI1', 0)

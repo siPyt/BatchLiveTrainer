@@ -24,9 +24,9 @@ export interface Program { statements: Statement[] }
 
 type Tok = { t: 'num' | 'str' | 'quoted' | 'ident' | 'op'; v: string; pos: number }
 
-const OPS = [':=', '<=', '>=', '!=', '<>', '=', '<', '>', '+', '-', '*', '/', '(', ')', ',', ';', '?', ':']
+const OPS = [':=', '<=', '>=', '!=', '<>', '**', '=', '<', '>', '+', '-', '*', '/', '%', '(', ')', ',', ';', '?', ':', '!']
 export const MODE_WORDS = ['CAS', 'AUTO', 'MAN', 'OOS', 'RCAS', 'ROUT', 'LO', 'IMAN']
-const KEYWORDS = ['AND', 'OR', 'NOT', 'TRUE', 'FALSE']
+const KEYWORDS = ['AND', 'OR', 'XOR', 'MOD', 'NOT', 'TRUE', 'FALSE']
 
 function tokenize(rawSrc: string): Tok[] {
   // Text copied from the course PDF or a web page carries typographic characters: curly quotes and the modifier
@@ -83,6 +83,8 @@ class Parser {
   private peek(): Tok | undefined { return this.toks[this.i] }
   private isOp(v: string): boolean { const t = this.peek(); return !!t && t.t === 'op' && t.v === v }
   private isWord(v: string): boolean { const t = this.peek(); return !!t && t.t === 'ident' && t.v.toUpperCase() === v }
+  /** The Function Block Reference writes the closing keyword both as ENDIF and as END_IF. */
+  private isEnd(): boolean { return this.isWord('ENDIF') || this.isWord('END_IF') }
   private expectOp(v: string): void {
     const t = this.peek()
     if (!t || t.t !== 'op' || t.v !== v) throw new SyntaxError(`Expected '${v}'${t ? ` at position ${t.pos + 1}` : ' at end of expression'}`)
@@ -109,16 +111,16 @@ class Parser {
       this.i++
       const branch = (): Statement[] => {
         const rows: Statement[] = []
-        while (!this.done() && !this.isWord('ELSE') && !this.isWord('ENDIF')) {
+        while (!this.done() && !this.isWord('ELSE') && !this.isEnd()) {
           rows.push(this.statement())
           if (this.isOp(';')) this.i++
-          else if (!this.isWord('ELSE') && !this.isWord('ENDIF')) this.expectOp(';')
+          else if (!this.isWord('ELSE') && !this.isEnd()) this.expectOp(';')
         }
         return rows
       }
       const yes = branch()
       const no: Statement[] = this.isWord('ELSE') ? (this.i++, branch()) : []
-      if (!this.isWord('ENDIF')) throw new SyntaxError('Expected ENDIF')
+      if (!this.isEnd()) throw new SyntaxError('Expected ENDIF')
       this.i++
       return { k: 'if', condition, yes, no }
     }
@@ -139,9 +141,13 @@ class Parser {
     this.expectOp(':')
     return { k: 'choose', condition, yes, no: this.expr() }
   }
-  private or(): Node { let a = this.and(); while (this.isWord('OR')) { this.i++; a = { k: 'bin', op: 'OR', a, b: this.and() } } return a }
+  private or(): Node {
+    let a = this.and()
+    while (this.isWord('OR') || this.isWord('XOR')) { const op = this.peek()!.v.toUpperCase(); this.i++; a = { k: 'bin', op, a, b: this.and() } }
+    return a
+  }
   private and(): Node { let a = this.not(); while (this.isWord('AND')) { this.i++; a = { k: 'bin', op: 'AND', a, b: this.not() } } return a }
-  private not(): Node { if (this.isWord('NOT')) { this.i++; return { k: 'un', op: 'NOT', a: this.not() } } return this.cmp() }
+  private not(): Node { if (this.isWord('NOT') || this.isOp('!')) { this.i++; return { k: 'un', op: 'NOT', a: this.not() } } return this.cmp() }
   private cmp(): Node {
     const a = this.add()
     const t = this.peek()
@@ -158,12 +164,23 @@ class Parser {
   }
   private mul(): Node {
     let a = this.unary()
-    while (this.isOp('*') || this.isOp('/')) { const op = this.peek()!.v; this.i++; a = { k: 'bin', op, a, b: this.unary() } }
+    while (this.isOp('*') || this.isOp('/') || this.isOp('%') || this.isWord('MOD')) {
+      const op = this.isWord('MOD') ? 'MOD' : this.peek()!.v === '%' ? 'MOD' : this.peek()!.v
+      this.i++
+      a = { k: 'bin', op, a, b: this.unary() }
+    }
     return a
   }
   private unary(): Node {
     if (this.isOp('-')) { this.i++; return { k: 'un', op: '-', a: this.unary() } }
-    return this.primary()
+    return this.power()
+  }
+  // '**' raises to a power and binds tighter than the other operators.
+  private power(): Node {
+    const a = this.primary()
+    if (!this.isOp('**')) return a
+    this.i++
+    return { k: 'bin', op: '**', a, b: this.unary() }
   }
   private primary(): Node {
     const t = this.peek()
@@ -198,11 +215,19 @@ class Parser {
   }
 }
 
-export function parseProgram(src: string): Program {
-  return new Parser(tokenize(src)).program()
+export interface ParseOptions {
+  /** Inside a Calculation/Logic block the block's own pins IN1..IN16 and OUT1..OUT16 are written bare, as in the Function Block Reference. */
+  calc?: boolean
 }
 
-export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2', 'LN', 'LOG', 'EXP', 'SQRT']
+export function parseProgram(src: string, opts: ParseOptions = {}): Program {
+  const toks = tokenize(src)
+  if (opts.calc) for (const t of toks) if (t.t === 'ident' && /^(IN|OUT)\d{1,2}$/i.test(t.v)) { t.v = `/${t.v.toUpperCase()}.CV`; t.t = 'quoted' }
+  return new Parser(toks).program()
+}
+
+export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2', 'LN', 'LOG', 'EXP', 'EXPT', 'SQRT', 'TRUNC', 'ROUND', 'SIGN', 'FRACT',
+  'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN']
 
 /**
  * Catches an assignment whose value is the wrong kind for its target: a mode word (CAS, AUTO ...) belongs only in
@@ -233,6 +258,8 @@ export interface CheckEnv {
   /** Error text when a reference cannot be resolved, otherwise null. */
   checkRef: (ref: string, write: boolean) => string | null
   checkNamed: (set: string, state: string) => string | null
+  /** The expression belongs to a Calculation/Logic block: bare IN1/OUT1 pins are allowed. */
+  calc?: boolean
 }
 
 function walk(n: Node, fn: (n: Node) => void): void {
@@ -247,7 +274,7 @@ function walk(n: Node, fn: (n: Node) => void): void {
 export function checkExpression(src: string, kind: 'action' | 'condition', env: CheckEnv): string[] {
   if (!src.trim()) return kind === 'condition' ? ['The condition is empty'] : []
   let program: Program
-  try { program = parseProgram(src) } catch (e) { return [(e as Error).message] }
+  try { program = parseProgram(src, { calc: !!env.calc }) } catch (e) { return [(e as Error).message] }
   const errors: string[] = []
   if (kind === 'condition') {
     if (program.statements.length !== 1 || program.statements[0].k !== 'expr') errors.push('A transition condition must be a single Boolean expression (no := assignments)')
@@ -274,6 +301,7 @@ export function checkExpression(src: string, kind: 'action' | 'condition', env: 
       if (n.k === 'ref') { const e = env.checkRef(n.v, false); if (e) errors.push(e) }
       else if (n.k === 'named') { const e = env.checkNamed(n.set, n.state); if (e) errors.push(e) }
       else if (n.k === 'call' && !FUNCTIONS.includes(n.fn)) errors.push(`Unknown function ${n.fn}`)
+      else if (n.k === 'call' && n.fn === 'LOG2' && n.args.length !== 2) errors.push('LOG2 takes two arguments, the base and the value, for example LOG2(2, x). For the natural logarithm use LN(x).')
       else if (n.k === 'ident' && !MODE_WORDS.includes(n.v)) errors.push(`Unknown identifier ${n.v}. Parameter references go in single quotes, for example '^/${n.v}.CV'`)
   }
   for (const s of program.statements) {
@@ -316,27 +344,48 @@ export function evaluate(n: Node, env: EvalEnv): Value {
     case 'un': return n.op === 'NOT' ? !truthy(evaluate(n.a, env)) : -toNum(evaluate(n.a, env))
     case 'call': {
       const args = n.args.map(a => evaluate(a, env))
+      const x = toNum(args[0])
+      const MAX_FLOAT = 3.402823466e38
+      // The functions below follow the System Configuration "Expression Functions" table: out-of-range arguments give 0 (or x) rather than an error.
       switch (n.fn) {
-        case 'ABS': return Math.abs(toNum(args[0]))
+        case 'ABS': return Math.abs(x)
         case 'MIN': return Math.min(...args.map(toNum))
         case 'MAX': return Math.max(...args.map(toNum))
         case 'LOG2': {
+          // LOG2(x, y) is the logarithm of y to the base x; a single argument is read as a base-2 logarithm.
           const value = toNum(args[args.length - 1])
           const base = args.length === 2 ? toNum(args[0]) : 2
-          if (args.length < 1 || args.length > 2 || !Number.isFinite(value) || !Number.isFinite(base) || value <= 0 || base <= 0 || base === 1)
-            throw new EvalError('LOG2 requires a positive value and an optional positive base other than 1')
+          if (args.length < 1 || args.length > 2) throw new EvalError('LOG2 takes two arguments, the base and the value')
+          if (!Number.isFinite(value) || !Number.isFinite(base) || value <= 0 || base <= 0 || base === 1) return 0
           return Math.log(value) / Math.log(base)
         }
         case 'LN': case 'LOG': case 'SQRT': {
-          // Slide 6-40 converts FIRST_OUT with LN(x) / LN(2) + 4.
-          const x = toNum(args[0])
-          if (args.length !== 1 || !Number.isFinite(x) || (n.fn === 'SQRT' ? x < 0 : x <= 0)) throw new EvalError(`${n.fn} requires one ${n.fn === 'SQRT' ? 'non-negative' : 'positive'} number`)
-          return n.fn === 'LN' ? Math.log(x) : n.fn === 'LOG' ? Math.log10(x) : Math.sqrt(x)
+          if (args.length !== 1 || !Number.isFinite(x)) throw new EvalError(`${n.fn} takes one number`)
+          if (n.fn === 'SQRT') return x < 0 ? x : Math.sqrt(x)
+          if (x <= 0) return 0
+          return n.fn === 'LN' ? Math.log(x) : Math.log10(x)
         }
         case 'EXP': {
-          if (args.length !== 1 || !Number.isFinite(toNum(args[0]))) throw new EvalError('EXP requires one number')
-          return Math.exp(toNum(args[0]))
+          if (args.length !== 1 || !Number.isFinite(x)) throw new EvalError('EXP takes one number')
+          return Math.min(Math.exp(x), MAX_FLOAT)
         }
+        case 'EXPT': {
+          const y = toNum(args[1])
+          if (args.length !== 2 || !Number.isFinite(x) || !Number.isFinite(y)) throw new EvalError('EXPT takes two numbers')
+          if (x === 0 && y === 0) return 1
+          if (x < 0 && !Number.isInteger(y)) return 0
+          return Math.min(Math.pow(x, y), MAX_FLOAT)
+        }
+        case 'TRUNC': return Math.floor(x)
+        case 'ROUND': return Math.round(x)
+        case 'SIGN': return x >= 0
+        case 'FRACT': return x - Math.trunc(x)
+        case 'SIN': return Math.sin(x)
+        case 'COS': return Math.cos(x)
+        case 'TAN': return Math.tan(x)
+        case 'ATAN': return Math.atan(x)
+        case 'ASIN': return x < -1 || x > 1 ? 0 : Math.asin(x)
+        case 'ACOS': return x < -1 || x > 1 ? 0 : Math.acos(x)
         case 'LOGEVENT': env.log(args.map(String).join(' ')); return true
         case 'SELSTR': {
           // SELSTR(default, string1, condition1, string2, condition2, ...)
@@ -351,6 +400,9 @@ export function evaluate(n: Node, env: EvalEnv): Value {
       if (n.op === 'OR') return truthy(evaluate(n.a, env)) || truthy(evaluate(n.b, env))
       const a = evaluate(n.a, env), b = evaluate(n.b, env)
       switch (n.op) {
+        case 'XOR': return truthy(a) !== truthy(b)
+        case '**': { const p = toNum(b), x = toNum(a); return x < 0 && !Number.isInteger(p) ? 0 : Math.pow(x, p) }
+        case 'MOD': { const d = Math.trunc(toNum(b)); return d === 0 ? 0 : Math.trunc(toNum(a)) % d }
         case '=': return equal(a, b)
         case '!=': return !equal(a, b)
         case '<': return toNum(a) < toNum(b)
@@ -367,13 +419,13 @@ export function evaluate(n: Node, env: EvalEnv): Value {
   }
 }
 
-export function runProgram(src: string, env: EvalEnv): void {
+export function runProgram(src: string, env: EvalEnv, opts: ParseOptions = {}): void {
   const run = (s: Statement): void => {
     if (s.k === 'if') { (truthy(evaluate(s.condition, env)) ? s.yes : s.no).forEach(run); return }
     if (s.k === 'assign') env.write(s.target, evaluate(s.expr, env))
     else evaluate(s.expr, env)
   }
-  parseProgram(src).statements.forEach(run)
+  parseProgram(src, opts).statements.forEach(run)
 }
 
 export function evalCondition(src: string, env: EvalEnv): boolean {

@@ -6,7 +6,7 @@ import { useLibrary } from '../engine/libraryStore'
 import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, systemParam } from '../engine/batchStore'
 import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
 import { addBranch, connectEdge, convergeBranches, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
-import { connectBlocks, deleteBlock, disconnectInput, newDiagramBlock, phaseBlockDefaults, renameBlock, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
+import { connectBlocks, deleteBlock, disconnectInput, inputCount, newDiagramBlock, outputCount, phaseBlockDefaults, renameBlock, setBlockCounts, BLOCK_MAX_PINS, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
   deleteStep, insertSequence, isNameValid, nonBooleanErrors, renameError,
@@ -152,6 +152,7 @@ export function PhaseStudio(): JSX.Element {
   const [seqEdge, setSeqEdge] = useState<EdgeRef | null>(null)
   const [selBlock, setSelBlock] = useState<string | null>(null)
   const [blockDlg, setBlockDlg] = useState<string | null>(null)
+  const [extDlg, setExtDlg] = useState<string | null>(null)
   const [compDlg, setCompDlg] = useState(false)
   const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 320)
   const [paletteWidth, setPaletteWidth] = usePersistentSize('phaseStudio.paletteWidth', 190)
@@ -310,8 +311,10 @@ export function PhaseStudio(): JSX.Element {
         { label: 'Delete connection', danger: true, onClick: () => editBlocks(b => disconnectInput(b, target.wire.block, target.wire.slot)) }] })
       return
     }
+    const extensible = sfc?.blocks?.[target.block] && ['BFI', 'CALC'].includes(sfc.blocks[target.block].type)
     setMenu({ x: e.clientX, y: e.clientY, label: target.block, items: [
       { label: 'Properties...', onClick: () => setBlockDlg(target.block) },
+      ...(extensible ? [{ label: 'Extensible Parameters...', onClick: () => setExtDlg(target.block) }] : []),
       { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete function block ${target.block}?`).then(ok => { if (ok && editBlocks(b => deleteBlock(b, target.block))) setSelBlock(null) }) } }
     ] })
   }
@@ -560,6 +563,8 @@ export function PhaseStudio(): JSX.Element {
         })
         if (ok) { setBlockDlg(null); setSelBlock(rename) }
       }} />}
+    {extDlg && sfc && composite === 'FAIL_MONITOR' && sfc.blocks?.[extDlg] && <ExtensibleDialog key={extDlg} name={extDlg} block={sfc.blocks[extDlg]}
+      onClose={() => setExtDlg(null)} onOk={counts => { if (editBlocks(all => setBlockCounts(all, extDlg, counts))) setExtDlg(null) }} />}
     {compDlg && sfc && composite && sequenceComposite && <CompositeBlockDialog existing={[...Object.keys(sfc.blocks ?? {}), ...sfc.steps.map(s => s.name)]}
       onClose={() => setCompDlg(false)} onOk={(blockName, linkTo) => {
         if (editBlocks(all => ({ ...all, [blockName]: { type: linkTo, expression: '', inputs: [], disabled: false } }))) { setCompDlg(false); setSelBlock(blockName) }
@@ -1168,14 +1173,23 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
   const [error, setError] = useState<string | null>(null)
   const [editor, setEditor] = useState(false)
   const kind: ExprKind = v.type === 'CND' ? 'condition' : 'action'
+  // A Calculation/Logic block reads its own pins bare (IN1, OUT1) and cannot write an input or use a pin it does not have.
   const bctx: ExprCtx = v.type === 'CALC'
-    ? { ...ctx, check: { ...ctx.check, checkRef: (ref, write) => /^\/?(IN_?1|OUT1)\.CV$/i.test(ref) ? null : ctx.check.checkRef(ref, write) } }
+    ? { ...ctx, check: { ...ctx.check, calc: true, checkRef: (ref, write) => {
+      const m = /^\/?(?:IN_?(\d+)|OUT(\d+))\.CV$/i.exec(ref)
+      if (!m) return ctx.check.checkRef(ref, write)
+      if (m[1] && write) return `IN${m[1]} is an input of this block and cannot be assigned`
+      if (m[1] && Number(m[1]) > inputCount(v)) return `This block has no IN${m[1]}. Add inputs with Extensible Parameters (right-click the block).`
+      if (m[2] && Number(m[2]) > outputCount(v)) return `This block has no OUT${m[2]}. Add outputs with Extensible Parameters (right-click the block).`
+      return null
+    } } }
     : ctx
   const submit = (): void => {
     const next = n.trim().toUpperCase()
     if (!isNameValid(next)) { setError(NAME_RULE); return }
     if (next !== name && (sfc.blocks?.[next] || COMPOSITES.includes(next as CompositeName))) { setError(`${next} already exists`); return }
-    if (v.type === 'CND' && !v.expression.trim()) { setError('Enter the condition expression'); return }
+    if (v.type === 'CND' && !v.expression.trim()) { setError('Enter the condition expression (an empty expression is a configuration error)'); return }
+    if (v.type === 'CND' && !(Number(v.timeDuration ?? 0) >= 0)) { setError('TIME_DURATION must be zero or more seconds'); return }
     const problems = v.type !== 'BFI' && v.expression.trim() ? checkExpression(v.expression, kind, bctx.check) : []
     if (!problems.length) { onOk(v, next); return }
     void askConfirm(`The expression has errors:\n${problems.join('\n')}\n\nSave the block anyway?`).then(ok => { if (ok) onOk(v, next) })
@@ -1189,17 +1203,44 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
       {v.type !== 'BFI' && <>
         <label>Expression:<textarea aria-label="Block expression" className="ps-code ps-expr-text" rows={v.type === 'CALC' ? 5 : 3} value={v.expression}
           onChange={e => setV({ ...v, expression: e.target.value })} /></label>
-        <ParserOutput text={v.expression} kind={kind} ctx={bctx} />
+        <ParserOutput text={v.expression} kind={kind} ctx={bctx} empty="Empty expression: the block reports a configuration error and OUT_D stays False." />
       </>}
-      {v.type === 'CND' && <label className="dvd-check"><input type="checkbox" aria-label="DISABLE default" checked={v.disabled}
-        onChange={e => setV({ ...v, disabled: e.target.checked })} /> DISABLE = 1 by default (the condition is not evaluated until the logic enables it)</label>}
-      {v.type === 'BFI' && <p className="exp-hint">Drag from a condition's OUT_D pin to IN_D1...IN_Dn. FIRST_OUT holds the binary-weighted value of the first input that went TRUE until RESET_IN is set to 1.</p>}
-      {v.type === 'CALC' && <p className="exp-hint">IN1 and OUT1 are this block's own pins; other parameters are read with their full path, for example '/BFI1/OUT_D.CV' or '/+/FAIL_INDEX.CV'.</p>}
+      {v.type === 'CND' && <>
+        <label className="dvd-check"><input type="checkbox" aria-label="DISABLE default" checked={v.disabled}
+          onChange={e => setV({ ...v, disabled: e.target.checked })} /> DISABLE = 1 by default (True bypasses the block: OUT_D stays False while the logic has it disabled)</label>
+        <label>TIME_DURATION (s):<input aria-label="Time duration" type="number" min={0} step="any" value={v.timeDuration ?? 0}
+          onChange={e => setV({ ...v, timeDuration: Number(e.target.value) })} /></label>
+        <p className="exp-hint">OUT_D is set when the expression has been True for longer than TIME_DURATION. PRE_OUT_D follows the expression and ignores DISABLE.</p>
+      </>}
+      {v.type === 'BFI' && <p className="exp-hint">Right-click the block &gt; Extensible Parameters to set the number of inputs (IN_D1...IN_D16). Drag from a condition's OUT_D pin to an IN_Dn pin. OUT_INT is the binary weighted sum of the inputs (IN_D1 = 1, IN_D2 = 2, IN_D3 = 4 ...). FIRST_OUT traps OUT_INT when the inputs go from all False to one or more True (while ARM_TRAP is non-zero) and holds it until RESET_IN is set to 1.</p>}
+      {v.type === 'CALC' && <p className="exp-hint">IN1, IN2 ... and OUT1, OUT2 ... are this block's own pins; write them bare, for example OUT1 := IN1;. Use Extensible Parameters (right-click the block) for more than two. Other parameters are read with their full path, for example '/BFI1/OUT_D.CV' or '/+/FAIL_INDEX.CV'.</p>}
     </div>
     <DlgButtons onOk={submit} onClose={onClose} extra={v.type !== 'BFI' ? <button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button> : undefined} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
     {editor && <ExpressionDialog title={`FAIL_MONITOR/${n} Expression`} kind={kind} ctx={bctx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
+  </SimulatorDialog>
+}
+
+/** Add Composite Block: a named block linked to an existing composite template (p6-15). */
+/** Extensible Parameters: the number of BFI inputs, or of CALC inputs and outputs (the Function Block Reference allows 1 to 16). */
+export function ExtensibleDialog({ name, block, onOk, onClose }: {
+  name: string; block: PhaseBlock; onOk: (counts: { inCount: number; outCount?: number }) => void; onClose: () => void
+}): JSX.Element {
+  const [ins, setIns] = useState(inputCount(block))
+  const [outs, setOuts] = useState(outputCount(block))
+  const calc = block.type === 'CALC'
+  const bad = (n: number): boolean => !Number.isInteger(n) || n < 1 || n > BLOCK_MAX_PINS
+  const lost = block.inputs.filter((ref, i) => ref && i >= ins).length
+  return <SimulatorDialog className="module-download-dialog dvd" label={`FAIL_MONITOR/${name} Extensible Parameters`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Number of inputs ({block.type === 'BFI' ? 'IN_D1 to IN_Dn' : 'IN1 to INn'}):
+        <input aria-label="Number of inputs" type="number" min={1} max={BLOCK_MAX_PINS} autoFocus value={ins} onChange={e => setIns(Number(e.target.value))} /></label>
+      {calc && <label>Number of outputs (OUT1 to OUTn):
+        <input aria-label="Number of outputs" type="number" min={1} max={BLOCK_MAX_PINS} value={outs} onChange={e => setOuts(Number(e.target.value))} /></label>}
+      <p className="exp-hint">The default is two. A block can have up to {BLOCK_MAX_PINS}.{lost ? ` ${lost} connection(s) to inputs beyond ${ins} will be removed.` : ''}</p>
+    </div>
+    <DlgButtons onOk={() => { if (!bad(ins) && (!calc || !bad(outs))) onOk({ inCount: ins, ...(calc ? { outCount: outs } : {}) }) }} onClose={onClose} />
   </SimulatorDialog>
 }
 
@@ -1227,11 +1268,11 @@ export function CompositeBlockDialog({ existing, onOk, onClose }: {
   </SimulatorDialog>
 }
 
-function ParserOutput({ text, kind, ctx }: { text: string; kind: ExprKind; ctx: ExprCtx }): JSX.Element {
+function ParserOutput({ text, kind, ctx, empty }: { text: string; kind: ExprKind; ctx: ExprCtx; empty?: string }): JSX.Element {
   const problems = text.trim() ? checkText(text, kind, ctx.check) : []
   return <div className="ps-parser" role="status" aria-label="Parser output">
     <span className="ps-parser-head">Parser output:</span>
-    {!text.trim() ? <span>{kind === 'condition' ? 'An empty transition is TRUE.' : kind === 'block' ? 'Empty: the action name is the composite block.' : 'Empty expression.'}</span> :
+    {!text.trim() ? <span>{empty ?? (kind === 'condition' ? 'An empty transition is TRUE.' : kind === 'block' ? 'Empty: the action name is the composite block.' : 'Empty expression.')}</span> :
       problems.length ? problems.map((p, i) => <div key={i} className="ps-parser-err">Error: {p}</div>) : <span className="ps-parser-ok">0 error(s), 0 warning(s)</span>}
   </div>
 }

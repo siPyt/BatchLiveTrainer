@@ -808,6 +808,31 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     real DeltaV expression editor reports. Not checked (would need the module type behind the alias): a setpoint state
     of the wrong device type, e.g. 'vlvnc-sp:OPEN' written to a motor. Also not warned: '//#X#/CAS_SP.CV' without /DC1/
     (the trainer accepts both spellings; the course shows /DC1/ for motors). AWAITING DELTAV CONFIRMATION.
+13. Chapter 6 FAIL_MONITOR function blocks checked against the DeltaV Function Block Reference (D800018X052, now in
+    pdf_extracted/function-block-reference.txt; expression operators/functions from the System Configuration manual
+    D800010X072 pp 65-72). CND, BFI and CALC ARE real DeltaV blocks; the trainer's versions were incomplete. Changed 2026-10-28
+    (engine/phaseBlocks.ts, engine/phaseExpr.ts, PhaseStudio.tsx), only for the blocks the 7016 workshops use:
+    CND   - new block: empty expression (empty = configuration error), DISABLE False, TIME_DURATION 0 (was FALSE and DISABLE 1).
+            OUT_D is set when the expression has been True for longer than TIME_DURATION; PRE_OUT_D follows the expression and
+            ignores DISABLE; TIMER shows the time True. DISABLE = True only bypasses OUT_D. An expression part that cannot be
+            resolved makes the whole expression not True (no phase failure). Properties dialog has TIME_DURATION.
+    BFI   - starts with 2 inputs; right-click > Extensible Parameters... sets 1-16 (the workshop needs 5). Parameters now
+            RESET_IN, ARM_TRAP, BCD, OUT_D, FIRST_OUT, OUT_INT. OUT_INT = weighted sum (IN_D1=1, IN_D2=2, IN_D3=4 ...).
+            FIRST_OUT traps OUT_INT when it goes zero -> non-zero while ARM_TRAP is non-zero, holds it, RESET_IN = 1 clears it
+            and the block sets RESET_IN back to 0; after a reset it stays 0 until every input is False and one comes back
+            (before, it re-trapped at once). ARM_TRAP default 1 is INFERRED (the guide does not list defaults and the course
+            never sets it) - confirm on DeltaV.
+    CALC  - starts with 2 inputs and 2 outputs (Extensible Parameters, up to 16 each). IN1/OUT1... are written bare as in the
+            guide (OUT1 := IN1;); the quoted '/OUT1.CV' and 'IN1.CV' forms still work. A pin the block does not have is an
+            error. END_IF is accepted as well as ENDIF.
+    Functions/operators (System Configuration manual): LN and LOG return 0 for x <= 0, SQRT of a negative returns x, LOG2(x,y)
+            is the log of y to the base x (one argument still runs, but the editor warns), EXP caps at 3.4E38. Added EXPT,
+            TRUNC, ROUND, SIGN, FRACT, SIN, COS, TAN, ASIN, ACOS, ATAN, the operators ** and MOD/%, XOR and ! . Division by
+            zero still stops the phase (the manual returns +-3.4E38); not changed.
+    Not changed: the "DISABLE = n" label drawn inside a CND in the diagram is a trainer addition. TIMER_SEC (a library
+    composite) is not in the reference guide, so it still follows slide 6-12 only. The Chapter 1 AI block (L_TYPE,
+    OUT_SCALE, SIMULATE, SIMULATE_IN, HI_ALM/LO_ALM) was checked against the guide and agrees. AWAITING DELTAV CONFIRMATION
+    of the Control Studio screens (Extensible Parameters menu, Properties dialogs), which the guide does not describe.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
