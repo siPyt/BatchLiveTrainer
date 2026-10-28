@@ -789,6 +789,16 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     d) Actions are shown beside the step as "name: expression", stacked and wrapped, all of them (no "+N more");
        a step with many action lines pushes its legs further down. Columns are 330 wide so the text fits.
     e) After Branch Left / Branch Right the parent step stays selected so the buttons can be repeated on it.
+11. Phase Command selector on the faceplate (Faceplate FB > Phase Command ...): the trainer lists Start, Hold, Restart,
+    Stop, Abort, Reset and Clear Failures, and ENABLES only the commands valid in the current state (batchConfig.ts
+    COMMANDS_FOR, from the S88 state diagram on slides 4-17 / 4-53): Idle Start; Running Hold/Stop/Abort; Held
+    Restart/Stop/Abort; Complete/Stopped/Aborted Reset. Clear Failures is enabled in EVERY state (the trainer appends it).
+    "Current Value" shows the last command sent (e.g. Reset when the phase is back in Idle). Slide 6-52 step 4 only says
+    "Clear Failures on the Phase Command faceplate". NOT confirmed on a real DeltaV: greyed-out invalid commands, Clear
+    Failures always enabled, and the Current Value wording. AWAITING DELTAV CONFIRMATION.
+    Trainer choice 2026-10-28 (student request): the selector stays open after a command is sent, so several commands can
+    be sent in a row; it closes only when the "..." button is pressed again (or its close box). Whether DeltaV keeps the
+    selector open or closes it after a command is NOT confirmed.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
@@ -811,6 +821,13 @@ WHERE WE LEFT OFF (2026-10-28):
   expressions and step actions are shown in full (stacked), and a Converge command joins all open branch ends on one
   step like slide 6-28. See item 10 under "TO VERIFY ON A REAL DELTAV" - awaiting DeltaV confirmation.
 - Chapter 6 tests 17/17 and the web TypeScript check pass.
+- 2026-10-28 (later): student's Restart on UM_BL_500 failed with "Fail Index 255: Named set $phase_restart_types does not
+  exist" (Hold worked). Cause: phases read the DEPLOYED named sets of the controller; an older save only got the
+  built-in sets added to the configured side. Fix (engine/courseSave.ts restoreCourseDatabase): built-in phase_failures
+  and $phase_restart_types are now also added to every deployed target (each controller and WORKSTATION) that lacks
+  them; nothing already there is replaced. Regression test in tests/course7016-ch6.test.cjs (Hold, load an old save,
+  Restart). Student steps: restart the app (loads the save again), Clear Failures, Restart; if the phase is still
+  held with the old failure, send Hold/Stop/Abort + Reset and start again. Chapter 6 tests 18/18.
 
 WHERE WE LEFT OFF (2026-10-26, earlier, superseded):
 - Chapter 6's AGITATE workshop capabilities are implemented locally; see section 5A for tools, verification and

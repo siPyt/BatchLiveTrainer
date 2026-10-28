@@ -103,7 +103,8 @@ export function PhaseFaceplate({ unit, phase }: { unit: string; phase: string })
     <p className="bfp-warn">{phase} is not loaded on {unit}. Use Load a Phase on the unit faceplate.</p></div>
   const rt = a.rt
   const valid = COMMANDS_FOR[rt.state]
-  const send = (cmd: PhaseCommand): void => { if (alertResult(useBatch.getState().command(unit, phase, cmd))) setSelector(false) }
+  // The selector stays up after a command; only the "..." button (or its close box) hides it.
+  const send = (cmd: PhaseCommand): void => { alertResult(useBatch.getState().command(unit, phase, cmd)) }
   const current = rt.lastCommand ? COMMAND_LABEL[rt.lastCommand] : 'Reset'
   const editParam = (p: PhaseParamDef): void => {
     void askValue(`${p.name} (${p.low} to ${p.high} ${p.units})`, String(rt.params[p.name] ?? p.defaultValue)).then(v => {

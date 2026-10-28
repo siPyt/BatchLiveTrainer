@@ -586,6 +586,29 @@ test('Chapter 6: open branches can be brought together on one step like slide 6-
   assert.equal([...html.matchAll(/data-edge="[^"]*&gt;NULL"/g)].length, 3)
 })
 
+test('Chapter 6: a save made before $phase_restart_types existed still runs Restart after it is loaded', () => fixture(() => {
+  blenders(); agitate()
+  const unit = 'UM_BL_500'
+  value(B().loadPhase(unit, 'AGITATE'))
+  value(B().command(unit, 'AGITATE', 'START'))
+  until(unit, r => r.params.STEP_INDEX === 4)
+  value(B().command(unit, 'AGITATE', 'HOLD'))
+  until(unit, r => r.state === 'HELD')
+  const saved = JSON.parse(JSON.stringify(courseSnapshot()))
+  const sets = saved.stores.main.namedSets
+  for (const group of [sets.configured, ...Object.values(sets.deployed)]) delete group.$phase_restart_types
+  assert.ok(Object.keys(sets.deployed).length >= 2)
+  B().resetBatch()
+  assert.equal(restoreCourseDatabase(JSON.stringify(saved)), true)
+  const now = M().namedSets
+  assert.ok(now.configured.$phase_restart_types)
+  for (const key of Object.keys(sets.deployed)) assert.ok(now.deployed[key].$phase_restart_types, key)
+  assert.ok(now.deployed.WORKSTATION.$phase_restart_types)
+  value(B().command(unit, 'AGITATE', 'RESTART'))
+  until(unit, r => r.state === 'RUNNING')
+  assert.equal(rt(unit).failIndex, 0, 'Restart no longer fails with "Named set $phase_restart_types does not exist"')
+}))
+
 test('Chapter 6: long transition conditions are stacked on several lines, never cut with "..."', () => {
   const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
   const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')

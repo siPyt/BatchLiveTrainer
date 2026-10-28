@@ -56,9 +56,16 @@ export function restoreCourseDatabase(text?: string | null): boolean {
     }
     const state = useStore.getState()
     const defaults = courseNamedSets()
-    const additions = Object.fromEntries(['phase_failures', '$phase_restart_types']
-      .filter(name => !state.namedSets.configured[name]).map(name => [name, defaults[name]]))
-    useStore.setState({ namedSets: { ...state.namedSets, configured: { ...state.namedSets.configured, ...additions } } })
+    const builtIns = ['phase_failures', '$phase_restart_types']
+    const additions = Object.fromEntries(builtIns.filter(name => !state.namedSets.configured[name]).map(name => [name, defaults[name]]))
+    // Saves made before these built-in sets existed never had them downloaded; the phases read the deployed copy.
+    const deployed = { ...state.namedSets.deployed }
+    for (const target of new Set([...Object.keys(deployed), 'WORKSTATION'])) {
+      const current = deployed[target] ?? {}
+      const missing = builtIns.filter(name => !current[name])
+      if (missing.length) deployed[target] = { ...current, ...Object.fromEntries(missing.map(name => [name, defaults[name]])) }
+    }
+    useStore.setState({ namedSets: { ...state.namedSets, configured: { ...state.namedSets.configured, ...additions }, deployed } })
     return true
   } catch {
     return false
