@@ -574,6 +574,12 @@ test('Chapter 6: long transition conditions are stacked on several lines, never 
   const lines = [...html.matchAll(/<text[^>]*ps-trans-cond[^>]*>([^<]*)<\/text>/g)].map(m => m[1].replace(/&#x27;/g, "'").replace(/&gt;/g, '>').replace(/&amp;/g, '&'))
   assert.ok(lines.every(l => l.length <= 30), JSON.stringify(lines))
   assert.equal(lines.filter(l => l !== 'TRUE').join(' '), long.replace(/ != /, ' != '))
+  // the actions of a step are listed beside it with their expression, not only their name
+  s = { ...s, steps: s.steps.map((st, i) => (i === 0 ? { ...st, actions: [act("'^/RESTART_TYPE.CV' := 'From_Start';", { name: 'A1' })] } : st)) }
+  const withAction = renderToStaticMarkup(React.createElement(studio.SfcBranchDiagram, { sfc: s, zoom: 1, sel: null, liveStep: null,
+    onSelect: () => {}, onStepOpen: () => {}, onEdgeOpen: () => {}, onStepMenu: () => {}, onEdgeMenu: () => {} }))
+  const actionText = [...withAction.matchAll(/<text[^>]*ps-step-action-text[^>]*>([^<]*)<\/text>/g)].map(m => m[1].replace(/&#x27;/g, "'")).join(' ')
+  assert.ok(actionText.includes('A1:') && actionText.includes('RESTART_TYPE') && actionText.includes('From_Start'), actionText)
 })
 
 test('Chapter 6: RESTART_LOGIC branches can be added left and right of the step as on slide 6-26', () => {

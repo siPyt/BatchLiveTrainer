@@ -741,12 +741,15 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
   </svg>
 }
 
-const BR_COL = 250
+const BR_COL = 330
 const BR_ROW = 124
 const BR_TOP = 30
 // Conditions wrap to the width between one leg's label and the next leg's step; three lines fit under a divergence.
 const BR_COND_WRAP = 30
 const BR_COND_FIT = 3
+// Action text (name: expression) is stacked beside its step; the leg below moves down once more than four lines are shown.
+const BR_ACTION_WRAP = 34
+const BR_ACTION_FIT = 4
 const trimTo = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 3) + '...' : s)
 
 const branchX0 = (layout: ReturnType<typeof layoutPhaseSfc>): number => 120 + layout.edges.filter(e => e.back).length * 12
@@ -764,8 +767,14 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
   const cx = (c: number): number => X0 + c * BR_COL
   // Conditions are stacked beside their transition; a row grows when one needs more lines than fit.
   const condLines = layout.edges.map(e => wrapText(e.condition, BR_COND_WRAP))
+  const actionLines = sfc.steps.map(s => s.actions.flatMap(a => wrapText(`${a.name}: ${a.expression}`, BR_ACTION_WRAP).map((text, k) => ({ text, cont: k > 0 }))))
+  const stepExtra = (i: number): number => Math.max(0, actionLines[i].length - BR_ACTION_FIT) * ACTION_LINE
   const rowExtra = Array<number>(layout.rows).fill(0)
-  layout.edges.forEach((e, k) => { const r = layout.row[e.from]; rowExtra[r] = Math.max(rowExtra[r], Math.max(0, condLines[k].length - BR_COND_FIT) * ACTION_LINE) })
+  sfc.steps.forEach((_, i) => {
+    const cond = Math.max(0, ...layout.edges.flatMap((e, k) => (e.from === i ? [Math.max(0, condLines[k].length - BR_COND_FIT) * ACTION_LINE] : [])))
+    const r = layout.row[i]
+    rowExtra[r] = Math.max(rowExtra[r], stepExtra(i) + cond)
+  })
   const rowTop = (r: number): number => BR_TOP + r * BR_ROW + rowExtra.slice(0, r).reduce((a, b) => a + b, 0)
   const top = (i: number): number => rowTop(layout.row[i])
   const W = cx(layout.cols - 1) + 330
@@ -776,7 +785,7 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
     <rect width={W} height={H} fill="url(#psGrid3)" />
     {layout.edges.map((e, k) => {
       const sx = cx(layout.col[e.from])
-      const sy = top(e.from) + STEP_H
+      const sy = top(e.from) + STEP_H + stepExtra(e.from)
       const forward = layout.edges.filter(x => x.from === e.from && !x.back)
       const diverges = forward.length > 1
       const railOut = sy + 16
@@ -785,18 +794,20 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
       const crossX = e.back ? sx : legX
       let d: string
       let ends: { x: number; y: number } | null = null
+      // Leaves the bottom of the step box and runs down to where the transition area starts.
+      const from = `M ${sx} ${top(e.from) + STEP_H} V ${sy}`
       if (e.to === null) {
         const endY = (diverges ? railOut : sy) + 54
-        d = diverges ? `M ${sx} ${sy} V ${railOut} H ${legX} V ${endY}` : `M ${sx} ${sy} V ${endY}`
+        d = diverges ? `${from} V ${railOut} H ${legX} V ${endY}` : `${from} V ${endY}`
         ends = { x: legX, y: endY }
       } else if (e.back) {
         const gx = 30 + (backSeen++) * 12
-        d = `M ${sx} ${sy} V ${sy + 40} H ${gx} V ${top(e.to) - 16} H ${cx(layout.col[e.to])} V ${top(e.to)}`
+        d = `${from} V ${sy + 40} H ${gx} V ${top(e.to) - 16} H ${cx(layout.col[e.to])} V ${top(e.to)}`
       } else {
         const tx = cx(layout.col[e.to])
         const ty = top(e.to)
         const converge = layout.edges.filter(x => x.to === e.to && !x.back).length > 1
-        d = (diverges ? `M ${sx} ${sy} V ${railOut} H ${legX}` : `M ${sx} ${sy}`) + (legX === tx && !converge ? ` V ${ty}` : ` V ${ty - 22} H ${tx} V ${ty}`)
+        d = (diverges ? `${from} V ${railOut} H ${legX}` : from) + (legX === tx && !converge ? ` V ${ty}` : ` V ${ty - 22} H ${tx} V ${ty}`)
       }
       const ref: EdgeRef = { i: e.from, route: e.route }
       const selected = sel?.k === 'transition' && sel.i === e.from && (sel.r ?? null) === e.route
@@ -824,8 +835,7 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
         <rect x={x - STEP_W / 2} y={y} width={STEP_W} height={STEP_H} className={'ps-step' + (stepSel ? ' sel' : '') + (liveStep === s.name ? ' live' : '')} />
         {i === 0 && <rect x={x - STEP_W / 2 + 4} y={y + 4} width={STEP_W - 8} height={STEP_H - 8} className="ps-step-inner" />}
         <text x={x} y={y + 21} textAnchor="middle" className="ps-step-label">{trimTo(s.name, 18)}</text>
-        {s.actions.slice(0, 5).map((a, ai) => <text key={a.name} x={x + STEP_W / 2 + 8} y={y + 12 + ai * ACTION_LINE} className="ps-step-action-text">{trimTo(a.name, 22)}</text>)}
-        {s.actions.length > 5 && <text x={x + STEP_W / 2 + 8} y={y + 12 + 5 * ACTION_LINE} className="ps-step-actions">+{s.actions.length - 5} more</text>}
+        {actionLines[i].map((l, k) => <text key={k} x={x + STEP_W / 2 + 8 + (l.cont ? 8 : 0)} y={y + 12 + k * ACTION_LINE} className="ps-step-action-text">{l.text}</text>)}
       </g>
     })}
   </svg>
