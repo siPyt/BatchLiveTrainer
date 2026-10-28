@@ -195,7 +195,7 @@ function agitate(variant = 'code') {
     const fm = Object.fromEntries(CND.map((name, i) => [name, { type: 'CND', expression: conditions[i], inputs: [], disabled: true }]))
     fm.BFI1 = { type: 'BFI', expression: '', disabled: false, inputs: CND.map(n => `/${n}/OUT_D.CV`) }
     fm.MESSAGE = { type: 'CALC', inputs: ['/BFI1/FIRST_OUT.CV'], disabled: false, expression: "'OUT1.CV' := 'IN1.CV' != 0 ? LOG2(2, 'IN1.CV') + 4 : 0;" }
-    fm.BLOCK1 = { type: 'CALC', inputs: [], disabled: false, expression: "IF '/BFI1/OUT_D.CV' AND '/+/FAIL_INDEX.CV' = 0 THEN '/+/FAIL_INDEX.CV' := '/MESSAGE/OUT1.CV'; ENDIF;" }
+    fm.BLOCK1 = { type: 'CALC', inputs: [], disabled: false, expression: "if ( '^/BFI1/OUT_D.CV' != 0 ) and ( '/+/FAIL_INDEX.CV' = 0 ) then\n  '/+/FAIL_INDEX.CV' := '^/MESSAGE/OUT1.CV';\nendif;" }
     d.logic.FAIL_MONITOR.blocks = fm
     d.logic.HOLD_LOGIC = sequence([
       ['HOLD_STATE', [enable(CND, 1), timer('START', 0)]],
@@ -575,6 +575,33 @@ test('Chapter 6 CALC block: bare IN1/OUT1 pins, extensible pins, and LN/LOG retu
     { '/A.CV': 8, '/B.CV': 3, '/C.CV': 1024, '/D.CV': 5, '/E.CV': 0, '/F.CV': -4 })
   assert.equal(run("IF TRUE XOR FALSE THEN '/A.CV' := 1; ENDIF;")['/A.CV'], 1)
 })
+
+test('Chapter 6: the function block palette lists the DeltaV groups and the editor accepts the slide 6-37 BLOCK1 expression', () => fixture(() => {
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
+  const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')
+  const pal = require('../src/renderer/src/engine/functionBlockPalette.ts')
+  assert.deepEqual(pal.FUNCTION_BLOCK_GROUPS.map(g => g.group), ['Advanced Control', 'Advanced Function', 'Analog Control', 'Energy Metering', 'I/O', 'Logical', 'Math', 'Timer Counter'])
+  const all = pal.FUNCTION_BLOCK_GROUPS.flatMap(g => g.blocks)
+  assert.equal(new Set(all.map(b => b.abbr)).size, all.length, 'every palette abbreviation is unique')
+  assert.ok(all.every(b => b.name && b.description), 'every block has a name and a description')
+  assert.equal(pal.paletteGroupOf('CND'), 'Logical'); assert.equal(pal.paletteGroupOf('BFI'), 'Logical'); assert.equal(pal.paletteGroupOf('CALC'), 'Analog Control')
+  for (const abbr of ['PID', 'AI', 'AO', 'DI', 'DO', 'AND', 'OR', 'NOT', 'ADD', 'RET', 'OND', 'DC', 'ALARM']) assert.ok(all.some(b => b.abbr === abbr), abbr)
+  assert.deepEqual([...pal.MODELED_FUNCTION_BLOCKS], ['CND', 'BFI', 'CALC'])
+  assert.ok(pal.MODELED_FUNCTION_BLOCKS.every(a => all.some(b => b.abbr === a)))
+
+  const pc = cfg.newPhaseClass('TEST', 'General')
+  const mk = (type, extra = {}) => ({ type, expression: '', inputs: [], disabled: false, ...extra })
+  const slide = "if ( '^/BFI1/OUT_D.CV' != 0 ) and ( '/+/FAIL_INDEX.CV' = 0 ) then\n  '/+/FAIL_INDEX.CV' := '^/MESSAGE/OUT1.CV';\nendif;"
+  pc.logic.FAIL_MONITOR.blocks = { BFI1: mk('BFI', { inCount: 5 }), MESSAGE: mk('CALC', { inCount: 2, outCount: 2 }),
+    BLOCK1: mk('CALC', { expression: slide, inCount: 2, outCount: 2 }) }
+  const ctx = studio.phaseExprCtx(pc, {}, 'FAIL_MONITOR')
+  ctx.check = phaseCheckEnv('TEST', pc, 'FAIL_MONITOR')
+  const dialog = expression => renderToStaticMarkup(React.createElement(studio.BlockDialog, { name: 'BLOCK1',
+    sfc: { ...pc.logic.FAIL_MONITOR, blocks: { ...pc.logic.FAIL_MONITOR.blocks, BLOCK1: mk('CALC', { expression, inCount: 2, outCount: 2 }) } }, ctx, onOk: () => {}, onClose: () => {} }))
+  assert.ok(dialog(slide).includes('0 error(s), 0 warning(s)'), 'slide 6-37 expression is accepted')
+  assert.ok(dialog("IF '/BFI1/OUT_D.CV' != 0 THEN OUT1 := 1; ENDIF;").includes('0 error(s), 0 warning(s)'), 'composite-level form still accepted')
+  assert.ok(!dialog("IF '^/NOPE/OUT_D.CV' != 0 THEN OUT1 := 1; ENDIF;").includes('0 error(s), 0 warning(s)'), 'a block that does not exist is still rejected')
+}))
 
 test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-branch charts and Clear Failures', () => fixture(() => {
   const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')

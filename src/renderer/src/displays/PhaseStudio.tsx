@@ -7,6 +7,7 @@ import { EM_PARAMETER_NAMES, useBatch, moduleParamNames, phaseCheckEnv, systemPa
 import { PhaseFbd, DRAG_FB } from '../components/PhaseFbd'
 import { addBranch, connectEdge, convergeBranches, deleteBranch, edgeAt, editEdge, insertOnEdge, isBranched, layoutPhaseSfc, type EdgeRef } from '../engine/phaseGraph'
 import { connectBlocks, deleteBlock, disconnectInput, inputCount, newDiagramBlock, outputCount, phaseBlockDefaults, renameBlock, setBlockCounts, BLOCK_MAX_PINS, DIAGRAM_BLOCK_TYPES, type DiagramBlockType, type PhaseBlock } from '../engine/phaseBlocks'
+import { FUNCTION_BLOCK_GROUPS, MODELED_FUNCTION_BLOCKS } from '../engine/functionBlockPalette'
 import {
   COMPOSITES, COMPOSITE_PARAMS, NAME_RULE, QUALIFIER_LABEL, STATE_LABEL, SYSTEM_PHASE_PARAMS, activeStepName, checkExpression, compositeOf,
   deleteStep, insertSequence, isNameValid, nonBooleanErrors, renameError,
@@ -153,6 +154,7 @@ export function PhaseStudio(): JSX.Element {
   const [selBlock, setSelBlock] = useState<string | null>(null)
   const [blockDlg, setBlockDlg] = useState<string | null>(null)
   const [extDlg, setExtDlg] = useState<string | null>(null)
+  const [palGroup, setPalGroup] = useState('Logical')
   const [compDlg, setCompDlg] = useState(false)
   const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 320)
   const [paletteWidth, setPaletteWidth] = usePersistentSize('phaseStudio.paletteWidth', 190)
@@ -499,14 +501,19 @@ export function PhaseStudio(): JSX.Element {
 
       {panes.palette && <PaneResizer axis="x" sign={-1} value={paletteWidth} min={150} max={360} onChange={setPaletteWidth} label="Resize palette panel" />}
       {panes.palette && composite === 'FAIL_MONITOR' && <div className="studio-pane studio-palette ps-palette" aria-label="Palette" style={{ width: paletteWidth, minWidth: paletteWidth, flex: `0 0 ${paletteWidth}px` }}>
-        <select className="ps-pal-filter" aria-label="Palette filter" value="Calculation/Logic" onChange={() => {}}><option>Calculation/Logic</option></select>
+        <select className="ps-pal-filter" aria-label="Palette filter" value={palGroup} onChange={e => setPalGroup(e.target.value)}>
+          {FUNCTION_BLOCK_GROUPS.map(g => <option key={g.group}>{g.group}</option>)}</select>
         <div className="ps-pal-grid">
-          {DIAGRAM_BLOCK_TYPES.map(t =>
-            <div key={t} className={'ps-pal-item' + (live ? ' disabled' : '')} data-palette={t} draggable={!live} role="button" tabIndex={0}
-              title={live ? 'Go to Edit mode to add function blocks' : `Click, or drag onto the diagram, to add a ${t} function block`}
-              onDragStart={e => { e.dataTransfer.setData(DRAG_FB, t); e.dataTransfer.setData('text/plain', t); e.dataTransfer.effectAllowed = 'copy' }}
-              onClick={() => { if (!live) addFunctionBlock(t) }}>
-              <PaletteGlyph item={t} /><span>{t}</span></div>)}
+          {(FUNCTION_BLOCK_GROUPS.find(g => g.group === palGroup)?.blocks ?? []).map(blk => {
+            const modeled = MODELED_FUNCTION_BLOCKS.includes(blk.abbr)
+            const usable = modeled && !live
+            return <div key={blk.abbr} className={'ps-pal-item' + (usable ? '' : ' disabled')} data-palette={blk.abbr} draggable={usable} role="button" tabIndex={0}
+              aria-disabled={!usable} title={!modeled ? `${blk.name} (${blk.abbr}): ${blk.description} Not modeled in this trainer; the Course 7016 workshops use CND, BFI and CALC.`
+                : live ? 'Go to Edit mode to add function blocks' : `${blk.name} (${blk.abbr}): ${blk.description} Click, or drag onto the diagram, to add it.`}
+              onDragStart={e => { if (!usable) { e.preventDefault(); return } e.dataTransfer.setData(DRAG_FB, blk.abbr); e.dataTransfer.setData('text/plain', blk.abbr); e.dataTransfer.effectAllowed = 'copy' }}
+              onClick={() => { if (usable) addFunctionBlock(blk.abbr as DiagramBlockType) }}>
+              <PaletteGlyph item={blk.abbr} /><span>{blk.name}</span></div>
+          })}
         </div>
         <div className="studio-pane-label">Palette</div>
       </div>}
@@ -869,6 +876,8 @@ export function PaletteGlyph({ item }: { item: string }): JSX.Element {
     {item === 'Branch' && <path d="M15,3 V8 M6,8 H24 M6,8 V14 M24,8 V14 M3,14 H9 M21,14 H27 M6,14 V27 M24,14 V27" className="ps-pal-ink" />}
     {(item === 'CND' || item === 'BFI' || item === 'CALC') && <><path d="M6,5 H24 V25 H6 Z M6,10 H24 M2,17 H6 M24,17 H28" className="ps-pal-ink" />
       <text x={15} y={21} fontSize={6} textAnchor="middle" fill="#f2d33a" stroke="none">{item}</text></>}
+    {item.toUpperCase() === item && !['CND', 'BFI', 'CALC'].includes(item) && /^[A-Z0-9_]+$/.test(item) && <><path d="M6,5 H24 V25 H6 Z M6,10 H24 M2,17 H6 M24,17 H28" className="ps-pal-ink" />
+      <text x={15} y={21} fontSize={item.length > 6 ? 4 : item.length > 4 ? 5 : 6} textAnchor="middle" fill="#f2d33a" stroke="none">{item.slice(0, 9)}</text></>}
   </svg>
 }
 
@@ -1173,17 +1182,21 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
   const [error, setError] = useState<string | null>(null)
   const [editor, setEditor] = useState(false)
   const kind: ExprKind = v.type === 'CND' ? 'condition' : 'action'
+  // Inside a function block expression DeltaV's '^/' goes up to the FAIL_MONITOR composite, so a sibling block is '^/BFI1/OUT_D.CV'
+  // (slide 6-37) and the phase is '/+/FAIL_INDEX.CV'. The plain composite-level form '/BFI1/OUT_D.CV' keeps working too.
+  const sibling = (ref: string): boolean => { const m = /^\^\/([^/.]+)\//.exec(ref.trim()); return !!m && !!sfc.blocks?.[m[1].toUpperCase()] }
+  const base: ExprCtx = { ...ctx, check: { ...ctx.check, checkRef: (ref, write) => (sibling(ref) ? null : ctx.check.checkRef(ref, write)) } }
   // A Calculation/Logic block reads its own pins bare (IN1, OUT1) and cannot write an input or use a pin it does not have.
   const bctx: ExprCtx = v.type === 'CALC'
-    ? { ...ctx, check: { ...ctx.check, calc: true, checkRef: (ref, write) => {
+    ? { ...base, check: { ...base.check, calc: true, checkRef: (ref, write) => {
       const m = /^\/?(?:IN_?(\d+)|OUT(\d+))\.CV$/i.exec(ref)
-      if (!m) return ctx.check.checkRef(ref, write)
+      if (!m) return base.check.checkRef(ref, write)
       if (m[1] && write) return `IN${m[1]} is an input of this block and cannot be assigned`
       if (m[1] && Number(m[1]) > inputCount(v)) return `This block has no IN${m[1]}. Add inputs with Extensible Parameters (right-click the block).`
       if (m[2] && Number(m[2]) > outputCount(v)) return `This block has no OUT${m[2]}. Add outputs with Extensible Parameters (right-click the block).`
       return null
     } } }
-    : ctx
+    : base
   const submit = (): void => {
     const next = n.trim().toUpperCase()
     if (!isNameValid(next)) { setError(NAME_RULE); return }
