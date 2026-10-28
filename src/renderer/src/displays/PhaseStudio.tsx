@@ -87,10 +87,27 @@ const PITCH = 116
 const ACTION_LINE = 11
 // Action lines that fit beside a step before the chart needs to grow taller.
 const ACTION_LINES_FIT = 8
-const stepPitch = (s: { actions: unknown[] }): number => PITCH + Math.max(0, s.actions.length - ACTION_LINES_FIT) * ACTION_LINE
+/** Transition conditions are wrapped onto stacked lines of at most `n` characters so the whole expression is readable. */
+function wrapText(text: string, n: number): string[] {
+  const lines: string[] = []
+  let cur = ''
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    let w = word
+    while (w.length > n) { if (cur) { lines.push(cur); cur = '' } lines.push(w.slice(0, n)); w = w.slice(n) }
+    if (!cur) cur = w
+    else if (cur.length + 1 + w.length <= n) cur += ' ' + w
+    else { lines.push(cur); cur = w }
+  }
+  if (cur) lines.push(cur)
+  return lines.length ? lines : ['']
+}
+const COND_WRAP = 64
+const COND_LINES_FIT = 4
+const stepPitch = (s: { actions: unknown[] }, tr?: { condition: string }): number =>
+  PITCH + Math.max(Math.max(0, s.actions.length - ACTION_LINES_FIT), tr ? Math.max(0, wrapText(tr.condition, COND_WRAP).length - COND_LINES_FIT) : 0) * ACTION_LINE
 function stepTops(sfc: PhaseSfc): number[] {
   let y = 30
-  return sfc.steps.map(s => { const top = y; y += stepPitch(s); return top })
+  return sfc.steps.map((s, i) => { const top = y; y += stepPitch(s, sfc.transitions[i]); return top })
 }
 // The step column sits in the middle of the canvas: transition conditions run to its left, action text to its right.
 const CX = 450
@@ -683,7 +700,7 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
 }): JSX.Element {
   const tops = stepTops(sfc)
   const last = sfc.steps.length - 1
-  const height = last < 0 ? 100 : tops[last] + stepPitch(sfc.steps[last]) + 70
+  const height = last < 0 ? 100 : tops[last] + stepPitch(sfc.steps[last], sfc.transitions[last]) + 70
   const W = SFC_W
   const clip = (s: string): string => (s.length > 64 ? s.slice(0, 61) + '...' : s)
   return <svg className="cs-diagram ps-sfc" width={W * zoom} height={height * zoom} viewBox={`0 0 ${W} ${height}`} role="img" aria-label="Sequential function chart">
@@ -691,7 +708,7 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
     <rect width={W} height={height} fill="url(#psGrid2)" />
     {sfc.steps.map((s, i) => {
       const y = tops[i]
-      const pitch = stepPitch(s)
+      const pitch = stepPitch(s, sfc.transitions[i])
       const tr = sfc.transitions[i]
       const ty = y + STEP_H + 38
       const stepSel = sel?.k === 'step' && sel.i === i
@@ -712,7 +729,7 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
             <rect x={CX - 26} y={ty - 9} width={52} height={18} fill="transparent" />
             <line x1={CX - 16} y1={ty} x2={CX + 16} y2={ty} className={'ps-trans' + (trSel ? ' sel' : '')} />
             <text x={CX + 24} y={ty + 4} className="ps-trans-label">{tr.name}</text>
-            <text x={CX - 28} y={ty + 4} textAnchor="end" className="ps-trans-cond">{clip(tr.condition)}</text>
+            {wrapText(tr.condition, COND_WRAP).map((line, k) => <text key={k} x={CX - 28} y={ty + 4 + k * ACTION_LINE} textAnchor="end" className="ps-trans-cond">{line}</text>)}
           </g>
         </>}
         {i === sfc.steps.length - 1 && <g className="ps-termination" aria-label="Termination">
@@ -727,6 +744,9 @@ export function SfcDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpen, onT
 const BR_COL = 250
 const BR_ROW = 124
 const BR_TOP = 30
+// Conditions wrap to the width between one leg's label and the next leg's step; three lines fit under a divergence.
+const BR_COND_WRAP = 30
+const BR_COND_FIT = 3
 const trimTo = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 3) + '...' : s)
 
 const branchX0 = (layout: ReturnType<typeof layoutPhaseSfc>): number => 120 + layout.edges.filter(e => e.back).length * 12
@@ -742,9 +762,14 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
   const layout = useMemo(() => layoutPhaseSfc(sfc), [sfc])
   const X0 = branchX0(layout)
   const cx = (c: number): number => X0 + c * BR_COL
-  const top = (i: number): number => BR_TOP + layout.row[i] * BR_ROW
+  // Conditions are stacked beside their transition; a row grows when one needs more lines than fit.
+  const condLines = layout.edges.map(e => wrapText(e.condition, BR_COND_WRAP))
+  const rowExtra = Array<number>(layout.rows).fill(0)
+  layout.edges.forEach((e, k) => { const r = layout.row[e.from]; rowExtra[r] = Math.max(rowExtra[r], Math.max(0, condLines[k].length - BR_COND_FIT) * ACTION_LINE) })
+  const rowTop = (r: number): number => BR_TOP + r * BR_ROW + rowExtra.slice(0, r).reduce((a, b) => a + b, 0)
+  const top = (i: number): number => rowTop(layout.row[i])
   const W = cx(layout.cols - 1) + 330
-  const H = BR_TOP + layout.rows * BR_ROW + 30
+  const H = rowTop(layout.rows) + 30
   let backSeen = 0
   return <svg className="cs-diagram ps-sfc" width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sequential function chart with alternate branches" data-branched="true">
     <defs><pattern id="psGrid3" width={20} height={20} patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e7e9eb" strokeWidth={0.7} /></pattern></defs>
@@ -783,10 +808,10 @@ export function SfcBranchDiagram({ sfc, zoom, sel, liveStep, onSelect, onStepOpe
         </g>}
         <g data-transition={e.name} onMouseDown={ev => { ev.stopPropagation(); onSelect({ k: 'transition', i: e.from, ...(e.route === null ? {} : { r: e.route }) }) }}
           onDoubleClick={() => onEdgeOpen(ref)} onContextMenu={ev => onEdgeMenu(ref, ev)}>
-          <rect x={crossX - 18} y={crossY - 10} width={150} height={32} fill="transparent" />
+          <rect x={crossX - 18} y={crossY - 10} width={190} height={32 + Math.max(0, condLines[k].length - 1) * ACTION_LINE} fill="transparent" />
           <line x1={crossX - 16} y1={crossY} x2={crossX + 16} y2={crossY} className={'ps-trans' + (selected ? ' sel' : '')} />
           <text x={crossX + 22} y={crossY + 4} className="ps-trans-label">{e.name}</text>
-          <text x={crossX + 22} y={crossY + 15} className="ps-trans-cond">{trimTo(e.condition, 26)}</text>
+          {condLines[k].map((line, j) => <text key={j} x={crossX + 22} y={crossY + 15 + j * ACTION_LINE} className="ps-trans-cond">{line}</text>)}
         </g>
       </g>
     })}

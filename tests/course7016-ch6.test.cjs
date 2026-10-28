@@ -560,6 +560,22 @@ test('Chapter 6: HOLD_LOGIC from the course diagram can be drawn with Branch, Ad
   assert.equal(graph.phaseEdges(graph.deleteBranch(renamed, { i: 1, route: leaving(1)[2].route })).filter(e => e.from === 1).length, 2)
 })
 
+test('Chapter 6: long transition conditions are stacked on several lines, never cut with "..."', () => {
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
+  const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')
+  const graph = require('../src/renderer/src/engine/phaseGraph.ts')
+  const long = "('^/STEP_INDEX.CV'=3) OR ('^/STEP_INDEX.CV'=4) OR ('^/FAIL_INDEX.CV' != 0)"
+  let s = sequence([['RESTARTING', []], ['DONE', []]])
+  s = graph.addBranch(s, 0, 'left')
+  s = graph.editEdge(s, { i: 0, route: 0 }, { name: 'STEP_INDEX_3_O_4', condition: long })
+  const html = renderToStaticMarkup(React.createElement(studio.SfcBranchDiagram, { sfc: s, zoom: 1, sel: null, liveStep: null,
+    onSelect: () => {}, onStepOpen: () => {}, onEdgeOpen: () => {}, onStepMenu: () => {}, onEdgeMenu: () => {} }))
+  assert.ok(!html.includes('...'), 'no truncated text')
+  const lines = [...html.matchAll(/<text[^>]*ps-trans-cond[^>]*>([^<]*)<\/text>/g)].map(m => m[1].replace(/&#x27;/g, "'").replace(/&gt;/g, '>').replace(/&amp;/g, '&'))
+  assert.ok(lines.every(l => l.length <= 30), JSON.stringify(lines))
+  assert.equal(lines.filter(l => l !== 'TRUE').join(' '), long.replace(/ != /, ' != '))
+})
+
 test('Chapter 6: RESTART_LOGIC branches can be added left and right of the step as on slide 6-26', () => {
   const graph = require('../src/renderer/src/engine/phaseGraph.ts')
   let s = sequence([['RESTARTING', []], ['DONE', []]])
