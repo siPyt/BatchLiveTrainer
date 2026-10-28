@@ -204,6 +204,28 @@ export function parseProgram(src: string): Program {
 
 export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2', 'LN', 'LOG', 'EXP', 'SQRT']
 
+/**
+ * Catches an assignment whose value is the wrong kind for its target: a mode word (CAS, AUTO ...) belongs only in
+ * MODE.TARGET, MODE.TARGET takes only a mode, and a setpoint takes a setpoint state rather than a feedback (-pv) state.
+ */
+export function assignmentTypeError(target: string, expr: Node): string | null {
+  const last = target.split('/').filter(Boolean).pop() ?? ''
+  const [name, field = 'CV'] = last.toUpperCase().split('.')
+  const modeTarget = name === 'MODE' && field === 'TARGET'
+  const asModeTarget = `${target.slice(0, target.length - last.length)}MODE.TARGET`
+  if (expr.k === 'ident' && MODE_WORDS.includes(expr.v.toUpperCase()) && !modeTarget) {
+    return `'${last}' cannot be set to the mode ${expr.v}: modes (CAS, AUTO, MAN ...) are written to MODE.TARGET, for example '${asModeTarget}' := ${expr.v};`
+  }
+  if (modeTarget && (expr.k === 'named' || expr.k === 'num' || expr.k === 'bool')) {
+    const what = expr.k === 'named' ? `the named-set state '${expr.set}:${expr.state}'` : 'a value'
+    return `MODE.TARGET takes a mode (CAS, AUTO, MAN ...), not ${what}. A setpoint state is written to the setpoint, for example CAS_SP.`
+  }
+  if ((name === 'CAS_SP' || name === 'SP_D') && expr.k === 'named' && /-pv$/i.test(expr.set)) {
+    return `${name} is a setpoint, but '${expr.set}:${expr.state}' is a feedback (-pv) state. Use the matching -sp named set.`
+  }
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 
@@ -240,7 +262,12 @@ export function checkExpression(src: string, kind: 'action' | 'condition', env: 
     if (kind === 'action' && s.k === 'expr' && !(s.expr.k === 'call' && s.expr.fn === 'LOGEVENT')) {
       errors.push('Each action statement must be an assignment (\'parameter\' := expression;) or LOGEVENT(...)')
     }
-    if (s.k === 'assign') { const e = env.checkRef(s.target, true); if (e) errors.push(e) }
+    if (s.k === 'assign') {
+      const e = env.checkRef(s.target, true)
+      if (e) errors.push(e)
+      const t = assignmentTypeError(s.target, s.expr)
+      if (t) errors.push(t)
+    }
     walk(s.expr, checkNode)
   }
   const checkNode = (n: Node): void => {

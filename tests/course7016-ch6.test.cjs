@@ -262,6 +262,27 @@ test('Chapter 6: slide 6-16 "Set STEP_INDEX to 1" is accepted quoted and explain
   assert.match(expr.checkExpression("STEP_INDEX = 1", 'condition', check)[0], /Parameter references go in single quotes/)
 }))
 
+test('Chapter 6: the expression editor warns when the value does not fit the parameter being written', () => {
+  const check = { checkRef: () => null, checkNamed: () => null }
+  const errors = src => expr.checkExpression(src, 'action', check)
+  // the mistake from PULSE_AGIT_ON: a mode written into the setpoint
+  const mode = errors("'//#AGITATOR#/CAS_SP.CV' := CAS;")
+  assert.equal(mode.length, 1)
+  assert.match(mode[0], /cannot be set to the mode CAS/)
+  assert.match(mode[0], /MODE\.TARGET/)
+  assert.match(errors("'//#AGITATOR#/DC1/CAS_SP.CV' := AUTO;")[0], /MODE\.TARGET/)
+  assert.match(errors("'^/STEP_INDEX.CV' := CAS;")[0], /modes/)
+  assert.match(errors("'//#AGITATOR#/DC1/MODE.TARGET' := 'mtr2-sp:START';")[0], /MODE\.TARGET takes a mode/)
+  assert.match(errors("'//#AGITATOR#/DC1/MODE.TARGET' := 1;")[0], /MODE\.TARGET takes a mode/)
+  assert.match(errors("'//#AGITATOR#/DC1/CAS_SP.CV' := 'mtr2-pv:RUNNING';")[0], /feedback \(-pv\) state/)
+  // correct forms stay quiet
+  for (const ok of ["'//#AGITATOR#/DC1/MODE.TARGET' := CAS;", "'//#AGITATOR#/MODE.TARGET' := AUTO;", "'//#AGITATOR#/DC1/CAS_SP.CV' := 'mtr2-sp:START';",
+    "'//#BASE_IN_VLV#/CAS_SP.CV' := 1;", "'^/STEP_INDEX.CV' := 2;", "'//#OUT_PUMP#/DC1/CAS_SP.CV' := 'mtr2-sp:STOP';"]) assert.deepEqual(errors(ok), [], ok)
+  // reading a mode or comparing against a feedback state is still fine
+  assert.deepEqual(expr.checkExpression("'//#AGITATOR#/DC1/MODE.ACTUAL' = CAS", 'condition', check), [])
+  assert.deepEqual(expr.checkExpression("'//#AGITATOR#/DC1/PV_D.CV' = 'mtr2-pv:RUNNING'", 'condition', check), [])
+})
+
 test('Chapter 6: guide spellings are accepted, while states that do not exist are still rejected', () => fixture(() => {
   blenders()
   const check = phaseCheckEnv('AGITATE')

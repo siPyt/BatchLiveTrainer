@@ -799,6 +799,15 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     Trainer choice 2026-10-28 (student request): the selector stays open after a command is sent, so several commands can
     be sent in a row; it closes only when the "..." button is pressed again (or its close box). Whether DeltaV keeps the
     selector open or closes it after a command is NOT confirmed.
+12. Expression editor type warnings added 2026-10-28 (phaseExpr.ts assignmentTypeError, shown in Parser output of the
+    Action / Edit Expression dialogs; the student can still save anyway). Triggered by a real mistake on slide 6-31's
+    HOLD_LOGIC: '//#AGITATOR#/CAS_SP.CV' := CAS; made the phase fail at run time with "Fail Index 255: CAS_SP needs a
+    named-set value, got CAS". The editor now reports: (a) a mode word (CAS, AUTO, MAN, OOS, RCAS, ROUT, LO, IMAN)
+    written to anything but MODE.TARGET; (b) MODE.TARGET given a named-set state or a number; (c) CAS_SP / SP_D given a
+    feedback (-pv) named-set state such as 'mtr2-pv:RUNNING'. These rules are the trainer's, NOT confirmed as what the
+    real DeltaV expression editor reports. Not checked (would need the module type behind the alias): a setpoint state
+    of the wrong device type, e.g. 'vlvnc-sp:OPEN' written to a motor. Also not warned: '//#X#/CAS_SP.CV' without /DC1/
+    (the trainer accepts both spellings; the course shows /DC1/ for motors). AWAITING DELTAV CONFIRMATION.
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert
