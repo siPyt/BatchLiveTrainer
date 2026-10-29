@@ -909,3 +909,23 @@ WHERE WE LEFT OFF (2026-10-20, superseded):
   the Course 7016 Workshops display, and the whole course passes in order on one database (course7016-full test).
   Your DV_School database is autosaved, so you can stop and continue later. Full suite 759/760 (only dv09-audit).
 - Next candidate: Chapter 6 (AGITATE unit phase - the PDF continues after p5-54 with "AGITATE Unit Phase").
+
+9. POSSIBLE FUTURE ACTIONS (not started; on hold by user decision, 2026-10-29)
+-----------------------------------------------------------------------------
+- Shared kernel for BatchLive and BatchLiveTrainer. Idea: BatchLive adopts this project as its kernel so it gets the
+  Trainer's look and functionality while keeping its own screens (Overview, Area, Batch, Pharma diagrams, Photo
+  plant, Process Waste diagram, Feed reactor, Plant navigation overview).
+  Findings at the time: of ~167 shared files under src, 120 are identical and 47 have diverged; the Trainer has ~40
+  engine/UI files BatchLive lacks (course checks, Batch/EM/Phase/Class studios, window store, download-pending).
+  BatchLiveMobile (Desktop\BatchLiveMobile) could become a third consumer.
+  Suggested approach: a new monorepo (working name BatchLiveCore; alternatives BatchLiveKernel, BatchLiveSim) with
+    packages/core  - engine, faceplates, shared components, theme, stores, main/preload
+    apps/trainer   - the current BatchLiveTrainer (course checks, workshops, studios)
+    apps/batchlive - the site digital-twin screens
+  Steps: (1) tag the current Trainer state and keep npm test + typecheck green after every move; (2) read-only 3-way
+  diff of the 47 diverged files (BatchLive-only changes, Trainer-only changes, conflicts); (3) move the identical
+  files into the core package first; (4) add registry seams for display/nav registration and a pluggable plant model
+  (App.tsx, displayNavigation.ts, uiStore.ts, plant.ts, types.ts are among the diverged files); (5) rebuild BatchLive
+  as an app on the core, importing git history with subtree/filter-repo. Rejected: copy/sync files (re-forks),
+  submodule (engine and UI are too tightly coupled).
+  Open decision: where it lives (new repo vs renaming the Trainer repo) and the final name.
