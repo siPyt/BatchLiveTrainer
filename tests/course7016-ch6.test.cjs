@@ -681,15 +681,22 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   assert.ok(calcDlg.includes('IN_D1 is a pin of another block'), calcDlg)
   assert.ok(renderToStaticMarkup(React.createElement(studio.CompositeBlockDialog, { existing: [], onOk: () => {}, onClose: () => {} })).includes('TIMER_SEC'))
 
-  // Alternate branches: built from the SFC, laid out as columns, and still executable by the phase engine.
+  // Alternate branches: Branch adds only a transition (ending in a termination); a step is optional.
   let sfc = sequence([['HOLD_STATE', []], ['HELD', []]])
   sfc = graph.addBranch(sfc, 0)
   assert.equal(typeof sfc, 'object')
+  assert.equal(sfc.steps.length, 2, 'Branch does not add a step')
   assert.equal(graph.phaseEdges(sfc).filter(e => e.from === 0).length, 2)
-  const legStep = sfc.steps[sfc.steps.length - 1].name
-  assert.equal(sfc.routes.find(r => r.to === legStep).from, 'HOLD_STATE')
-  sfc = graph.insertOnEdge(sfc, { i: sfc.steps.length - 1, route: sfc.routes.findIndex(r => r.from === legStep) }, 1)
+  const legRoute = sfc.routes.findIndex(r => r.from === 'HOLD_STATE' && r.to === null)
+  assert.ok(legRoute >= 0, 'the new transition ends in a termination until it is connected')
+  // convergence without a step: the new transition goes straight back to an existing step
+  const direct = graph.connectEdge(sfc, { i: 0, route: legRoute }, 'HELD')
+  assert.equal(graph.phaseEdges(direct).filter(e => e.to === 1).length, 2)
+  assert.equal(direct.steps.length, 2)
+  // or a step is added on it first, and that leg then rejoins
+  sfc = graph.insertOnEdge(sfc, { i: 0, route: legRoute }, 1)
   const leg2 = sfc.steps[sfc.steps.length - 1].name
+  assert.equal(sfc.steps.length, 3)
   sfc = graph.connectEdge(sfc, { i: sfc.steps.findIndex(s => s.name === leg2), route: sfc.routes.findIndex(r => r.from === leg2) }, 'HELD')
   const laid = graph.layoutPhaseSfc(sfc)
   assert.equal(laid.cols, 2)
@@ -841,24 +848,23 @@ test('Chapter 6: RESTART_LOGIC branches can be added left and right of the step 
   const graph = require('../src/renderer/src/engine/phaseGraph.ts')
   let s = sequence([['RESTARTING', []], ['DONE', []]])
   s = graph.addBranch(s, 0, 'left')
-  const leftStep = s.steps.length - 1
   s = graph.addBranch(s, 0, 'right')
-  const rightStep = s.steps.length - 1
+  assert.equal(s.steps.length, 2, 'Branch adds transitions only, no steps')
+  const side = e => (e.to === null ? (e.left ? 'L' : 'R') : 'trunk')
   const laid = graph.layoutPhaseSfc(s)
   const done = s.steps.findIndex(x => x.name === 'DONE')
   assert.equal(laid.cols, 3)
-  assert.equal(laid.col[leftStep], 0, 'left leg is drawn left of the step')
   assert.equal(laid.col[0], 1, 'the step stays over its trunk')
   assert.equal(laid.col[done], 1)
-  assert.equal(laid.col[rightStep], 2)
   // left-to-right is also priority order: the left leg is evaluated first, the right leg last
-  assert.deepEqual(graph.phaseEdges(s).filter(e => e.from === 0).map(e => e.to), [leftStep, done, rightStep])
+  assert.deepEqual(graph.phaseEdges(s).filter(e => e.from === 0).map(side), ['L', 'trunk', 'R'])
+  assert.deepEqual(laid.edges.filter(e => e.from === 0).map(e => laid.leg[laid.edges.indexOf(e)]), [0, 1, 2], 'left leg, trunk, right leg')
   // a second left branch becomes the new leftmost leg
   s = graph.addBranch(s, 0, 'left')
-  const left2 = s.steps.length - 1
   const laid2 = graph.layoutPhaseSfc(s)
-  assert.deepEqual([laid2.col[left2], laid2.col[leftStep], laid2.col[0], laid2.col[rightStep]], [0, 1, 2, 3])
-  assert.ok(new Set(laid2.row.map((r, i) => `${r}:${laid2.col[i]}`)).size === s.steps.length, 'no two steps share a position')
+  assert.deepEqual(graph.phaseEdges(s).filter(e => e.from === 0).map(side), ['L', 'L', 'trunk', 'R'])
+  assert.deepEqual(laid2.edges.filter(e => e.from === 0).map(e => laid2.leg[laid2.edges.indexOf(e)]), [0, 1, 2, 3])
+  assert.equal(laid2.col[0], 2)
 })
 
 test('Chapter 6: optional holding agitation can loop with timed steps and Stop/Abort safely interrupt it', () => fixture(() => {

@@ -945,6 +945,14 @@ WHERE WE LEFT OFF (2026-10-20, superseded):
   lists an equipment module's module blocks (BLNDR_OUTLET > PRODUCT_VLV/PV.CV). Check on real DeltaV how the editor
   offers functions/statements and how it browses into an EM's module blocks, and whether block expressions are
   inserted as '^/BFI1/OUT_D.CV' and '/+/FAIL_INDEX.CV' (slides 6-35 and 6-37) as the simulator now does.
+- BRANCH CHANGE (2026-10-29, from the user's description of real DeltaV): Branch now adds ONLY a transition ending in a
+  termination (phaseGraph.addBranch); it no longer also creates a step. Right-click the transition > Add Sequence After...
+  to put step(s) on it, or Connect To... to rejoin an existing step (convergence without a step); the Converge button
+  still joins every open leg. Still to confirm on real DeltaV: whether Branch Left/Right and Converge behave the same.
+- CHECK ON REAL DELTAV (2026-10-29): can the actions of an SFC step be re-ordered (Move Up / Move Down in the step's Actions
+  tab)? BatchLiveTrainer's Step Properties > Actions tab only has Add / Edit / Delete; actions run in list order. Slide 6-43
+  lists them in order (o Set STEP_INDEX, p Set AGITATOR to CAS, Q Disable AGITATOR_STOPPED, R Stop AGITATOR with pulse delay
+  AGITATOR_STOPPED/DISABLE = 1). If real DeltaV can re-order, add Move Up / Move Down to the simulator.
 - BLOCK1 DONE (2026-10-29, user said go ahead): a new phase class's FAIL_MONITOR now starts with BLOCK1 (CALC, 2 inputs,
   2 outputs, empty expression) via newPhaseClass in batchConfig.ts; MESSAGE is the one CALC the student adds (CALC1 renamed).
   Existing saves are untouched. NOT simulated: the two stock IFs of slide 6-37 ('/+/WDOG_STATE.CV' = '$phase_wdog_states:FAILED'

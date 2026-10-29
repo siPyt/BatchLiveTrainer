@@ -132,24 +132,20 @@ function freezeLast(sfc: PhaseSfc): PhaseSfc {
 }
 
 /**
- * Alternate Branch: another transition leaves the step and starts a new leg that terminates until it is connected.
- * A left branch becomes the step's leftmost leg (evaluated first), a right branch its rightmost (evaluated last).
+ * Alternate Branch: another transition leaves the step and ends in a termination until it is connected. Like DeltaV's
+ * Branch it adds only the transition: Add Step/Sequence puts steps on it, Connect To joins it to an existing step
+ * (convergence without a step). A left branch becomes the step's leftmost leg (evaluated first), a right branch its rightmost.
  */
 export function addBranch(sfc: PhaseSfc, i: number, side: 'left' | 'right' = 'right'): PhaseSfc | string {
   const step = sfc.steps[i]
   if (!step) return 'Select a step or transition first'
-  if (sfc.steps.length + sfc.transitions.length + 2 > 127) return 'Do not configure more than 127 steps and transitions in any level'
-  let next = freezeLast(explicit(sfc, i))
-  const stepDef: StepDef = { id: newId('s'), name: nextName(next, 'S'), description: '', actions: [] }
-  next = { ...next, steps: [...next.steps, stepDef] }
-  const trDef: TransitionDef = { id: newId('t'), name: nextName(next, 'T'), description: '', condition: 'TRUE' }
-  next = { ...next, transitions: [...next.transitions, trDef] }
-  const legName = nextName(next, 'T')
+  if (sfc.steps.length + sfc.transitions.length + 1 > 127) return 'Do not configure more than 127 steps and transitions in any level'
+  const next = explicit(sfc, i)
+  const leg: PhaseRoute = { from: step.name, to: null, condition: 'TRUE', name: nextName(next, 'T'), ...(side === 'left' ? { left: true } : {}) }
   const routes = [...(next.routes ?? [])]
-  const leg: PhaseRoute = { from: step.name, to: stepDef.name, condition: 'TRUE', name: legName, ...(side === 'left' ? { left: true } : {}) }
   if (side === 'left') routes.splice(routes.findIndex(r => r.from === step.name), 0, leg)
   else routes.push(leg)
-  return { ...next, routes: [...routes, { from: stepDef.name, to: null, condition: trDef.condition, name: trDef.name }] }
+  return { ...next, routes }
 }
 
 /** Add Sequence/Step inside a branched chart: splice new steps onto the transition so the chain stays connected. */
