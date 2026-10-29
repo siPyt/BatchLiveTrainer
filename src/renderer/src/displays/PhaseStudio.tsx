@@ -20,7 +20,8 @@ import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { askConfirm, askValue } from '../components/AppNotices'
 import { confirmCloseStudio } from '../components/StudioSaveReminder'
-import { ensureTrailingSemicolon } from '../engine/phaseExpr'
+import { ensureTrailingSemicolon, FUNCTIONS } from '../engine/phaseExpr'
+import { CM_DEVICE_CLASSES, useEm } from '../engine/emStore'
 import { defaultConfirmExpression } from '../engine/phaseConfirm'
 
 // Control Studio on a Phase Class (course 7016 pp 4-16..4-21): the S88 phase state diagram,
@@ -50,9 +51,13 @@ export interface ExprCtx {
 export function phaseExprCtx(pc: PhaseClass, unitClasses: Record<string, UnitClass>, composite?: CompositeName | null): ExprCtx {
   const owners = Object.values(unitClasses).filter(u => u.phaseClasses.includes(pc.name))
   const pool = owners.length ? owners : Object.values(unitClasses)
+  const emClasses = useEm.getState().classes
   const aliases = [...new Map(pool.flatMap(u => Object.values(u.aliases).map(a => {
     const block = Object.values(u.modules ?? {}).find(b => b.name === a.name)
-    return [a.name, { name: a.name, note: a.description || u.name, params: block?.kind === 'em' ? EM_PARAMETER_NAMES : ALIAS_FIELDS }] as const
+    // An equipment module alias also reaches its own module blocks: '//#BLNDR_OUTLET#/PRODUCT_VLV/PV.CV'.
+    const children = block?.kind === 'em' ? Object.values(emClasses[block.className]?.children ?? {}) : []
+    const childFields = children.flatMap(c => (CM_DEVICE_CLASSES[c.className] ? CHILD_FIELDS : ['PV.CV']).map(f => `${c.name}/${f}`))
+    return [a.name, { name: a.name, note: a.description || u.name, params: block?.kind === 'em' ? [...EM_PARAMETER_NAMES, ...childFields] : ALIAS_FIELDS }] as const
   }))).values()]
   // DeltaV paths: '/' is the composite being edited, '^/' goes up to the phase (and back down to another composite).
   const rel = (c: CompositeName, path: string, field = '.CV'): string => (c === composite ? `'/${path}${field}'` : `'^/${c}/${path}${field}'`)
@@ -154,6 +159,7 @@ export function PhaseStudio(): JSX.Element {
   const [selBlock, setSelBlock] = useState<string | null>(null)
   const [blockDlg, setBlockDlg] = useState<string | null>(null)
   const [extDlg, setExtDlg] = useState<string | null>(null)
+  const [paramDlg, setParamDlg] = useState<{ block: string; param: 'DISABLE' } | null>(null)
   const [palGroup, setPalGroup] = useState('Logical')
   const [compDlg, setCompDlg] = useState(false)
   const [hierWidth, setHierWidth] = usePersistentSize('phaseStudio.hierWidth', 320)
@@ -448,7 +454,8 @@ export function PhaseStudio(): JSX.Element {
               <BatchIcon kind="composite" />{block} ({def.type === 'TIMER_SEC' ? `linked: ${def.type}` : def.type})</button>)}
           </div>
         </div>
-        {panes.parameters && <ParamPane pc={pc} composite={composite} name={name} live={live?.key ?? null} block={composite && selBlock ? sfc?.blocks?.[selBlock] ? { name: selBlock, def: sfc.blocks[selBlock] } : null : null} />}
+        {panes.parameters && <ParamPane pc={pc} composite={composite} name={name} live={live?.key ?? null} block={composite && selBlock ? sfc?.blocks?.[selBlock] ? { name: selBlock, def: sfc.blocks[selBlock] } : null : null}
+          onEditDefault={(blk, param) => setParamDlg({ block: blk, param })} />}
         <div className="studio-pane-label">Hierarchy View</div>
       </div>}
       {panes.hierarchy && <PaneResizer axis="x" sign={1} value={hierWidth} min={160} max={520} onChange={setHierWidth} label="Resize hierarchy panel" />}
@@ -572,6 +579,9 @@ export function PhaseStudio(): JSX.Element {
       }} />}
     {extDlg && sfc && composite === 'FAIL_MONITOR' && sfc.blocks?.[extDlg] && <ExtensibleDialog key={extDlg} name={extDlg} block={sfc.blocks[extDlg]}
       onClose={() => setExtDlg(null)} onOk={counts => { if (editBlocks(all => setBlockCounts(all, extDlg, counts))) setExtDlg(null) }} />}
+    {paramDlg && sfc && composite === 'FAIL_MONITOR' && sfc.blocks?.[paramDlg.block] && <BlockParamDialog key={paramDlg.block} block={paramDlg.block} param={paramDlg.param}
+      value={sfc.blocks[paramDlg.block].disabled ? 1 : 0} onClose={() => setParamDlg(null)}
+      onOk={value => { if (editBlocks(all => ({ ...all, [paramDlg.block]: { ...all[paramDlg.block], disabled: value === 1 } }))) setParamDlg(null) }} />}
     {compDlg && sfc && composite && sequenceComposite && <CompositeBlockDialog existing={[...Object.keys(sfc.blocks ?? {}), ...sfc.steps.map(s => s.name)]}
       onClose={() => setCompDlg(false)} onOk={(blockName, linkTo) => {
         if (editBlocks(all => ({ ...all, [blockName]: { type: linkTo, expression: '', inputs: [], disabled: false } }))) { setCompDlg(false); setSelBlock(blockName) }
@@ -593,8 +603,9 @@ export function PhaseStudio(): JSX.Element {
 // ---------------------------------------------------------------------------
 // Parameter view (p4-17/4-18: Filtered by, Alphabetic / Categorized)
 
-function ParamPane({ pc, composite, name, live, block }: {
+function ParamPane({ pc, composite, name, live, block, onEditDefault }: {
   pc: PhaseClass; composite: CompositeName | null; name: string; live: string | null; block: { name: string; def: PhaseBlock } | null
+  onEditDefault: (block: string, param: 'DISABLE') => void
 }): JSX.Element {
   const [view, setView] = useState<'Alphabetic' | 'Categorized'>('Alphabetic')
   const active = useBatch(s => (live ? s.active[live] : undefined))
@@ -611,7 +622,8 @@ function ParamPane({ pc, composite, name, live, block }: {
   const blockRows = composite && block ? Object.entries(phaseBlockDefaults(block.def)).map(([p, v]) => {
     const key = `${composite}/${block.name}/${p}`
     const value = String(params?.[key] ?? v)
-    return { name: p, value, group: 'Block', open: active ? () => writeBlock(key, value) : undefined }
+    const editable = block.def.type === 'CND' && p === 'DISABLE' && !live
+    return { name: p, value, group: 'Block', open: active ? () => writeBlock(key, value) : editable ? () => onEditDefault(block.name, 'DISABLE') : undefined }
   }) : null
   const rows: { name: string; value: string; group: string; open?: () => void }[] = blockRows ?? (composite === 'FAIL_MONITOR' ? [] : composite
     ? COMPOSITE_PARAMS.map(([n, v]) => ({ name: n, value: v, group: 'Composite' }))
@@ -626,7 +638,7 @@ function ParamPane({ pc, composite, name, live, block }: {
     <div className="ps-param-scroll">
       <table className="studio-param-table" aria-label={block ? `${block.name} parameters` : 'Phase parameters'}>
         <thead><tr><th>Parameter</th><th>{live ? 'Value' : 'Default'}</th>{view === 'Categorized' && <th>Category</th>}</tr></thead>
-        <tbody>{sorted.map(r => <tr key={r.name} data-param={r.name} onDoubleClick={r.open} title={r.open && block ? 'Double-click to change the on-line value' : undefined}
+        <tbody>{sorted.map(r => <tr key={r.name} data-param={r.name} onDoubleClick={r.open} title={r.open && block ? (live ? 'Double-click to change the on-line value' : 'Double-click to set the default value') : undefined}
           className={r.group !== 'System' && r.group !== 'Composite' && r.group !== 'Block' ? 'ps-user-param' : undefined}>
           <td>{r.name}</td><td>{r.value}</td>{view === 'Categorized' && <td>{r.group}</td>}</tr>)}
           {composite === 'FAIL_MONITOR' && !block && <tr><td colSpan={view === 'Categorized' ? 3 : 2}>Select a function block to see its parameters.</td></tr>}</tbody>
@@ -1190,6 +1202,8 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
   const bctx: ExprCtx = v.type === 'CALC'
     ? { ...base, check: { ...base.check, calc: true, checkRef: (ref, write) => {
       const m = /^\/?(?:IN_?(\d+)|OUT(\d+))\.CV$/i.exec(ref)
+      const other = /^\/?(IN_D\d+|RESET_IN|FIRST_OUT|OUT_INT|OUT_D)\.CV$/i.exec(ref)
+      if (other) return `${other[1].toUpperCase()} is a pin of another block (the BFI), not of this CALC block, which has IN1...INn and OUT1...OUTn. Wire it to an input pin, or read it as '^/BFI1/${other[1].toUpperCase()}.CV'.`
       if (!m) return base.check.checkRef(ref, write)
       if (m[1] && write) return `IN${m[1]} is an input of this block and cannot be assigned`
       if (m[1] && Number(m[1]) > inputCount(v)) return `This block has no IN${m[1]}. Add inputs with Extensible Parameters (right-click the block).`
@@ -1197,6 +1211,14 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
       return null
     } } }
     : base
+  // The editor's Insert Internal Parameter list writes references the way slides 6-35 and 6-37 do inside a block:
+  // '^/' is the FAIL_MONITOR composite, '/+/' is the phase, and a CALC block's own pins are bare ('IN1.CV').
+  const blockForm = (ins: string): string => (/^'\^\//.test(ins) ? ins.replace(/^'\^\//, "'/+/") : /^'\/(?![/+])/.test(ins) ? ins.replace(/^'\//, "'^/") : ins)
+  const pinRows = v.type === 'CALC' ? [
+    ...Array.from({ length: inputCount(v) }, (_, i) => `IN${i + 1}`).map(p => ({ key: `pin/${p}`, text: p, note: 'This block input', insert: `'${p}.CV'` })),
+    ...Array.from({ length: outputCount(v) }, (_, i) => `OUT${i + 1}`).map(p => ({ key: `pin/${p}`, text: p, note: 'This block output', insert: `'${p}.CV'` }))] : []
+  const editorCtx: ExprCtx = { ...bctx, internal: [...pinRows, ...bctx.internal.map(r => ({ ...r, insert: blockForm(r.insert) }))],
+    internalNote: "Inside a function block '^/' is the FAIL_MONITOR composite (a sibling block is '^/BFI1/OUT_D.CV') and '/+/' is the phase ('/+/FAIL_INDEX.CV')." }
   const submit = (): void => {
     const next = n.trim().toUpperCase()
     if (!isNameValid(next)) { setError(NAME_RULE); return }
@@ -1219,19 +1241,36 @@ export function BlockDialog({ name, sfc, ctx, onOk, onClose }: {
         <ParserOutput text={v.expression} kind={kind} ctx={bctx} empty="Empty expression: the block reports a configuration error and OUT_D stays False." />
       </>}
       {v.type === 'CND' && <>
-        <label className="dvd-check"><input type="checkbox" aria-label="DISABLE default" checked={v.disabled}
-          onChange={e => setV({ ...v, disabled: e.target.checked })} /> DISABLE = 1 by default (True bypasses the block: OUT_D stays False while the logic has it disabled)</label>
         <label>TIME_DURATION (s):<input aria-label="Time duration" type="number" min={0} step="any" value={v.timeDuration ?? 0}
           onChange={e => setV({ ...v, timeDuration: Number(e.target.value) })} /></label>
-        <p className="exp-hint">OUT_D is set when the expression has been True for longer than TIME_DURATION. PRE_OUT_D follows the expression and ignores DISABLE.</p>
+        <p className="exp-hint">OUT_D is set when the expression has been True for longer than TIME_DURATION. PRE_OUT_D follows the expression and ignores DISABLE. DISABLE is a block parameter: select the block and double-click DISABLE in the Parameters pane to set its default (DISABLE = 1 bypasses the block).</p>
       </>}
       {v.type === 'BFI' && <p className="exp-hint">Right-click the block &gt; Extensible Parameters to set the number of inputs (IN_D1...IN_D16). Drag from a condition's OUT_D pin to an IN_Dn pin. OUT_INT is the binary weighted sum of the inputs (IN_D1 = 1, IN_D2 = 2, IN_D3 = 4 ...). FIRST_OUT traps OUT_INT when the inputs go from all False to one or more True (while ARM_TRAP is non-zero) and holds it until RESET_IN is set to 1.</p>}
       {v.type === 'CALC' && <p className="exp-hint">IN1, IN2 ... and OUT1, OUT2 ... are this block's own pins; write them bare, for example OUT1 := IN1;. Use Extensible Parameters (right-click the block) for more than two. Other parameters are read with their full path, for example '/BFI1/OUT_D.CV' or '/+/FAIL_INDEX.CV'.</p>}
     </div>
     <DlgButtons onOk={submit} onClose={onClose} extra={v.type !== 'BFI' ? <button className="tbtn sm" onClick={() => setEditor(true)}>Edit Expression...</button> : undefined} />
     {error && <p role="alert" className="lib-dlg-error">{error}</p>}
-    {editor && <ExpressionDialog title={`FAIL_MONITOR/${n} Expression`} kind={kind} ctx={bctx}
+    {editor && <ExpressionDialog title={`FAIL_MONITOR/${n} Expression`} kind={kind} ctx={editorCtx}
       value={v.expression} onClose={() => setEditor(false)} onOk={expression => { setV({ ...v, expression }); setEditor(false) }} />}
+  </SimulatorDialog>
+}
+
+/** Parameter properties of a function block parameter's configured (default) value, opened by double-clicking it in the Parameters pane. */
+export function BlockParamDialog({ block, param, value, onOk, onClose }: {
+  block: string; param: 'DISABLE'; value: number; onOk: (value: number) => void; onClose: () => void
+}): JSX.Element {
+  const [v, setV] = useState(value ? 1 : 0)
+  return <SimulatorDialog className="module-download-dialog dvd" label={`FAIL_MONITOR/${block}/${param} Properties`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Parameter:<input aria-label="Parameter name" readOnly value={`${block}/${param}`} /></label>
+      <label>Default value:
+        <select aria-label="Default value" autoFocus value={v} onChange={e => setV(Number(e.target.value))}>
+          <option value={0}>0 (False = enable the block logic)</option>
+          <option value={1}>1 (True = disable the block logic)</option>
+        </select></label>
+      <p className="exp-hint">When DISABLE is True, OUT_D is not set regardless of the expression; PRE_OUT_D still follows it. Phase logic changes DISABLE at run time; this is the value the block starts with.</p>
+    </div>
+    <DlgButtons onOk={() => onOk(v)} onClose={onClose} />
   </SimulatorDialog>
 }
 
@@ -1291,23 +1330,34 @@ function ParserOutput({ text, kind, ctx, empty }: { text: string; kind: ExprKind
 }
 
 const OP_BUTTONS = ['+', '-', '*', '/', '(', ')', '<', '>', '<=', '>=', '=', '!=', ':=', 'NOT', 'AND', 'OR']
+/** Statement and conditional pieces for action and block expressions (a condition is a single expression, so it has none). */
+const STATEMENT_BUTTONS = ['IF', 'THEN', 'ELSE', 'ENDIF', ';', '?', ':']
+const FUNCTION_NOTES: Record<string, { insert: string; back: number; note: string }> = {
+  ABS: { insert: 'ABS()', back: 1, note: 'Absolute value' }, MIN: { insert: 'MIN(, )', back: 3, note: 'Smaller of two values' }, MAX: { insert: 'MAX(, )', back: 3, note: 'Larger of two values' },
+  LOG2: { insert: 'LOG2(2, )', back: 1, note: 'LOG2(base, value): logarithm of the value to the base' }, LN: { insert: 'LN()', back: 1, note: 'Natural logarithm' },
+  LOG: { insert: 'LOG()', back: 1, note: 'Base-10 logarithm' }, EXP: { insert: 'EXP()', back: 1, note: 'e raised to the value' }, EXPT: { insert: 'EXPT(, )', back: 3, note: 'Value raised to a power' },
+  SQRT: { insert: 'SQRT()', back: 1, note: 'Square root' }, TRUNC: { insert: 'TRUNC()', back: 1, note: 'Drop the fraction' }, ROUND: { insert: 'ROUND()', back: 1, note: 'Round to the nearest integer' },
+  SIGN: { insert: 'SIGN()', back: 1, note: 'Sign of the value' }, FRACT: { insert: 'FRACT()', back: 1, note: 'Fraction part' }, SIN: { insert: 'SIN()', back: 1, note: 'Sine' },
+  COS: { insert: 'COS()', back: 1, note: 'Cosine' }, TAN: { insert: 'TAN()', back: 1, note: 'Tangent' }, ASIN: { insert: 'ASIN()', back: 1, note: 'Arc sine' },
+  ACOS: { insert: 'ACOS()', back: 1, note: 'Arc cosine' }, ATAN: { insert: 'ATAN()', back: 1, note: 'Arc tangent' }
+}
 
 /** Expression editor (p4-20/4-21): operator buttons, browse buttons, Expression and Parser output. */
 function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
   title: string; kind: ExprKind; ctx: ExprCtx; value: string; onOk: (v: string) => void; onClose: () => void
 }): JSX.Element {
   const [text, setText] = useState(value)
-  const [browse, setBrowse] = useState<'internal' | 'external' | 'named' | 'alias' | null>(null)
+  const [browse, setBrowse] = useState<'internal' | 'external' | 'named' | 'alias' | 'function' | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
-  const insert = (s: string): void => {
+  const insert = (s: string, back = 0): void => {
     const el = area.current
     const start = el?.selectionStart ?? text.length
     const end = el?.selectionEnd ?? text.length
-    const pad = (k: string): string => (/^[A-Z]+$/.test(k) ? ` ${k} ` : k)
+    const pad = (k: string): string => (/^[A-Z]+$|^[?:]$/.test(k) ? ` ${k} ` : k)
     const ins = pad(s)
     const next = text.slice(0, start) + ins + text.slice(end)
     setText(next)
-    requestAnimationFrame(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + ins.length } })
+    requestAnimationFrame(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = start + ins.length - back } })
   }
   const submit = (): void => {
     const final = kind === 'block' ? text.trim() : ensureTrailingSemicolon(text)
@@ -1318,11 +1368,13 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide ps-expr-dialog" label={title} onClose={onClose}>
     <div className="ps-expr-body">
       <div className="ps-expr-buttons">
-        <div className="ps-op-grid">{OP_BUTTONS.map(op => <button key={op} type="button" className="tbtn sm" onClick={() => insert(op)}>{op}</button>)}</div>
+        <div className="ps-op-grid">{(kind === 'condition' ? OP_BUTTONS : [...OP_BUTTONS, ...STATEMENT_BUTTONS]).map(op =>
+          <button key={op} type="button" className="tbtn sm" onClick={() => insert(op)}>{op}</button>)}</div>
         <div className="ps-browse-buttons">
           <button type="button" className="tbtn sm" onClick={() => setBrowse('internal')}>Insert Internal Parameter...</button>
           <button type="button" className="tbtn sm" onClick={() => setBrowse('external')}>Insert External Parameter...</button>
           <button type="button" className="tbtn sm" onClick={() => setBrowse('named')}>Insert Named State...</button>
+          <button type="button" className="tbtn sm" onClick={() => setBrowse('function')}>Insert Function...</button>
           <button type="button" className="tbtn sm" onClick={() => insert('SELSTR("default", "string1", condition1)')}>SELSTR...</button>
           <button type="button" className="tbtn sm" onClick={() => insert('LOGEVENT("text");')}>LOGEVENT...</button>
           <button type="button" className="tbtn sm" disabled={!ctx.aliases} title={ctx.aliases ? undefined : ctx.aliasNote} onClick={() => setBrowse('alias')}>Insert Alias...</button>
@@ -1337,6 +1389,7 @@ function ExpressionDialog({ title, kind, ctx, value, onOk, onClose }: {
     {browse === 'internal' && <InternalBrowser ctx={ctx} kind={kind} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'external' && <ExternalBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
     {browse === 'named' && <NamedStateBrowser onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
+    {browse === 'function' && <FunctionBrowser onClose={() => setBrowse(null)} onPick={(s, back) => { insert(s, back); setBrowse(null) }} />}
     {browse === 'alias' && ctx.aliases && <AliasBrowser ctx={ctx} onClose={() => setBrowse(null)} onPick={s => { insert(s); setBrowse(null) }} />}
   </SimulatorDialog>
 }
@@ -1382,6 +1435,16 @@ function ExternalBrowser({ onPick, onClose }: { onPick: (s: string) => void; onC
   </SimulatorDialog>
 }
 
+function FunctionBrowser({ onPick, onClose }: { onPick: (s: string, back: number) => void; onClose: () => void }): JSX.Element {
+  const names = FUNCTIONS.filter(f => FUNCTION_NOTES[f])
+  const [fn, setFn] = useState<string | null>(names[0] ?? null)
+  const pick = (k = fn): void => { const f = k ? FUNCTION_NOTES[k] : undefined; if (f) onPick(f.insert, f.back) }
+  return <SimulatorDialog className="module-download-dialog dvd" label="Insert Function" onClose={onClose}>
+    <ListPick label="Functions" items={names.map(n => ({ key: n, text: n, note: FUNCTION_NOTES[n].note }))} value={fn} onChange={setFn} onDouble={k => pick(k)} />
+    <DlgButtons onOk={() => pick()} onClose={onClose} />
+  </SimulatorDialog>
+}
+
 function NamedStateBrowser({ onPick, onClose }: { onPick: (s: string) => void; onClose: () => void }): JSX.Element {
   const sets = useStore(s => s.namedSets.configured)
   const names = Object.values(sets).map(s => s.name).sort()
@@ -1401,6 +1464,7 @@ function NamedStateBrowser({ onPick, onClose }: { onPick: (s: string) => void; o
 }
 
 const ALIAS_FIELDS = ['(alias path only)', 'MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']
+const CHILD_FIELDS = ['MODE.TARGET', 'MODE.ACTUAL', 'CAS_SP.CV', 'PV.CV', 'PV_D.CV', 'SP_D.CV']
 
 function AliasBrowser({ ctx, onPick, onClose }: { ctx: ExprCtx; onPick: (s: string) => void; onClose: () => void }): JSX.Element {
   const aliases = ctx.aliases ?? []

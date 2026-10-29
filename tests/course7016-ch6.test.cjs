@@ -670,8 +670,15 @@ test('Chapter 6: UI exposes confirmations, wired function blocks, alternate-bran
   blocks = fb.disconnectInput(blocks, 'BFI1', 0)
   assert.deepEqual(blocks.BFI1.inputs, ['', '/CND2/OUT_D.CV'])
   assert.equal(Object.keys(fb.deleteBlock(blocks, 'CND2').BFI1.inputs.filter(Boolean)).length, 0)
-  const dlg = renderToStaticMarkup(React.createElement(studio.BlockDialog, { name: 'CND1', sfc: { ...cfg.defaultSfc(), blocks }, ctx: { check }, onOk: () => {}, onClose: () => {} }))
-  assert.ok(dlg.includes('Block expression') && dlg.includes('DISABLE default') && dlg.includes('Edit Expression'))
+  const dlg = renderToStaticMarkup(React.createElement(studio.BlockDialog, { name: 'CND1', sfc: { ...cfg.defaultSfc(), blocks }, ctx: { check, internal: [], internalNote: '', aliases: null, aliasNote: '' }, onOk: () => {}, onClose: () => {} }))
+  assert.ok(dlg.includes('Block expression') && dlg.includes('Edit Expression') && !dlg.includes('DISABLE default'))
+  const paramDlg = renderToStaticMarkup(React.createElement(studio.BlockParamDialog, { block: 'CND1', param: 'DISABLE', value: 0, onOk: () => {}, onClose: () => {} }))
+  assert.ok(paramDlg.includes('CND1/DISABLE Properties') && paramDlg.includes('Default value'))
+  // A BFI pin read bare inside a CALC block is explained instead of reported as a bad external reference.
+  const calcDlg = renderToStaticMarkup(React.createElement(studio.BlockDialog, { name: 'MESSAGE',
+    sfc: { ...cfg.defaultSfc(), blocks: { ...blocks, MESSAGE: { ...blocks.MESSAGE, expression: "IF 'IN_D1.CV' THEN 'OUT1.CV' := 1; ENDIF;" } } },
+    ctx: { check, internal: [], internalNote: '', aliases: null, aliasNote: '' }, onOk: () => {}, onClose: () => {} }))
+  assert.ok(calcDlg.includes('IN_D1 is a pin of another block'), calcDlg)
   assert.ok(renderToStaticMarkup(React.createElement(studio.CompositeBlockDialog, { existing: [], onOk: () => {}, onClose: () => {} })).includes('TIMER_SEC'))
 
   // Alternate branches: built from the SFC, laid out as columns, and still executable by the phase engine.
@@ -747,6 +754,43 @@ test('Chapter 6: open branches can be brought together on one step like slide 6-
     onSelect: () => {}, onStepOpen: () => {}, onEdgeOpen: () => {}, onStepMenu: () => {}, onEdgeMenu: () => {} }))
   assert.equal([...html.matchAll(/data-edge="[^"]*&gt;NULL"/g)].length, 3)
 })
+
+test('Chapter 6: the expression editor can reach every reference slide 6-39 and the FAIL_MONITOR blocks need', () => fixture(() => {
+  blenders(); agitate()
+  const studio = require('../src/renderer/src/displays/PhaseStudio.tsx')
+  const ctx = studio.phaseExprCtx(B().phaseClasses.AGITATE, B().unitClasses, 'RUN_LOGIC')
+  const fields = name => ctx.aliases.find(a => a.name === name).params
+  // Equipment module aliases reach their own module blocks (CND2, CND3, CND5 of slide 6-39).
+  for (const f of ['PRODUCT_VLV/PV.CV', 'WASTE_VLV/PV.CV']) assert.ok(fields('BLNDR_OUTLET').includes(f), f)
+  assert.ok(fields('BLNDR_COLOR').includes('COLOR_IN_VLV/PV.CV'))
+  assert.ok(fields('BLNDR_OUTLET').includes('A_COMMAND.CV'))
+  assert.ok(fields('AGITATOR').includes('PV_D.CV') && fields('BASE_IN_VLV').includes('PV_D.CV'))
+  // Every reference the saved AGITATE logic uses is something an editor picker inserts.
+  const pc = B().phaseClasses.AGITATE
+  const named = new Set(Object.values(M().namedSets.configured).flatMap(s => s.entries.map(e => `'${s.name}:${e.name}'`)))
+  for (const c of cfg.COMPOSITES) {
+    const cx = studio.phaseExprCtx(pc, B().unitClasses, c)
+    const offered = new Set([...cx.internal.map(r => r.insert), ...(cx.blocks ?? []).map(r => r.insert),
+      ...cx.aliases.flatMap(a => a.params.map(f => (f === '(alias path only)' ? `'//#${a.name}#'` : `'//#${a.name}#/${f}'`)))])
+    for (const step of pc.logic[c].steps) for (const a of step.actions) for (const m of (a.expression ?? '').matchAll(/'[^']+'/g)) {
+      // '^/RUN_LOGIC/X' written inside RUN_LOGIC is the same reference the picker inserts as '/X'.
+      const ref = m[0].startsWith(`'^/${c}/`) ? `'/${m[0].slice(`'^/${c}/`.length)}` : m[0]
+      assert.ok(offered.has(ref) || named.has(ref), `${c}/${step.name}: ${m[0]} is not offered by the expression editor`)
+    }
+  }
+}))
+
+test('Chapter 6: a new phase class starts with BLOCK1 in FAIL_MONITOR', () => fixture(() => {
+  blenders()
+  const fb = require('../src/renderer/src/engine/phaseBlocks.ts')
+  value(B().renameCategory('phase', value(B().newCategory('phase', null)), 'BlenderClasses'))
+  value(B().newPhaseClass('BlenderClasses', 'AGITATE'))
+  const fm = B().phaseClasses.AGITATE.logic.FAIL_MONITOR.blocks
+  assert.deepEqual(Object.keys(fm), ['BLOCK1'])
+  assert.deepEqual([fm.BLOCK1.type, fm.BLOCK1.inCount, fm.BLOCK1.outCount, fm.BLOCK1.expression], ['CALC', 2, 2, ''])
+  assert.equal(fb.newDiagramBlock('CALC', fm).name, 'CALC1', 'the CALC you add is CALC1, to be renamed MESSAGE')
+  assert.deepEqual(Object.keys(B().phaseClasses.AGITATE.logic.RUN_LOGIC.blocks ?? {}), [], 'only FAIL_MONITOR has a stock block')
+}))
 
 test('Chapter 6: a save made before $phase_restart_types existed still runs Restart after it is loaded', () => fixture(() => {
   blenders(); agitate()

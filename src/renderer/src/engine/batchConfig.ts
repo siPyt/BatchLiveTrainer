@@ -157,10 +157,11 @@ export function defaultSfc(): PhaseSfc {
 }
 
 export function newPhaseClass(name: string, category: string): PhaseClass {
-  return {
-    name, category, description: '', params: {}, revision: 1,
-    logic: Object.fromEntries(COMPOSITES.map(c => [c, defaultSfc()])) as Record<CompositeName, PhaseSfc>
-  }
+  const logic = Object.fromEntries(COMPOSITES.map(c => [c, defaultSfc()])) as Record<CompositeName, PhaseSfc>
+  // A new phase class's FAIL_MONITOR already holds the calculation block BLOCK1 (slides 6-37 and 6-40: "In BLOCK1, add an IF/THEN").
+  // Its two stock IF statements (watchdog and switchover) are not simulated, so the expression starts empty.
+  logic.FAIL_MONITOR = { ...logic.FAIL_MONITOR, blocks: { BLOCK1: { type: 'CALC', expression: '', inputs: [], disabled: false, inCount: 2, outCount: 2 } } }
+  return { name, category, description: '', params: {}, revision: 1, logic }
 }
 
 export function sfcNames(sfc: PhaseSfc): string[] {
