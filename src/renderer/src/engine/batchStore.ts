@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { useStore } from './store'
 import { useSecurity } from './security'
 import { controllerIsDown } from './hardware'
-import { isValidDeltaVTag } from './naming'
+import { isValidDeltaVTag, moduleNameError } from './naming'
 import { useLibrary, libraryHooks, makeReader } from './libraryStore'
 import { EvalError, MODE_WORDS, toNum, type CheckEnv, type Value } from './phaseExpr'
 import {
@@ -20,6 +20,7 @@ import { phaseBlockDefaults } from './phaseBlocks'
 import type { NamedSetDefinition } from './namedSets'
 import { findNamedSet } from './namedSetMatch'
 import { PHASE_IMPORT_FILES } from './course7016Imports'
+import { DEFAULT_ARB, acquireBlock, arbitrationError, decodeRequest, nextEquipmentId, resourceSet, type ArbConfig, type ArbDeployed, type OwnerTable } from './arbitration'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 function ok<T>(value: T): Result<T> { return { ok: true, value } }
@@ -56,6 +57,10 @@ interface BatchState {
   deployedUnits: Record<string, UnitDeployment>
   active: Record<string, ActivePhase>
   dc: Record<string, DcRemote>
+  /** Chapter 8 equipment arbitration: configured (Properties > Arbitration), downloaded (what the controller runs) and current owners. */
+  arbitration: Record<string, ArbConfig>
+  arbDeployed: Record<string, ArbDeployed>
+  arbOwners: OwnerTable
 
   resetBatch: () => void
 
@@ -120,6 +125,13 @@ interface BatchState {
   deleteCourseModule: (tag: string) => Result<string>
   unassignModule: (tag: string) => Result<string>
   setModuleDescription: (tag: string, description: string) => Result<string>
+  /** Properties > Arbitration: the module's configuration, created with the next free default Equipment ID on first use. */
+  ensureArbitration: (tag: string) => Result<ArbConfig>
+  setArbitration: (tag: string, config: ArbConfig) => Result<string>
+  /** New ▸ Control Module in a process cell (an empty module such as COLOR_HEADER that only carries arbitration settings). */
+  createResourceModule: (cell: string, tag: string, description: string) => Result<string>
+  /** Operator answers a phase REQUEST (the Batch Executive's job): only 0 is accepted; 40nn / 42nn are arbitrated. */
+  setRequest: (unit: string, phase: string, value: number) => Result<string>
   setTwoStage: (tag: string, position: 'CLOSE' | 'DRIBBLE' | 'BULK') => Result<string>
   /** Faceplate MODE target of a course valve/motor (DC block): AUTO/MAN return it to the operator, CAS hands it to the phase or equipment module. */
   setDeviceMode: (tag: string, mode: 'AUTO' | 'MAN' | 'CAS') => Result<string>
@@ -144,9 +156,9 @@ function defaultCategories(): Record<string, BatchCategory> {
 }
 
 const empty = (): Pick<BatchState, 'categories' | 'pcellClasses' | 'unitClasses' | 'phaseClasses' | 'phaseDrafts' | 'processCells' | 'units' |
-  'contained' | 'cellMembers' | 'unitAssignments' | 'deployedUnits' | 'active' | 'dc'> => ({
+  'contained' | 'cellMembers' | 'unitAssignments' | 'deployedUnits' | 'active' | 'dc' | 'arbitration' | 'arbDeployed' | 'arbOwners'> => ({
   categories: defaultCategories(), pcellClasses: {}, unitClasses: {}, phaseClasses: {}, phaseDrafts: {}, processCells: {}, units: {},
-  contained: {}, cellMembers: {}, unitAssignments: {}, deployedUnits: {}, active: {}, dc: {}
+  contained: {}, cellMembers: {}, unitAssignments: {}, deployedUnits: {}, active: {}, dc: {}, arbitration: {}, arbDeployed: {}, arbOwners: {}
 })
 
 function classes(s: BatchState, kind: BatchClassKind): Record<string, { name: string; category: string }> {
@@ -1394,6 +1406,82 @@ export const useBatch = create<BatchState>((set, get) => ({
     return ok(mode)
   },
 
+  // ---- Chapter 8: equipment arbitration and phase requests ---------------------
+  ensureArbitration: tag => {
+    const s = get()
+    if (!arbModuleExists(tag)) return fail(`${tag} does not exist`)
+    const existing = s.arbitration[tag]
+    if (existing) return ok(existing)
+    const config = DEFAULT_ARB(nextEquipmentId(s.arbitration))
+    set({ arbitration: { ...s.arbitration, [tag]: config } })
+    return ok(config)
+  },
+  setArbitration: (tag, config) => {
+    const s = get()
+    if (!arbModuleExists(tag)) return fail(`${tag} does not exist`)
+    const next: ArbConfig = { participate: config.participate, equipmentId: Number(config.equipmentId), maxOwners: Number(config.maxOwners), needed: [...config.needed] }
+    const error = arbitrationError(tag, next, s.arbitration, arbModuleExists)
+    if (error) return fail(error)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure arbitration of ${tag}`)) return fail('Requires the Can Configure key')
+    set({ arbitration: { ...s.arbitration, [tag]: next } })
+    log(tag, next.participate
+      ? `Arbitration configured: Equipment ID ${next.equipmentId}, maximum owners ${next.maxOwners}${next.needed.length ? `, needs ${next.needed.join(', ')}` : ''}; download required`
+      : 'Arbitration: does not participate in equipment arbitration; download required')
+    return ok(tag)
+  },
+  createResourceModule: (cell, raw, description) => {
+    const s = get()
+    const pc = s.processCells[cell]
+    if (!pc) return fail(`Process cell ${cell} does not exist`)
+    const tag = raw.trim().toUpperCase()
+    const error = moduleNameError(tag)
+    if (error) return fail(error)
+    if (hierarchyTaken(s, tag)) return fail(`The name ${tag} is already used in the database`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create module ${tag}`)) return fail('Requires the Can Configure key')
+    // A module with no algorithm; the simulator carries it as a plain module in the cell's area.
+    if (!useStore.getState().createModule({ tag, type: 'DI', description: description.trim() || tag, area: pc.area })) return fail(`${tag} could not be created`)
+    set({ cellMembers: { ...get().cellMembers, [tag]: cell } })
+    log(tag, `Control Module created in process cell ${cell}`)
+    return ok(tag)
+  },
+  setRequest: (unit, phase, value) => {
+    const s = get()
+    const key = activeKey(unit, phase)
+    const a = s.active[key]
+    if (!a) return fail(`${phase} is not loaded on ${unit}`)
+    if (value !== 0) return fail('Only 0 (clear the request) can be written to REQUEST here')
+    const code = Number(a.rt.params.REQUEST ?? 0)
+    const info = decodeRequest(code)
+    if (info.kind === 'none') return ok('0')
+    if (a.owner !== 'EXTERNAL') return fail(`${key} is owned by DeltaV Batch; toggle the phase owner to External to answer its requests`)
+    if (!requireUnlockedLock('BATCH_OPERATE', `Clear request of unit phase ${key}`)) return fail('Requires the Batch Operate key')
+    const owners = liveOwners(s)
+    if (info.kind === 'acquire' || info.kind === 'release') {
+      const tag = Object.entries(s.arbDeployed).find(([, d]) => d.participate && d.equipmentId === info.id)?.[0]
+      if (!tag) {
+        log(key, `Request ${code} not satisfied: no downloaded module with Equipment ID ${info.id} participates in equipment arbitration`, 'DIAGNOSTIC')
+        return fail(`No downloaded module has Equipment ID ${info.id}. Set it on the module's Arbitration tab (Participate in equipment arbitration) and download the module, then clear the request again`)
+      }
+      if (info.kind === 'acquire') {
+        const block = acquireBlock(tag, key, s.arbDeployed, owners)
+        if (block) { log(key, `Request ${code} waiting: ${block}`, 'BATCH'); return fail(block) }
+        for (const t of resourceSet(tag, s.arbDeployed)) {
+          const id = s.arbDeployed[t].equipmentId
+          owners[id] = [...new Set([...(owners[id] ?? []), key])]
+        }
+        log(key, `Acquired ${tag} (Equipment ID ${info.id})${s.arbDeployed[tag].needed.length ? ` with ${s.arbDeployed[tag].needed.join(', ')}` : ''}`, 'BATCH')
+      } else {
+        for (const t of resourceSet(tag, s.arbDeployed)) {
+          const id = s.arbDeployed[t].equipmentId
+          owners[id] = (owners[id] ?? []).filter(k => k !== key)
+        }
+        log(key, `Released ${tag} (Equipment ID ${info.id})`, 'BATCH')
+      }
+    } else log(key, `Request ${code} cleared: ${info.text}`, 'BATCH')
+    set({ arbOwners: owners, active: { ...s.active, [key]: { ...a, rt: { ...a.rt, params: { ...a.rt.params, REQUEST: 0 } } } } })
+    return ok('0')
+  },
+
   step: dt => {
     for (const tag of Object.keys(get().dc)) applyRemote(tag)
     useEm.getState().stepEms(dt)
@@ -1415,6 +1503,8 @@ export const useBatch = create<BatchState>((set, get) => ({
         useBatch.setState(st => ({ active: { ...st.active, [key]: { ...st.active[key], rt: { ...st.active[key].rt, message: rt.message } } } }))
       }
       if (rt.state !== before) log(key, `Phase state ${STATE_LABEL[rt.state]}${phaseHasFailure(rt) && rt.message ? ` (failure: ${rt.message})` : ''}`, 'BATCH')
+      const requested = Number(get().active[key]?.rt.params.REQUEST ?? 0)
+      if (requested !== 0 && requested !== Number(a.rt.params.REQUEST ?? 0)) log(key, `Phase request ${requested}: ${decodeRequest(requested).text}`, 'BATCH')
     }
   }
 }))
@@ -1422,6 +1512,61 @@ export const useBatch = create<BatchState>((set, get) => ({
 function diffParams(before: Record<string, Value>, after: Record<string, Value>): Record<string, Value> {
   return Object.fromEntries(Object.entries(after).filter(([k, v]) => before[k] !== v))
 }
+
+/** Equipment, control modules and simulation modules can take part in equipment arbitration. */
+function arbModuleExists(tag: string): boolean {
+  const em = useEm.getState()
+  return !!(useStore.getState().modules[tag] || em.instances[tag] || em.cmInstances[tag] || useLibrary.getState().sims[tag])
+}
+
+/** Owners of each resource, dropping phases that are no longer holding anything (unloaded, reset to Idle, stopped or aborted). */
+function liveOwners(s: BatchState): OwnerTable {
+  const out: OwnerTable = {}
+  for (const [id, keys] of Object.entries(s.arbOwners)) {
+    const alive = keys.filter(k => { const a = s.active[k]; return !!a && !['IDLE', 'STOPPED', 'ABORTED'].includes(a.rt.state) })
+    if (alive.length) out[id] = alive
+  }
+  return out
+}
+/** Who owns what right now (for the Arbitration tab). */
+export function currentOwners(): OwnerTable { return liveOwners(useBatch.getState()) }
+
+export type ArbState = 'none' | 'not-downloaded' | 'pending' | 'current'
+/** Whether a module's arbitration settings have reached the controller (Properties > Arbitration, slide 8-11 step 4). */
+export function arbitrationState(tag: string): ArbState {
+  const s = useBatch.getState()
+  const cfg = s.arbitration[tag]
+  if (!cfg || (!cfg.participate && !s.arbDeployed[tag])) return 'none'
+  const dep = s.arbDeployed[tag]
+  if (!dep) return 'not-downloaded'
+  return dep.participate === cfg.participate && dep.equipmentId === cfg.equipmentId && dep.maxOwners === cfg.maxOwners &&
+    JSON.stringify(dep.needed) === JSON.stringify(cfg.needed) ? 'current' : 'pending'
+}
+
+/** A module's arbitration settings are downloaded together with the module (controller, unit or module download). */
+function syncArbDeploy(tags: string[]): void {
+  const s = useBatch.getState()
+  const lib = useLibrary.getState()
+  const em = useEm.getState()
+  const at = useStore.getState().time
+  const next = { ...s.arbDeployed }
+  let changed = false
+  for (const tag of tags) {
+    const cfg = s.arbitration[tag]
+    if (!cfg) continue
+    const controller = em.deployed[tag]?.controller ?? lib.assignments[tag] ?? null
+    next[tag] = { ...cfg, needed: [...cfg.needed], controller, at }
+    changed = true
+  }
+  if (changed) useBatch.setState({ arbDeployed: next })
+}
+useLibrary.subscribe((st, prev) => {
+  if (st.lastDownload && st.lastDownload !== prev.lastDownload) syncArbDeploy(st.lastDownload.downloaded)
+})
+useEm.subscribe((st, prev) => {
+  if (st.deployed === prev.deployed) return
+  syncArbDeploy(Object.keys(st.deployed).filter(t => st.deployed[t] !== prev.deployed[t]))
+})
 
 export function containedIn(unit: string): string[] {
   return Object.entries(useBatch.getState().contained).filter(([, u]) => u === unit).map(([t]) => t).sort()

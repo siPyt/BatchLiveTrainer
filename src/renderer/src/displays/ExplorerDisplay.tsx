@@ -155,6 +155,7 @@ export function ExplorerDisplay(): JSX.Element {
   const libraryDeployed = useLibrary(s => s.deployed)
   const libraryClasses = useLibrary(s => s.classes)
   const sims = useLibrary(s => s.sims)
+  const hardwareControllers = useStore(s => s.hardware.controllers)
   const batchContained = useBatch(s => s.contained)
   const batchCellMembers = useBatch(s => s.cellMembers)
   const emCms = useEm(s => s.cmInstances)
@@ -701,6 +702,28 @@ export function ExplorerDisplay(): JSX.Element {
                 }}
               >
                 Open Faceplate
+              </button>
+              <button
+                className="ctx-item"
+                onClick={() => {
+                  useBatchUi.getState().openDialog({ t: 'moduleDesc', tag: menu.target })
+                  setMenu(null)
+                }}
+              >
+                Properties...
+              </button>
+              {Object.keys(hardwareControllers).map(c => (
+                <button key={c} className="ctx-item" onClick={() => { alertResult(useLibrary.getState().assignModule(menu.target, c)); setMenu(null) }}>
+                  Assign ▸ {c}
+                </button>
+              ))}
+              <button
+                className="ctx-item"
+                disabled={!libraryAssignments[menu.target]}
+                title={libraryAssignments[menu.target] ? undefined : 'Assign the module to a controller first'}
+                onClick={() => { setModuleDownload({ tag: menu.target, controller: libraryAssignments[menu.target] }); setMenu(null) }}
+              >
+                Download ▸ Control Module...
               </button>
               {!isBuiltinTag(menu.target, Object.keys(sims).length > 0) && (
                 <button

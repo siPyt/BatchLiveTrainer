@@ -140,12 +140,12 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
   t('function', 'fn-library-download', 'Download a controller or class-based module', 'CAN_DOWNLOAD',
     /^Download (controller|class-based module|unit module|unit phase) /),
   t('function', 'fn-batch-config', 'Batch: process cell, unit and phase classes, aliases, process cells, unit modules and unit phases', 'CAN_CONFIGURE',
-    /^(Create|Rename|Delete) (batch category|process cell class|unit class|phase class|process cell|unit module|alias|phase parameter) |^Save phase class |^Import phase class |^Configure (unit class|phase class|unit module|unit phase|alias) |^Assign .+ to (unit module|process cell|unit class) |^Assign .+ to plant area$/),
+    /^(Create|Rename|Delete) (batch category|process cell class|unit class|phase class|process cell|unit module|alias|phase parameter) |^Save phase class |^Import phase class |^Configure (unit class|phase class|unit module|unit phase|alias|arbitration of) |^Assign .+ to (unit module|process cell|unit class) |^Assign .+ to plant area$/),
   t('function', 'fn-module-classes', 'Module classes: equipment module classes, module blocks and module instances', 'CAN_CONFIGURE',
     /^(Create|Rename|Delete|Configure|Save) equipment module class |^(Add|Rename|Remove|Bind) module block |^(Rename|Delete|Configure) course module |^Delete assignment of /),
   t('function', 'fn-em-command', 'Command equipment modules (A_COMMAND), two stage valves and device target modes', 'CONTROL', /^Command (equipment module|two stage valve|target mode of) /),
   t('function', 'fn-unit-phase', 'Load, command, own and write parameters of unit phases', 'BATCH_OPERATE',
-    /^(Load|Unload|Command|Write parameter of|Change owner of) unit phase /)
+    /^(Load|Unload|Command|Write parameter of|Clear request of|Change owner of) unit phase /)
 ]
 
 export function findSecurityTarget(lock: LockType, action: string): SecurityTarget | undefined {

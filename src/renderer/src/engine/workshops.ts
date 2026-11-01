@@ -1,6 +1,7 @@
 import type { DisplayId } from '../ui/uiStore'
 import { CHAPTER6 } from './course7016Ch6Workshops'
 import { CHAPTER7 } from './course7016Ch7Workshops'
+import { CHAPTER8 } from './course7016Ch8Workshops'
 
 // Emerson Course 7016 (DeltaV Batch) workshops performed with BatchLiveTrainer's tools,
 // step by step as written in the course book; "goto" jumps the learner to the display
@@ -350,5 +351,6 @@ export const COURSE: WModule[] = [
     ]
   },
   CHAPTER6,
-  CHAPTER7
+  CHAPTER7,
+  CHAPTER8
 ]

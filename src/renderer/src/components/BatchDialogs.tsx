@@ -4,7 +4,8 @@ import { useBatchUi } from '../ui/batchUi'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
-import { useBatch, aliasesResolved, moduleParamNames, type UploadRow } from '../engine/batchStore'
+import { useBatch, aliasesResolved, moduleParamNames, arbitrationState, currentOwners, type UploadRow } from '../engine/batchStore'
+import { ARB_MAX_ID, ARB_MAX_OWNERS, type ArbConfig } from '../engine/arbitration'
 import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
 import { PHASE_IMPORT_FILES } from '../engine/course7016Imports'
 import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
@@ -326,6 +327,27 @@ export function PickDialog({ title, prompt, options, onPick, onClose }: { title:
   </SimulatorDialog>
 }
 
+/** Process cell ▸ New ▸ Control Module (Chapters 8 and 9: COLOR_HEADER / BASE_HEADER carry only arbitration settings). */
+export function NewResourceModuleDialog({ cell, onClose }: { cell: string; onClose: () => void }): JSX.Element {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const submit = (): void => {
+    const r = useBatch.getState().createResourceModule(cell, name, description)
+    if (!r.ok) { setError(r.error); return }
+    onClose()
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`New Control Module in ${cell}`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Name:<input aria-label="Module name" autoFocus value={name} onChange={e => setName(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+      <label>Description:<input aria-label="Module description" value={description} onChange={e => setDescription(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+      <p className="exp-hint">An empty module with no algorithm. Open its Properties and use the Arbitration tab to make it an equipment arbitration resource.</p>
+    </div>
+    <Buttons disabled={!name.trim()} onOk={submit} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
 /** Explorer ▸ Import Phase Class... lists the import files supplied with Course 7016 (Chapter 7 DRAIN, p7-4). */
 export function ImportPhaseDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const [sel, setSel] = useState(PHASE_IMPORT_FILES[0]?.file ?? '')
@@ -469,6 +491,7 @@ export function BatchDialogHost(): JSX.Element | null {
         onOk={n => created(useBatch.getState().newPhaseClass(d.category, n))} onCopy={(src, n) => created(useBatch.getState().copyClass('phase', d.category, src, n))} />
     }
     case 'importPhase': return <ImportPhaseDialog onClose={close} />
+    case 'newResource': return <NewResourceModuleDialog cell={d.cell} onClose={close} />
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
     case 'alias': return <AliasResolveDialog unit={d.unit} alias={d.alias} onClose={close} />
     case 'param': return <PhaseParamDialog phaseClass={d.phaseClass} kind={d.kind} original={d.original} onClose={close} />
@@ -605,13 +628,63 @@ function ModuleDescDialog({ tag, onClose }: { tag: string; onClose: () => void }
   const inst = useEm(s => s.instances[tag])
   const [description, setDescription] = useState(m?.description ?? inst?.description ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState('General')
+  const [arb, setArb] = useState<ArbConfig | null>(null)
+  const [selNeeded, setSelNeeded] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const participants = useBatch(s => s.arbitration)
+  const open = (t: string): void => {
+    setTab(t)
+    if (t === 'Arbitration' && !arb) {
+      const r = useBatch.getState().ensureArbitration(tag)
+      if (r.ok) setArb({ ...r.value, needed: [...r.value.needed] }); else setError(r.error)
+    }
+  }
+  const submit = (): void => {
+    const r = useBatch.getState().setModuleDescription(tag, description)
+    if (!r.ok) { setError(r.error); return }
+    if (arb) {
+      const a = useBatch.getState().setArbitration(tag, arb)
+      if (!a.ok) { setTab('Arbitration'); setError(a.error); return }
+    }
+    onClose()
+  }
+  const arbState = arbitrationState(tag)
+  const owners = arb?.participate ? currentOwners()[String(arb.equipmentId)] : undefined
+  const candidates = Object.keys(participants).filter(t => t !== tag && participants[t].participate && !arb?.needed.includes(t)).sort()
   return <SimulatorDialog className="module-download-dialog dvd" label={`${tag} Properties`} onClose={onClose}>
-    <Tabs tabs={['General']} active="General" onChange={() => {}} />
-    <div className="lib-dlg-fields dvd-panel">
+    <Tabs tabs={['General', 'Execution', 'Displays', 'Arbitration', 'Tools']} active={tab} onChange={open} />
+    {tab === 'General' && <div className="lib-dlg-fields dvd-panel">
       <Row label="Object type">{inst ? `Equipment Module (${inst.className})` : `Control Module${useEm.getState().cmInstances[tag] ? ` (${useEm.getState().cmInstances[tag].className})` : ''}`}</Row>
-      <label>Description:<input aria-label="Description" autoFocus value={description} onChange={e => setDescription(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { const r = useBatch.getState().setModuleDescription(tag, description); if (r.ok) onClose(); else setError(r.error) } }} /></label>
-    </div>
-    <Buttons onOk={() => { const r = useBatch.getState().setModuleDescription(tag, description); if (r.ok) onClose(); else setError(r.error) }} onClose={onClose} />
+      <label>Description:<input aria-label="Description" autoFocus value={description} onChange={e => setDescription(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+    </div>}
+    {tab === 'Arbitration' && arb && <div className="lib-dlg-fields dvd-panel">
+      <label className="lib-dlg-check"><input type="checkbox" aria-label="Participate in equipment arbitration" checked={arb.participate}
+        onChange={e => { setError(null); setArb({ ...arb, participate: e.target.checked }) }} /> Participate in equipment arbitration</label>
+      <div className="dvd-split">
+        <label>Equipment ID:<input aria-label="Equipment ID" type="number" min={1} max={ARB_MAX_ID} disabled={!arb.participate} value={Number.isNaN(arb.equipmentId) ? '' : arb.equipmentId}
+          onChange={e => setArb({ ...arb, equipmentId: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
+        <label>Maximum owners:<input aria-label="Maximum owners" type="number" min={1} max={ARB_MAX_OWNERS} disabled={!arb.participate} value={Number.isNaN(arb.maxOwners) ? '' : arb.maxOwners}
+          onChange={e => setArb({ ...arb, maxOwners: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
+      </div>
+      <span>Equipment needed:</span>
+      <select aria-label="Equipment needed" size={4} className="dvd-list" disabled={!arb.participate} value={selNeeded ?? ''} onChange={e => setSelNeeded(e.target.value)}>
+        {arb.needed.map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+      <div className="dvd-buttons">
+        <button className="tbtn sm" disabled={!arb.participate} onClick={() => setAdding(true)}>Add...</button>
+        <button className="tbtn sm" disabled={!selNeeded || !arb.needed.includes(selNeeded)} onClick={() => { setArb({ ...arb, needed: arb.needed.filter(n => n !== selNeeded) }); setSelNeeded(null) }}>Delete</button>
+      </div>
+      <p className="exp-hint">
+        {arbState === 'current' ? 'These settings are downloaded.' : arbState === 'pending' ? 'Download pending: the controller still has the previous arbitration settings.' :
+          arbState === 'not-downloaded' ? 'Not downloaded: the settings take effect when the module is downloaded.' : 'Arbitration settings take effect when the module is downloaded.'}
+        {owners?.length ? ` Currently owned by ${owners.join(', ')}.` : ''}
+      </p>
+    </div>}
+    {tab !== 'General' && tab !== 'Arbitration' && <p className="exp-hint dvd-panel">{tab === 'Execution' || tab === 'Displays' ? 'Not used by the Course 7016 workshops.' : 'No tools are configured.'}</p>}
+    <Buttons onOk={submit} onClose={onClose} />
     <Err error={error} />
+    {adding && <PickDialog title="Add Equipment" prompt="Select the equipment this module needs:" options={candidates}
+      onPick={n => { setArb(a => (a ? { ...a, needed: [...a.needed, n] } : a)); return null }} onClose={() => setAdding(false)} />}
   </SimulatorDialog>
 }

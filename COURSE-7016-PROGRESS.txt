@@ -373,6 +373,53 @@ source_pdfs/ (git-ignored by *.pdf; Emerson copyrighted material, do not commit)
   recovery on both blenders, Hold/Restart/Stop, and the checkers.
 
 
+5C. CHAPTER 8 - DUMP and CHARGE COLOR (pp 8-1 .. 8-20)  [added 2026-11-01]
+----------------------------------------------------------------------------
+Source: Course 7016 slides 8-1 .. 8-20 (arbitration 8-3..8-11, phases 8-12..8-18, Verify 8-19). Three workshops
+(engine/course7016Ch8Workshops.ts, ids 7016-ch8-header / -phases / -verify; 19 live checks in
+engine/course7016Ch8Checks.ts: 7016-8h-1..5, 8p-1..9, 8v-1..5; nothing is pre-verified).
+What was built (all additive; Chapters 1-7 untouched):
+- Equipment arbitration, engine/arbitration.ts (pure) + batchStore: per-module config { participate, equipmentId,
+  maxOwners, needed[] } (state `arbitration`), the downloaded copy (`arbDeployed`) that is updated by the module and
+  controller downloads, and the owner table (`arbOwners`; phases that are unloaded/IDLE/STOPPED/ABORTED lose ownership,
+  so RESET/UNLOAD/ABORT release automatically). Default Equipment ID = lowest free 1-99 (the slide shows 14/15; the
+  trainer cannot reproduce those numbers). Acquiring a header also acquires its needed inlets.
+- Explorer: module Properties now has an Arbitration tab (Participate, Equipment ID, Maximum owners, Equipment needed
+  with Add.../Delete); process cell menu New > Control Module... (creates COLOR_HEADER); plain module menu gains
+  Properties..., Assign > <controller> and Download > Control Module....
+- Phase REQUEST codes (decodeRequest): 0 none, 1000, 2000, 40nn acquire resource nn, 42nn release, 52nn send message nn,
+  55nn wait for message nn. Faceplate shows Request plus its meaning and a "Clear request" button (the student plays
+  the Batch Executive). 40nn/42nn are arbitrated when cleared; owner must be External; unknown IDs are refused.
+  Message pairs 5201/5501, 5202/5502, 5203/5503 are rendezvous: clear one side, then the other once both have posted.
+  The step log shows "Phase request <code>: <meaning>".
+- Workshop 1 (header): arbitration on BL_500_COLOR_IN / BL_600_COLOR_IN, controller download, COLOR_HEADER (ID 20,
+  needs both inlets) assigned to CTLR1 and downloaded. Workshop 2: DUMP (TankClasses) and CHG_COLOR (BlenderClasses,
+  R_CLR_AMNT 0-70-500 gal, RPT_AMNT_CHARGED, INIT_LEVEL algorithm parameter), RUN_LOGIC built in Control Studio (DUMP 6
+  steps; CHG_COLOR 9 steps plus the alternate branch R_CLR_AMNT_SMALL <= 30 -> SLOW_CHARGE), Add To Unit Class,
+  unit phase type Controller, unit module downloads. Workshop 3: run DUMP + CHG_COLOR on every tank and blender.
+  Shared data for the specs: tests/helpers/course7016-ch8-spec.cjs.
+- The slides give the step names/expressions in pictures only; the logic follows them (INIT, REQUEST_DUMP 5501, OPEN_OUTLET,
+  SEND_CONFIRM 5202, REQ_CLOSE_VLV 5503, CLOSE_OUTLET + MODE AUTO after a delay; ACQ_HEADER 4020, REQUEST_CHARGE 5201,
+  REQ_CONFIRM 5502, CAPT_INIT_LVL, RECEIVE_CHARGE bulk, SLOW_CHARGE dribble, REQ_CLOSE_VLV 5203, CLOSE_CLR_VLV,
+  RELEASE_HEADER 4220). Every REQUEST action is Pulse (P); a continuous action would re-assert the code.
+- Verified 2026-11-01 entirely through the browser UI (headless Edge against the Vite preview, two clean profiles:
+  the second pass "go through chapter 8 one more time" was a full repeat from a reseeded Chapter 5-prerequisite
+  project): arbitration tabs, controller download, COLOR_HEADER create/assign/download, both phase classes
+  and parameters, DUMP and CHG_COLOR RUN_LOGIC in Control Studio (including Branch Right and the leg Properties),
+  Add To Unit Class, Controller phase type and downloads of UM_BL_500/600 and UM_COLOR_100/200/300; then the Verify
+  workshop: DUMP on UM_COLOR_100/200/300 with CHG_COLOR on UM_BL_500/600 (35-50 gal big-charge path and a 30 gal
+  small-charge path), request values 5501/4020 shown, Clear request through all three rendezvous points and 4220,
+  RPT_AMNT_CHARGED matching the level rise, RESET and UNLOAD; header contention (second CHG_COLOR stays at 4020
+  until the first releases it). The Workshops page then shows all 19 Chapter 8 steps Verified.
+- tests/course7016-ch8.test.cjs (npm run test:course8): request decoding and validation, header workshop, build and run
+  of both phases (big and small charge) with a scripted Batch Executive, header sharing/contention, unknown ID refusal,
+  checkers 19 pending -> all verified.
+- Design choices / simplifications: COLOR_HEADER is modelled as a plain DI module (the Explorer pane shows Type DI, cosmetic);
+  REQUEST codes are cleared by hand (a real Batch Executive does it automatically for batch-owned phases);
+  ownership is checked when a request is cleared; the tanks start with 40/30/50 gal of color, so DUMP needs charge
+  amounts of 40/30/50 gal or less (FILL first for more).
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -407,6 +454,9 @@ source_pdfs/ (git-ignored by *.pdf; Emerson copyrighted material, do not commit)
                                     Clear Failures/Restart on both blenders, Hold/Restart/Stop, workshop checkers.
                                     Uses tests/helpers/course7016-prereq.cjs (Chapter 5 + phase_failures 4-8 set-up;
                                     also evaluated inside the running browser app for UI walkthroughs).
+- tests/course7016-ch8.test.cjs     Chapter 8 DUMP / CHG_COLOR and equipment arbitration (npm run test:course8):
+                                    6 tests, see section 5C. Uses tests/helpers/course7016-ch8-spec.cjs and the
+                                    prerequisite option colorTanks in tests/helpers/course7016-prereq.cjs.
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
   build are clean.
@@ -490,6 +540,10 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        checks, tests/course7016-ch7.test.cjs, shared prerequisite fixture tests/helpers/. See section 5B.
                        Pushed to origin/main (the terminal cannot prompt for GitHub credentials; the push was done with
                        the GitKraken tool).
+- 2026-11-01  (this commit)  Chapter 8 (DUMP and CHARGE COLOR): equipment arbitration (Properties > Arbitration, New >
+                       Control Module..., COLOR_HEADER), phase REQUEST decoding with Clear request, DUMP / CHG_COLOR
+                       workshops with 19 live checks, tests/course7016-ch8.test.cjs. See section 5C. Verified twice
+                       through the UI.
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -892,7 +946,19 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01):
+WHERE WE LEFT OFF (2026-11-01, Chapter 8 - latest):
+- Chapter 8 (DUMP and CHARGE COLOR) is implemented and was walked through the real UI twice from clean projects; details
+  in section 5C. Chapters 1-7 were not changed (additive diff: arbitration.ts, Ch8 checks/workshops/tests, new
+  batchStore state/actions, Arbitration tab and New Control Module dialog, Request row on phase faceplates, regex
+  additions in securityTargets.ts, CHAPTER8 appended to the workshop list). Earlier chapter tests re-run.
+- Tests: npm test 815/816 (dv09-audit needs pdf_om.txt, as before); npm run test:course8 6/6; typecheck clean.
+- Next: Chapter 9 (CHARGE BASE): Import Phase Class CHG_BASE (add its file to PHASE_IMPORT_FILES in
+  engine/course7016Imports.ts), shared HEADER control module class, BASE_HEADER arbitration - reuse the arbitration and
+  Request machinery of Chapter 8. Then Chapter 10 (Batch Operations). Neither is audited against the course text yet.
+- Open choices for Chapter 8 the student may want to match to the real plant: default Equipment IDs (trainer: lowest free
+  from 1, slide: 14/15), automatic clearing of batch-owned requests (not simulated), COLOR_HEADER shown as a DI module.
+
+WHERE WE LEFT OFF (2026-11-01, Chapter 7, superseded):
 - Chapter 7 (DRAIN) is implemented and verified; details in section 5B. Student position: Chapter 6 was worked by hand
   (and fixed where needed) - CHAPTER 6 AND EARLIER WERE NOT CHANGED by this session: the diff is additive only (new files
   course7016Imports.ts / Ch7Checks.ts / Ch7Workshops.ts, one new batchStore action importPhaseClass, a new dialog and two

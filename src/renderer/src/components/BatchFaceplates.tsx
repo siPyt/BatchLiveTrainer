@@ -5,6 +5,7 @@ import { useStore } from '../engine/store'
 import { useBatch, activeKey, type ActivePhase } from '../engine/batchStore'
 import { COMMANDS_FOR, COMMAND_LABEL, STATE_LABEL, stepIndex, phaseHasFailure, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
 import { askValue } from './AppNotices'
+import { decodeRequest } from '../engine/arbitration'
 
 // DeltaV Operate unit and phase faceplates (course 7016 pp 4-34/4-35): the unit faceplate lists up to
 // ten active phases and loads phases by name; the phase faceplate ("Faceplate FB") shows phase state,
@@ -122,6 +123,14 @@ export function PhaseFaceplate({ unit, phase }: { unit: string; phase: string })
     <Field label="Time in State" value={String(Math.floor(rt.stateTime))} tone="state" />
     <Field label="Step Index" value={String(stepIndex(rt))} tone="state" />
     <Field label="Watchdog State" value="OK" tone="state" />
+    <div className="bfp-field" data-param="REQUEST">
+      <span className="bfp-label">Request</span>
+      <span className="bfp-value state" aria-label="Request value">{String(rt.params.REQUEST ?? 0)}</span>
+    </div>
+    {Number(rt.params.REQUEST ?? 0) !== 0 && <div className="bfp-inline" data-request-info>
+      <span className="bfp-request-text">{decodeRequest(Number(rt.params.REQUEST)).text}</span>
+      <button className="tbtn sm" aria-label="Clear request" title={a.owner === 'EXTERNAL' ? 'Answer the request as the Batch Executive would (REQUEST := 0)' : 'The phase is owned by DeltaV Batch; toggle the owner to External'}
+        onClick={() => alertResult(useBatch.getState().setRequest(unit, phase, 0))}>Clear</button></div>}
     {phaseHasFailure(rt) && <div className="bfp-warn" role="alert">Fail Index {rt.failIndex}{rt.message ? `: ${rt.message}` : ''}</div>}
     <div className="bfp-engraved">Phase Command</div>
     <div className="bfp-inline"><span className="bfp-black bfp-cmd">{current}</span>

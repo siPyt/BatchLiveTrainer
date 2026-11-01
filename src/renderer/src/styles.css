@@ -4932,6 +4932,7 @@ button {
 .bfp-value.report { color: #f2d33a; }
 .bfp-inline { display: flex; align-items: center; gap: 6px; }
 .bfp-inline .bfp-cmd { flex: 1; }
+.bfp-request-text { flex: 1; font-size: 10.5px; color: var(--dv-text-dim); }
 .bfp-tabs { display: flex; align-items: center; gap: 2px; margin-top: 4px; }
 .bfp-tabs button { font-size: 10.5px; padding: 1px 6px; border: 1px solid var(--dv-border); background: var(--dv-bg-3); cursor: pointer; }
 .bfp-tabs button.on { background: #ffffff; font-weight: 700; text-decoration: underline; }

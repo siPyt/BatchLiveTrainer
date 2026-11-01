@@ -367,6 +367,7 @@ export function ProcessCellRows({ area, depth, sel, onSelect, renderModule, onMo
         onClick={() => onSelect({ t: 'cell', name: cell.name })}
         onContextMenu={e => { onSelect({ t: 'cell', name: cell.name }); setMenu({ x: e.clientX, y: e.clientY, label: cell.name, items: [
           { label: 'Explore', onClick: () => onSelect({ t: 'cell', name: cell.name }) },
+          { label: 'New ▸ Control Module...', onClick: () => ui.openDialog({ t: 'newResource', cell: cell.name }) },
           { label: 'New ▸ Unit Module', disabled: 'Drag a Unit Class onto the process cell' },
           sep,
           { label: 'Assign ▸ Process Cell and Contained Modules to Node', onClick: () => {

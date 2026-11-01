@@ -41,9 +41,9 @@ module.exports = function course7016Prereq(ctx) {
   }))
   value(L().connect('LEVEL_INDICATOR', 'LEVEL_IN', 'AI1/SIMULATE_IN'))
   value(L().saveClass('LEVEL_INDICATOR'))
-  for (const n of [5, 6]) {
+  for (const n of [...(ctx.colorTanks ? [1, 2, 3] : []), 5, 6]) {
     value(L().renameInstance(value(L().createInstance('LEVEL_INDICATOR', 'ED_CENTER_BATCH')), `LI-${n}04`))
-    value(L().setOverride(`LI-${n}04`, 'LEVEL_IN', `LEV${n}00-SIM/${n}00_LEV`))
+    value(L().setOverride(`LI-${n}04`, 'LEVEL_IN', n < 4 ? `TANKSIM/TKLEV${n}00` : `LEV${n}00-SIM/${n}00_LEV`))
   }
 
   // Chapter 5: equipment module classes.
@@ -59,12 +59,49 @@ module.exports = function course7016Prereq(ctx) {
   value(E().editDraft('BLENDER_OUTLET', d => { d.items = ITEMS; for (const [v, row] of Object.entries(STATES)) d.states[v] = row }))
   value(E().saveClass('BLENDER_OUTLET'))
 
+  // Chapter 4 (only when asked for): process cell, COLORTANKS unit class with FILL, and UM_COLOR_100/200/300.
+  if (ctx.colorTanks) {
+    value(B().renameCategory('phase', value(B().newCategory('phase', null)), 'BlenderClasses'))
+    value(B().renameClass('pcell', value(B().newProcessCellClass('General')), 'PRODUCTION'))
+    value(B().renameProcessCell(value(B().createProcessCell('PRODUCTION', 'ED_CENTER_BATCH')), 'PAINT_PRODUCTION'))
+    value(B().renameCategory('unit', value(B().newCategory('unit', null)), 'ChargeTankUnits'))
+    value(B().newUnitClass('ChargeTankUnits', 'COLORTANKS'))
+    for (const a of ['INLET_VLV', 'OUTLET_VLV', 'TANK_LEVEL']) value(B().addAlias('COLORTANKS', a, ''))
+    value(B().renameCategory('phase', value(B().newCategory('phase', null)), 'TankClasses'))
+    value(B().newPhaseClass('TankClasses', 'FILL'))
+    value(B().savePhaseParam('FILL', { ...cfg.newParam('batch', {}), name: 'R_FILL_LEVEL', group: 'Operating', type: 'Real', direction: 'Input', low: 0, high: 500, defaultValue: 250, units: 'gal' }))
+    value(B().savePhaseParam('FILL', { ...cfg.newParam('batch', B().phaseClasses.FILL.params), name: 'RPT_FNL_LVL', group: 'Report', type: 'Real', direction: 'Report', units: 'gal' }))
+    const fill = [
+      ['INIT', ["'//#OUTLET_VLV#/MODE.TARGET' := CAS;", "'//#OUTLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE';"], 'OUTLET_CLOSED', "'//#OUTLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'"],
+      ['OPEN_INLET', ["'//#INLET_VLV#/MODE.TARGET' := CAS;", "'//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:OPEN';"], 'LEVEL_MET', "'//#TANK_LEVEL#' >= '^/R_FILL_LEVEL.CV'"],
+      ['CLOSE_INLET', ["'//#INLET_VLV#/MODE.TARGET' := CAS;", "'//#INLET_VLV#/CAS_SP.CV' := 'vlvnc-sp:CLOSE';"], 'INLET_CLOSED', "'//#INLET_VLV#/PV.CV' = 'vlvnc-pv:CLOSED'"],
+      ['COMPLETE', ["'^/RPT_FNL_LVL.CV' := '//#TANK_LEVEL#';", "'//#INLET_VLV#/MODE.TARGET' := AUTO;", "'//#OUTLET_VLV#/MODE.TARGET' := AUTO;"], 'COMPLETE_2', 'TRUE']
+    ]
+    value(B().editPhaseDraft('FILL', d => { d.logic.RUN_LOGIC = sequence(fill) }))
+    value(B().savePhaseClass('FILL'))
+    value(B().assignPhaseClass('COLORTANKS', 'FILL'))
+    for (const n of [1, 2, 3]) {
+      const um = value(B().createUnitModule('COLORTANKS', 'PAINT_PRODUCTION'))
+      value(B().renameUnitModule(um, `UM_COLOR_${n}00`))
+      const u = `UM_COLOR_${n}00`
+      value(B().resolveAlias(u, 'INLET_VLV', { path: `XV-${n}01`, ignore: false, description: '' }))
+      value(B().resolveAlias(u, 'OUTLET_VLV', { path: `XV-${n}02`, ignore: false, description: '' }))
+      value(B().resolveAlias(u, 'TANK_LEVEL', { path: `LI-${n}04/AI1/PV.CV`, ignore: false, description: '' }))
+      for (const t of [`XV-${n}01`, `XV-${n}02`, `LI-${n}04`]) value(B().containModule(t, u))
+      value(B().setUnitProps(u, { primaryDisplay: 'Process' }))
+      value(B().setUnitPhaseProps(u, 'FILL', { phaseType: 'Controller' }))
+    }
+    value(B().addToCell('TANKSIM', 'PAINT_PRODUCTION'))
+  }
+
   // Chapter 5: BLENDERS unit class, UM_BL_500 / UM_BL_600, bound to the real blender equipment.
   const old = ['AGIT-503', 'AGIT-603', 'MTR-505', 'MTR-605', 'XV-501', 'XV-601', 'XV-502', 'XV-602', 'XV-503', 'XV-603', 'XV-504', 'XV-604']
   for (const t of old) value(B().unassignModule(t))
   for (const t of old) value(B().deleteCourseModule(t))
-  value(B().renameClass('pcell', value(B().newProcessCellClass('General')), 'PRODUCTION'))
-  value(B().renameProcessCell(value(B().createProcessCell('PRODUCTION', 'ED_CENTER_BATCH')), 'PAINT_PRODUCTION'))
+  if (!B().processCells.PAINT_PRODUCTION) {
+    value(B().renameClass('pcell', value(B().newProcessCellClass('General')), 'PRODUCTION'))
+    value(B().renameProcessCell(value(B().createProcessCell('PRODUCTION', 'ED_CENTER_BATCH')), 'PAINT_PRODUCTION'))
+  }
   value(B().renameCategory('unit', value(B().newCategory('unit', null)), 'BlenderUnits'))
   value(B().newUnitClass('BlenderUnits', 'BLENDERS'))
   for (const [cls, first, renamed] of [['BLENDER_COLOR', 'BLENDER_COL_1', 'BLNDR_COLOR'], ['BLENDER_OUTLET', 'BLENDER_OUT_1', 'BLNDR_OUTLET'],
