@@ -15,8 +15,10 @@ const check = (id: string, ok: boolean, detail: string): StepCheck => ({ id, ver
 const OP = 'OP_FINISH_500'
 const BLENDERS = ['UM_BL_500', 'UM_BL_600']
 
+export interface Ch10Signature { operate: boolean; areas: string[]; policies: Record<string, { parameters: Record<string, string> }>; modules: Record<string, string> }
+
 /** Course 7016 Chapter 10 (pp 10-33 .. 10-100): the OP_FINISH_500 operation, Batch Executive, Batch Operator Interface, formulas, prompts and arbitration. */
-export function checkCourse7016Ch10(s: Ch10State, _events: EventLogEntry[]): StepCheck[] {
+export function checkCourse7016Ch10(s: Ch10State, events: EventLogEntry[], sig?: Ch10Signature, areaOf?: (tag: string) => string | undefined): StepCheck[] {
   const r = s.recipes[OP]
   const text = (re: RegExp, kind?: string): boolean => s.journal.some(j => re.test(j.text) && (!kind || j.kind === kind))
   const idx = (re: RegExp): number => s.journal.findIndex(j => re.test(j.text))
@@ -81,6 +83,18 @@ export function checkCourse7016Ch10(s: Ch10State, _events: EventLogEntry[]): Ste
     check('7016-10x-2', s.journal.some(j => /Start issued to UM_BL_500\/AGITATE by OPERATOR/.test(j.text) && j.batch !== ''), 'the phase was started manually with a Batch ID'),
     check('7016-10x-3', text(new RegExp(`is waiting to acquire UM_BL_500/AGITATE \\(owned by OPERATOR\\)`)), 'a batch waited to acquire AGITATE while the OPERATOR owned it'),
     check('7016-10x-4', idx(/UM_BL_500\/AGITATE released by OPERATOR/) >= 0 && s.journal.findIndex((j, i) => i > idx(/UM_BL_500\/AGITATE released by OPERATOR/) && new RegExp(`UM_BL_500/AGITATE acquired by ${OP}`).test(j.text)) > idx(/UM_BL_500\/AGITATE released by OPERATOR/),
-      'after the OPERATOR released AGITATE the recipe became its owner')
+      'after the OPERATOR released AGITATE the recipe became its owner'),
+
+    // Optional exercise (p10-74): Confirm and Verify for the operator prompt.
+    check('7016-10c-1', s.actionConfirm.Prompts.confirm && s.actionConfirm.Prompts.verify, 'the Batch Executive Action Confirmation tab requires Confirm and Verify for Prompts'),
+    check('7016-10c-2', text(/^Prompts of "OK to begin agitation.*" confirmed by \S+ and verified by \S+/), 'a prompt was answered with a confirmer and a verifier recorded in the Batch Event Journal'),
+    check('7016-10c-3', s.journal.some((j, i) => /^Prompts of .* confirmed by \S+ and verified by/.test(j.text) && s.journal.slice(i).some(k => k.kind === 'Prompt' && k.batch === j.batch && /Operator response/.test(k.text))), 'the prompt response was accepted only after the signatures'),
+
+    // Optional exercise (p10-20): an Electronic Signature policy on XV-501 MODE.
+    check('7016-10e-1', !!sig?.operate, 'Electronic Signatures are enabled for DeltaV Operate (System Preferences)'),
+    check('7016-10e-2', Object.values(sig?.policies ?? {}).some(p => p.parameters.MODE === 'CONFIRM_VERIFY'), 'a signature policy requires Confirm and Verify for MODE'),
+    check('7016-10e-3', !!sig && !!areaOf?.('XV-501') && sig.areas.includes(areaOf('XV-501')!), 'Electronic Signature is enabled on the plant area that contains XV-501'),
+    check('7016-10e-4', !!sig && Object.values(sig.policies).some(p => p.parameters.MODE === 'CONFIRM_VERIFY') && !!sig.modules['XV-501'] && sig.policies[sig.modules['XV-501']]?.parameters.MODE === 'CONFIRM_VERIFY', 'the policy is associated with XV-501'),
+    check('7016-10e-5', events.some(e => e.category === 'SECURITY' && e.tag === 'XV-501' && /Electronic signature attempt for .*MODE.* confirmed by \S+ and verified by \S+/i.test(e.description)), 'the MODE change of XV-501 in DeltaV Operate was signed (confirmer and verifier logged)')
   ]
 }

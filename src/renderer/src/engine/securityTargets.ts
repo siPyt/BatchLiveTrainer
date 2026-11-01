@@ -30,6 +30,14 @@ const t = (
   pattern: RegExp
 ): SecurityTarget => ({ id, kind, label, defaultLock, pattern })
 
+/** BATCH_ABORT .. BATCH_ADD are listed on slide 10-8; the rest follow the same naming for the other Batch Executive actions. */
+export const BATCH_FUNCTIONS = [
+  'BATCH_ABORT', 'BATCH_ACK_PROMPT', 'BATCH_ACQUIRE_RELEASE', 'BATCH_ACQUIRE_REORDER', 'BATCH_ACTION_VERIFY', 'BATCH_ACTIVE_STEP_CHANGE', 'BATCH_ADD',
+  'BATCH_AUTO', 'BATCH_CLEAR_FAILURES', 'BATCH_HOLD', 'BATCH_MANUAL', 'BATCH_PARAMETERS', 'BATCH_PAUSE', 'BATCH_REMOVE', 'BATCH_RESET', 'BATCH_RESTART',
+  'BATCH_RESUME', 'BATCH_SINGLE_STEP', 'BATCH_START', 'BATCH_STOP', 'BATCH_USER_COMMENTS'
+] as const
+export type BatchFunction = (typeof BATCH_FUNCTIONS)[number]
+
 export const SECURITY_TARGETS: SecurityTarget[] = [
   // Writable parameters
   t('parameter', 'param-sp', 'SP (setpoint) of a control module', 'CONTROL', /^Set Setpoint /),
@@ -145,7 +153,9 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
     /^(Create|Rename|Delete|Configure|Save) equipment module class |^(Add|Rename|Remove|Bind) module block |^(Rename|Delete|Configure) course module |^Delete assignment of /),
   t('function', 'fn-em-command', 'Command equipment modules (A_COMMAND), two stage valves and device target modes', 'CONTROL', /^Command (equipment module|two stage valve|target mode of) /),
   t('function', 'fn-unit-phase', 'Load, command, own and write parameters of unit phases', 'BATCH_OPERATE',
-    /^(Load|Unload|Command|Write parameter of|Clear request of|Change owner of) unit phase /)
+    /^(Load|Unload|Command|Write parameter of|Clear request of|Change owner of) unit phase /),
+  // Batch Operator Interface functions (course 7016 slide 10-8): each defaults to the Batch Operate lock.
+  ...BATCH_FUNCTIONS.map((name) => t('function', `fn-${name.toLowerCase().replace(/_/g, '-')}`, name, 'BATCH_OPERATE', new RegExp(`^Batch function ${name}$`)))
 ]
 
 export function findSecurityTarget(lock: LockType, action: string): SecurityTarget | undefined {

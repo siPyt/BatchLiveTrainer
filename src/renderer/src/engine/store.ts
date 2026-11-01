@@ -4072,6 +4072,11 @@ let signatureBypass = false
 let nextSignatureId = 1
 const pendingSignatureWrites = new Map<number, () => void>()
 
+/** Operator writes made outside the control-module store (device MODE.TARGET of the batch store) share the same signature gate. */
+export function gateOperatorWrite(tag: string, parameters: string[], valueText: string, apply: () => void): boolean {
+  return gateSignature(useStore.setState, useStore.getState, tag, parameters, valueText, apply)
+}
+
 function gateSignature(
   set: (partial: Partial<StoreState> | ((state: StoreState) => Partial<StoreState>)) => void,
   get: () => StoreState,

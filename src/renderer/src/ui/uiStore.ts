@@ -22,6 +22,7 @@ export type DisplayId =
   | 'boi'
   | 'batchmgr'
   | 'batchlist'
+  | 'unackprompts'
 
 export interface OpenFaceplate {
   tag: string

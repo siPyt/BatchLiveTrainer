@@ -10,10 +10,11 @@ export function StatusBar(): JSX.Element {
   const speed = useStore((s) => s.speed)
   const version = typeof window !== 'undefined' && window.deltav ? window.deltav.version : '1.0.0'
 
-  const failures = useExecutive(s => s.batches.filter(b => b.failure).length)
+  const failures = useExecutive(s => s.batches.filter(b => b.failure && !b.parent).length)
   const prompts = useExecutive(s => s.prompts.filter(p => !p.answered).length)
   const service = useExecutive(s => s.service)
-  const openBoi = (screen: 'alarms' | 'prompts'): void => { useExecUi.getState().setScreen(screen); useWindows.getState().minimize('explorer'); useUi.getState().navigate('boi') }
+  const openBoi = (screen: 'alarms'): void => { useExecUi.getState().setScreen(screen); useWindows.getState().minimize('explorer'); useUi.getState().navigate('boi') }
+  const openPrompts = (): void => { useWindows.getState().minimize('explorer'); useUi.getState().navigate('unackprompts') }
   const active = alarms.filter((a) => a.active).length
   const unack = alarms.filter((a) => !a.acknowledged).length
 
@@ -35,7 +36,7 @@ export function StatusBar(): JSX.Element {
       </span>
       <span className="seg">Node: PRIMARY · Comm: GOOD</span>
       {service === 'RUNNING' && <span className="seg"><button className={`statusbar-batch`} data-batch-failures={failures} aria-label="Batch failures" onClick={() => openBoi('alarms')}>Batch failures: {failures}</button>
-        <button className={`statusbar-batch`} data-batch-prompts={prompts} aria-label="Batch prompts" onClick={() => openBoi('prompts')}>Prompts: {prompts}</button></span>}
+        <button className={`statusbar-batch`} data-batch-prompts={prompts} aria-label="Batch prompts" onClick={openPrompts}>Prompts: {prompts}</button></span>}
       <span className="spacer" />
       <span className="seg">BatchLiveTrainer v{version}</span>
     </div>

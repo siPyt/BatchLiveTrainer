@@ -4,6 +4,7 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'process', label: 'Process (ED_CENTER_BATCH)', operator: true },
   { id: 'batchhelp', label: 'BatchHelp', operator: true },
   { id: 'batchlist', label: 'Batch List View', operator: true },
+  { id: 'unackprompts', label: 'Unacknowledged Prompts (UnacknowledgedPr)', operator: true },
   { id: 'boi', label: 'Batch Operator Interface', operator: true },
   { id: 'alarms', label: 'Alarm List', operator: false },
   { id: 'trend', label: 'Historian Trends', operator: false },

@@ -130,7 +130,26 @@ export function TrendDisplay(): JSX.Element {
           )}
         </svg>
       </div>
+      <SignatureEvents />
     </div>
+  )
+}
+
+/** Process History View (slide 10-18): the Confirmer and Verifier of each electronic signature are logged with the write. */
+function SignatureEvents(): JSX.Element {
+  const eventLog = useStore((s) => s.eventLog)
+  const rows = eventLog.filter((e) => e.category === 'SECURITY' && /lectronic signature/.test(e.description)).slice(-12).reverse()
+  return (
+    <details className="trend-events" open={rows.length > 0} data-trend-events>
+      <summary>Events: electronic signatures ({rows.length})</summary>
+      <table className="exp-table" aria-label="Electronic signature events">
+        <thead><tr><th>Time</th><th>Module</th><th>Description</th><th>User</th></tr></thead>
+        <tbody>
+          {rows.map((e) => <tr key={e.id}><td>{new Date(e.time).toLocaleTimeString('en-US')}</td><td>{e.tag}</td><td>{e.description}</td><td>{e.user}</td></tr>)}
+          {!rows.length && <tr><td colSpan={4}>No electronic signature events.</td></tr>}
+        </tbody>
+      </table>
+    </details>
   )
 }
 

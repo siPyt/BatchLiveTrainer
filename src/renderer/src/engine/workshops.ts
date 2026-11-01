@@ -4,6 +4,7 @@ import { CHAPTER7 } from './course7016Ch7Workshops'
 import { CHAPTER8 } from './course7016Ch8Workshops'
 import { CHAPTER9 } from './course7016Ch9Workshops'
 import { CHAPTER10 } from './course7016Ch10Workshops'
+import { CHAPTER11 } from './course7016Ch11Workshops'
 
 // Emerson Course 7016 (DeltaV Batch) workshops performed with BatchLiveTrainer's tools,
 // step by step as written in the course book; "goto" jumps the learner to the display
@@ -356,5 +357,6 @@ export const COURSE: WModule[] = [
   CHAPTER7,
   CHAPTER8,
   CHAPTER9,
-  CHAPTER10
+  CHAPTER10,
+  CHAPTER11
 ]

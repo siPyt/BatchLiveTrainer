@@ -316,7 +316,7 @@ test('Chapter 10: the workshop checks verify each step from the executive config
   const checks = () => checkCourse7016Ch10(state(), M().eventLog)
   const pending = () => checks().filter(c => c.verdict !== 'verified').map(c => c.id)
   const total = checks().length
-  assert.equal(total, 33)
+  assert.equal(total, 41)
   assert.equal(pending().length, total, 'nothing verified before the work is done')
   // OP_FINISH_500, executive set-up and a first batch from the BOI.
   opFinishWorkshop(); startService()
@@ -361,5 +361,75 @@ test('Chapter 10: the workshop checks verify each step from the executive config
   tick(5)
   value(X().releasePhase('UM_BL_500', 'AGITATE'))
   for (let i = 0; i < 8000 && batch('M2').state === 'RUNNING'; i++) { tick(); const o = X().prompts.find(q => !q.answered); if (o) value(X().answerPrompt(o.id, 'Yes')) }
-  assert.deepEqual(pending(), [])
+  const optional = ['7016-10c-1', '7016-10c-2', '7016-10c-3', '7016-10e-1', '7016-10e-2', '7016-10e-3', '7016-10e-4', '7016-10e-5']
+  assert.deepEqual(pending(), optional, 'only the two optional exercises remain')
+  // Optional exercise p10-74: Confirm and Verify for the operator prompt.
+  const same = { ...X().actionConfirm }
+  X().setActionConfirmation({ ...same, Prompts: { prompt: false, confirm: false, verify: true } }, true)
+  assert.equal(X().actionConfirm.Prompts.confirm, true, 'Verify implies Confirm')
+  value(X().addBatch('OP_FINISH_500', 'C1', null)); value(X().batchCommand('C1', 'START'))
+  for (let i = 0; i < 6000 && batch('C1').state === 'RUNNING'; i++) {
+    tick()
+    const o = X().prompts.find(q => !q.answered)
+    if (o) {
+      assert.match(X().authorizeAction('Prompts', `"${o.text}"`, { comment: 'ok', confirm: { user: 'admin', password: 'wrong' }, verify: { user: 'admin', password: 'admin123' } }, o.batch).error, /Confirm failed/)
+      value(X().authorizeAction('Prompts', `"${o.text}"`, { comment: 'ok', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'admin', password: 'admin123' } }, o.batch))
+      value(X().answerPrompt(o.id, 'Yes'))
+    }
+  }
+  assert.equal(batch('C1').state, 'COMPLETE')
+  assert.deepEqual(pending().filter(id => id.startsWith('7016-10c')), [])
+  // Optional exercise p10-20: a MODE policy on XV-501 signed in DeltaV Operate.
+  useSystem.setState({ features: { ...useSystem.getState().features, signaturePolicies: true } })
+  assert.equal(M().setSignatureApplication({ operate: true }), true)
+  assert.equal(M().saveSignaturePolicy({ name: 'MODE_CHANGE', description: '', allowSamePerson: true, parameters: { MODE: 'CONFIRM_VERIFY' } }), null)
+  M().setSignatureArea(M().modules['XV-501'].area, true)
+  assert.equal(M().setModuleSignaturePolicy('XV-501', 'MODE_CHANGE'), true)
+  assert.equal(value(B().setDeviceMode('XV-501', 'CAS')), 'Electronic signature required')
+  assert.equal(M().signaturePending.length, 1, 'the MODE write is staged')
+  assert.notEqual(B().dc['XV-501']?.mode, 'CAS', 'nothing is written before the signatures')
+  assert.equal(M().submitSignature(M().signaturePending[0].id, { comment: 'maintenance', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'admin', password: 'admin123' } }), null)
+  assert.equal(B().dc['XV-501'].mode, 'CAS')
+  const sig = { operate: M().signature.operate, areas: M().signature.areas, policies: M().signature.policies, modules: M().signature.modules }
+  const all = checkCourse7016Ch10(state(), M().eventLog, sig, tag => M().modules[tag]?.area)
+  assert.deepEqual(all.filter(c => c.verdict !== 'verified').map(c => c.id), [], 'both optional exercises verify')
+}))
+
+test('Chapter 10: Action Confirmation, Client Configuration and the batch function locks', () => fixture(() => {
+  opFinishWorkshop(); startService()
+  const x = X()
+  // Slide 10-25 defaults: Prompt on for most actions, off for Add Batch, Prompts and Parameters; Confirm and Verify off.
+  assert.equal(x.actionConfirm.Start.prompt, true)
+  assert.equal(x.actionConfirm['Add Batch'].prompt, false)
+  assert.equal(x.actionConfirm.Prompts.prompt, false)
+  assert.ok(Object.values(x.actionConfirm).every(a => !a.confirm && !a.verify))
+  assert.equal(x.allowSamePerson, true)
+  // A prompt-only action needs no identification.
+  assert.equal(value(X().authorizeAction('Start', 'batch B1', {})), 'Start')
+  // Confirm needs a confirmer with the function key; Verify needs a verifier with the BATCH_ACTION_VERIFY key.
+  X().setActionConfirmation({ ...X().actionConfirm, Abort: { prompt: true, confirm: true, verify: true } }, false)
+  assert.match(X().authorizeAction('Abort', 'batch B1', {}).error, /needs a confirmer/)
+  assert.match(X().authorizeAction('Abort', 'batch B1', { confirm: { user: 'admin', password: 'admin123' } }).error, /needs a verifier/)
+  assert.match(X().authorizeAction('Abort', 'batch B1', { confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'admin', password: 'admin123' } }).error, /different person/)
+  X().setActionConfirmation(X().actionConfirm, true)
+  value(X().authorizeAction('Abort', 'batch B1', { comment: 'bad batch', confirm: { user: 'admin', password: 'admin123' }, verify: { user: 'admin', password: 'admin123' } }, 'B1'))
+  assert.ok(X().journal.some(j => /Abort of batch B1 confirmed by \S+ and verified by \S+: bad batch/.test(j.text)))
+  // Reassigning the function lock in Function Security changes who may confirm.
+  assert.equal(useSecurity.getState().setTargetLock('fn-batch-abort', 'USER_LOCK_01'), null)
+  useSecurity.setState({ currentUser: 'Supervisor1' })
+  assert.match(X().authorizeAction('Abort', 'batch B1', { confirm: { user: 'Supervisor1', password: 'admin123' }, verify: { user: 'admin', password: 'admin123' } }).error, /does not hold the key for BATCH_ABORT/)
+  value(X().addBatch('OP_FINISH_500', 'L1', null)); value(X().batchCommand('L1', 'START'))
+  assert.match(X().batchCommand('L1', 'ABORT').error, /Access Denied/)
+  useSecurity.setState({ currentUser: 'admin' })
+  useSecurity.getState().setTargetLock('fn-batch-abort', undefined)
+  value(X().batchCommand('L1', 'ABORT'))
+  // Client Configuration: the Batch Executive turns actions off; a local client can only narrow them when it is allowed.
+  assert.equal(X().actionEnabled('Start'), true)
+  X().setClientConfig(true, { ...X().clientEnabled, Hold: false })
+  assert.equal(X().actionEnabled('Hold'), false)
+  value(X().setLocalEnabled({ ...X().localEnabled, Stop: false }))
+  assert.equal(X().actionEnabled('Stop'), false)
+  X().setClientConfig(false, { ...X().clientEnabled })
+  assert.equal(X().actionEnabled('Stop'), true, 'local settings are ignored when not allowed')
+  assert.match(X().setLocalEnabled({ ...X().localEnabled }).error, /not enabled on the Batch Executive/)
 }))

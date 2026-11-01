@@ -43,7 +43,7 @@ test('three ribbon bands expose every display and preserve the excluded branding
     'Back', 'Forward', 'Up to Process', 'Home display', 'Search displays and modules']) {
     assert.ok(html.includes(`aria-label="${label}"`), label)
   }
-  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 18)
+  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 19)
   for (const display of DISPLAY_NAVIGATION) assert.ok(html.includes(`value="${display.id}"`), display.id)
   assert.match(html, /class="brand-name">BatchLiveTrainer<\/span>/)
   assert.match(html, /class="brand-credit">Charles R\. Freeman, software engineer<\/span>/)
@@ -52,7 +52,7 @@ test('three ribbon bands expose every display and preserve the excluded branding
 test('BatchLiveTrainer shows only the Course 7016 displays: no BatchLive site areas, pictures or presets', () => {
   const ids = DISPLAY_NAVIGATION.map(display => display.id)
   for (const id of SITE_DISPLAYS) assert.ok(!ids.includes(id), id)
-  assert.deepEqual(DISPLAY_NAVIGATION.filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'boi'])
+  assert.deepEqual(DISPLAY_NAVIGATION.filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'unackprompts', 'boi'])
   const top = render(TopBar)
   for (const text of ['Plant Overview', 'GMP Pharma', 'New Blank Project', 'DV-09']) assert.ok(!top.includes(text), text)
   assert.ok(top.includes('Course 7016 Workshops'))

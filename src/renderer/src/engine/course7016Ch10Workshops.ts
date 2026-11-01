@@ -91,6 +91,30 @@ export const CHAPTER10: WModule = {
         { id: '7016-10x-3', text: 'Steps 7-10. Add a batch for OP_FINISH_500 and start it; the PFC screen shows it waiting to acquire and the Arbitration screen shows OPERATOR as owner and the phase needed by OP_FINISH_500.', goto: 'boi' },
         { id: '7016-10x-4', text: 'Steps 11-12. Release the phase as the OPERATOR; the owner becomes OP_FINISH_500. View the Batch Event Journal for the batch.', goto: 'boi' }
       ]
+    },
+    {
+      id: '7016-ch10-confirm',
+      title: 'Optional: Confirm and Verify the Operator Prompt',
+      objective: 'Require a Confirm and Verify for the operator prompt "OK to begin agitation" (Course 7016 p10-74, Batch Executive Action Confirmation tab, p10-60).',
+      note: 'Explorer > System Configuration > right-click Batch Executive > Properties > Action Confirmation: tick Confirm and Verify on the Prompts row (Allow Confirmer and Verifier to be the same person stays checked unless you want two people). Run a batch; when you answer the prompt (BOI Unacknowledged Prompts, or the UnacknowledgedPr picture in DeltaV Operate) an identification dialog asks for the confirmer and the verifier user name and password. The confirmer needs the key of the function lock behind the action (Function Security, BATCH_ACK_PROMPT, default Batch Operate) and the verifier the key of BATCH_ACTION_VERIFY. The Batch Event Journal records who confirmed and verified.',
+      steps: [
+        { id: '7016-10c-1', text: 'Set Confirm and Verify for Prompts on the Batch Executive Action Confirmation tab.', goto: 'explorer' },
+        { id: '7016-10c-2', text: 'Run a batch and answer the "OK to begin agitation" prompt with a confirmer and a verifier.', goto: 'boi' },
+        { id: '7016-10c-3', text: 'Check the Batch Event Journal: the confirmation is recorded and the phase continued only after it.', goto: 'boi' }
+      ]
+    },
+    {
+      id: '7016-ch10-esign',
+      title: 'Optional: Electronic Signature on XV-501 MODE',
+      objective: 'Build an Electronic Signature policy that requires Confirm and Verify for MODE, associate it with XV-501 and test it in DeltaV Operate (Course 7016 pp 10-9 to 10-20).',
+      note: 'System Preferences: tick Enable Electronic Signatures. DeltaV Explorer > System Configuration > Setup > Electronic Signatures: enable the application for DeltaV Operate, create a policy (for example MODE_CHANGE) with MODE set to Two signatures (confirm and verify), enable Electronic Signature on the plant area that contains XV-501 and associate the policy with XV-501 (Module association). In DeltaV Operate change the mode of XV-501 from its faceplate: the signature dialog asks for a comment, the confirmer and the verifier. In Process History View (Historian Trends > Events) the confirmer and verifier are logged. In this simulator the setup takes effect at once (no download step).',
+      steps: [
+        { id: '7016-10e-1', text: 'Enable Electronic Signatures (System Preferences) and for DeltaV Operate.', goto: 'system' },
+        { id: '7016-10e-2', text: 'Create a signature policy with a Parameter Confirmation entry MODE = Confirm and Verify.', goto: 'explorer' },
+        { id: '7016-10e-3', text: 'Enable Electronic Signature on the plant area that contains XV-501.', goto: 'explorer' },
+        { id: '7016-10e-4', text: 'Associate the policy with the module XV-501.', goto: 'explorer' },
+        { id: '7016-10e-5', text: 'In DeltaV Operate change the mode of XV-501 and sign it; check Process History View for the logged signatures.', goto: 'process' }
+      ]
     }
   ]
 }

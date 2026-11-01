@@ -238,6 +238,8 @@ export const STATE_LABEL: Record<PhaseState, string> = {
 }
 export type PhaseCommand = 'START' | 'HOLD' | 'RESTART' | 'STOP' | 'ABORT' | 'RESET' | 'CLEAR_FAILURES'
 export const COMMAND_LABEL: Record<PhaseCommand, string> = { START: 'Start', HOLD: 'Hold', RESTART: 'Restart', STOP: 'Stop', ABORT: 'Abort', RESET: 'Reset', CLEAR_FAILURES: 'Clear Failures' }
+/** Slide 8-7: the numbers written to BCOMMAND (phase owner DeltaV Batch) or XCOMMAND (phase owner External). */
+export const COMMAND_NUMBER: Record<PhaseCommand, number> = { ABORT: 10, HOLD: 20, STOP: 30, RESET: 40, RESTART: 90, START: 100, CLEAR_FAILURES: 130 }
 export const COMMANDS_FOR: Record<PhaseState, PhaseCommand[]> = {
   IDLE: ['START'], RUNNING: ['HOLD', 'STOP', 'ABORT'], HOLDING: ['STOP', 'ABORT'], HELD: ['RESTART', 'STOP', 'ABORT'],
   RESTARTING: ['HOLD', 'STOP', 'ABORT'], COMPLETE: ['RESET'], STOPPING: ['ABORT'], STOPPED: ['RESET'], ABORTING: [], ABORTED: ['RESET']

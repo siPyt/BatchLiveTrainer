@@ -31,7 +31,7 @@ import { ApplicationsDisplay } from './displays/ApplicationsDisplay'
 import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 import { AppWindows } from './components/AppWindows'
 import { RecipeStudioDisplay } from './displays/RecipeStudioDisplay'
-import { BoiDisplay, BatchListViewDisplay } from './displays/BoiDisplay'
+import { BoiDisplay, BatchListViewDisplay, UnacknowledgedPrDisplay } from './displays/BoiDisplay'
 import { BatchManagerDisplay } from './displays/BatchManagerDisplay'
 import { isWindowId, useWindows } from './ui/windowStore'
 
@@ -95,6 +95,7 @@ export function App(): JSX.Element {
           {display === 'boi' && <BoiDisplay />}
           {display === 'batchmgr' && <BatchManagerDisplay />}
           {display === 'batchlist' && <BatchListViewDisplay />}
+          {display === 'unackprompts' && <UnacknowledgedPrDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}

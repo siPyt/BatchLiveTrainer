@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { useStore } from './store'
+import { useStore, gateOperatorWrite } from './store'
 import { useSecurity } from './security'
 import { controllerIsDown } from './hardware'
 import { isValidDeltaVTag, moduleNameError } from './naming'
@@ -1410,6 +1410,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     const cur = get().dc[tag] ?? { mode: 'AUTO', casSp: (m.type === 'VALVE' ? m.commandedOpen : m.commanded) ? (m.type === 'VALVE' && m.twoStage && m.bulk ? 2 : 1) : 0 }
     if (cur.mode === mode) return ok(mode)
     if (!requireUnlockedLock('CONTROL', `Command target mode of ${tag} ${mode}`)) return fail('Requires the Control key')
+    if (gateOperatorWrite(tag, ['MODE'], `MODE := ${mode}`, () => { get().setDeviceMode(tag, mode) })) return ok('Electronic signature required')
     // Bumpless: entering CAS keeps the current command as CAS_SP; leaving CAS keeps the device where it is.
     const casSp = mode === 'CAS' ? ((m.type === 'VALVE' ? m.commandedOpen : m.commanded) ? (m.type === 'VALVE' && m.twoStage && m.bulk ? 2 : 1) : 0) : cur.casSp
     set(s => ({ dc: { ...s.dc, [tag]: { mode, casSp } } }))

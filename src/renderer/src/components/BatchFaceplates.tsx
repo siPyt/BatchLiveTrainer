@@ -3,7 +3,7 @@ import { useBatchUi, type BatchWindow } from '../ui/batchUi'
 import { useUi } from '../ui/uiStore'
 import { useStore } from '../engine/store'
 import { useBatch, activeKey, type ActivePhase } from '../engine/batchStore'
-import { COMMANDS_FOR, COMMAND_LABEL, STATE_LABEL, stepIndex, phaseHasFailure, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
+import { COMMANDS_FOR, COMMAND_LABEL, COMMAND_NUMBER, STATE_LABEL, stepIndex, phaseHasFailure, type PhaseCommand, type PhaseParamDef } from '../engine/batchConfig'
 import { askValue } from './AppNotices'
 import { decodeRequest } from '../engine/arbitration'
 
@@ -160,7 +160,7 @@ export function PhaseFaceplate({ unit, phase }: { unit: string; phase: string })
       <span className="bfp-black bfp-cmd">{current}</span>
       <div className="bfp-engraved">Selections:</div>
       {ALL_COMMANDS.map(c => <button key={c} className={'bfp-sel' + (c === 'START' ? ' start' : '')} disabled={!valid.includes(c) || a.owner !== 'EXTERNAL'}
-        title={a.owner !== 'EXTERNAL' ? 'The phase is owned by DeltaV Batch; toggle the owner to External' : valid.includes(c) ? COMMAND_LABEL[c] : `${COMMAND_LABEL[c]} is not valid while ${STATE_LABEL[rt.state]}`}
+        title={a.owner !== 'EXTERNAL' ? 'The phase is owned by DeltaV Batch; toggle the owner to External' : valid.includes(c) ? `${COMMAND_LABEL[c]}: command ${COMMAND_NUMBER[c]} written to XCOMMAND (BCOMMAND when the owner is DeltaV Batch)` : `${COMMAND_LABEL[c]} is not valid while ${STATE_LABEL[rt.state]}`}
         onClick={() => send(c)}>{c === 'START' ? '▶ ' : ''}{COMMAND_LABEL[c]}</button>)}
     </div>}
   </div>

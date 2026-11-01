@@ -4,7 +4,8 @@ import { TreeRow, ContextMenu, ContentsList, alertResult } from './LibraryExplor
 import { BatchIcon, type BatchSel } from './BatchExplorer'
 import { useBatch } from '../engine/batchStore'
 import { useStore } from '../engine/store'
-import { useExecutive, recipeNameError, type Recipe, type RecipeLevel } from '../engine/executive'
+import { useExecutive, recipeNameError, CONFIRM_ACTIONS, NOT_SIMULATED_ACTIONS, ACTION_FUNCTION, defaultActionSettings, defaultClientActions, type ActionSetting, type ConfirmAction, type Recipe, type RecipeLevel } from '../engine/executive'
+import { useSecurity } from '../engine/security'
 import { useExecUi } from '../ui/executiveUi'
 import { useUi } from '../ui/uiStore'
 import { useWindows } from '../ui/windowStore'
@@ -31,7 +32,6 @@ function useCtx(): [Menu | null, (m: Menu | null) => void] {
 }
 
 const FOLDERS: { name: string; level: RecipeLevel }[] = [{ name: 'Procedures', level: 'Procedure' }, { name: 'Unit Procedures', level: 'Unit Procedure' }, { name: 'Operations', level: 'Operation' }]
-const CH11 = 'Unit procedures and procedures are Course 7016 Chapter 11; only operations are modeled'
 const fmtTime = (t: number): string => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' })
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ export function RecipesTree({ depth, selection, onSelect }: { depth: number; sel
   const pick = (s: BatchSel): void => onSelect({ kind: 'batch', sel: s })
   const folderMenu = (name: string, level: RecipeLevel, e: React.MouseEvent): void => setMenu({ x: e.clientX, y: e.clientY, label: name, items: [
     { label: 'Explore', onClick: () => pick({ t: 'recipes', folder: name }) },
-    { label: 'New ▸ Operation...', onClick: () => ui.openDialog({ t: 'newRecipe', level: 'Operation' }), disabled: level === 'Operation' ? undefined : CH11 },
+    { label: `New ▸ ${level === 'Unit Procedure' ? 'Unit Procedure' : level}...`, onClick: () => ui.openDialog({ t: 'newRecipe', level }) },
     { label: 'New ▸ Recipe Folder', disabled: 'Recipe folders are not modeled' },
     sep,
     { label: 'Assign to Batch Executive...', disabled: 'Assign each recipe from its Properties > Tools tab' },
@@ -61,7 +61,7 @@ export function RecipesTree({ depth, selection, onSelect }: { depth: number; sel
     { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${r.name}?`).then(ok => { if (ok) alertResult(useExecutive.getState().deleteRecipe(r.name)) }) } },
     { label: 'Rename', onClick: () => ui.openDialog({ t: 'rename', name: r.name }) },
     sep,
-    { label: "What's this?", onClick: () => window.alert('Operation — a collection of phases, transitions and parameters that executes a sequence of phases on a unit.') },
+    { label: "What's this?", onClick: () => window.alert(`${r.level} — ${r.level === 'Operation' ? 'a collection of phases, transitions and parameters that executes a sequence of phases on a unit.' : r.level === 'Unit Procedure' ? 'a collection of operations, transitions and parameters that executes a sequence of operations on a unit.' : 'the highest level of the procedural hierarchy: a collection of unit procedures, transitions and parameters used to perform a function across one or more units.'}`) },
     { label: 'Properties', onClick: () => ui.openDialog({ t: 'recipeProps', name: r.name }) }
   ] })
   return <div data-library="recipes">
@@ -95,8 +95,8 @@ export function ExecutiveRows({ depth, selection, onSelect }: { depth: number; s
       onContextMenu={e => { pick('Batch Executive'); setMenu({ x: e.clientX, y: e.clientY, label: 'Batch Executive', items: [
         { label: 'Explore', onClick: () => pick('Batch Executive') },
         { label: 'Download ▸ Equipment...', onClick: () => ui.openDialog({ t: 'downloadEquipment' }) },
-        { label: 'Verify without download', disabled: 'Use Verify Now on the recipe Tools tab' },
-        { label: 'Client Configuration', disabled: 'Not modeled: every BatchLive client shows all batch commands' },
+        { label: 'Verify without download', onClick: () => { const x = useExecutive.getState(); const names = Object.keys(x.assigned); window.alert(names.length ? names.map(n => { const v = x.verifyRecipe(n); return v.errors.length ? `${n}: ${v.errors.join('; ')}` : `${n}: verified${v.warnings.length ? ` (${v.warnings.join('; ')})` : ''}` }).join('\n') : 'No recipes are assigned to this Batch Executive.') } },
+        { label: 'Client Configuration', onClick: () => ui.openDialog({ t: 'clientConfig' }) },
         sep,
         { label: "What's this?", onClick: () => window.alert('Batch Executive — the subsystem that executes recipes. Enable it, assign plant areas and recipes to it, download the equipment, and start its service in the Batch Application Manager.') },
         { label: 'Properties', onClick: () => ui.openDialog({ t: 'execProps' }) }
@@ -134,11 +134,11 @@ export function RecipeDetail({ sel }: { sel: Extract<BatchSel, { t: 'recipes' | 
   }
   const level = FOLDERS.find(f => f.name === sel.folder)?.level
   const list = Object.values(recipes).filter(r => !level || r.level === level)
-  return <div className="dvx-contents">{(sel.folder === 'Operations') && <Actions><button className="tbtn sm" onClick={() => ui.openDialog({ t: 'newRecipe', level: 'Operation' })}>New Operation...</button></Actions>}
+  return <div className="dvx-contents">{!!sel.folder && sel.folder !== 'Recipes' && level && <Actions><button className="tbtn sm" onClick={() => ui.openDialog({ t: 'newRecipe', level })}>New {level}...</button></Actions>}
     <ContentsList rows={sel.folder === 'Recipes' ? FOLDERS.map(f => ({ key: f.name, icon: <BatchIcon kind="folder" />, name: f.name, type: 'Recipe folder' })) :
       list.map(r => ({ key: r.name, icon: <BatchIcon kind="phaseClass" />, name: r.name, type: r.level, data: { 'data-recipe-row': r.name }, onOpen: () => openRecipeStudio(r.name) }))}
       extraColumn={sel.folder === 'Recipes' ? undefined : { title: 'Batch Executive', value: r => (assigned[r.name] ? `${assigned[r.name]} assigned${downloaded[r.name] ? ', downloaded' : ', not downloaded'}` : 'Not assigned') }}
-      empty={sel.folder === 'Recipes' ? undefined : 'No recipes. Right-click the folder > New ▸ Operation...'} /></div>
+      empty={sel.folder === 'Recipes' ? undefined : `No recipes. Right-click the folder > New ▸ ${level}...`} /></div>
 }
 
 export function ExecutiveDetail({ name }: { name: string }): JSX.Element {
@@ -204,12 +204,14 @@ function RecipePropsDialog({ name, initialTab, onClose }: { name: string; initia
   const units = useBatch(s => s.units)
   const unitClasses = useBatch(s => s.unitClasses)
   const [tab, setTab] = useState(initialTab ?? 'General')
-  const [v, setV] = useState(() => ({ description: r?.description ?? '', workInProgress: !!r?.workInProgress, notes: r?.notes ?? '', product: { ...r?.product }, equipment: { ...r?.equipment } }))
+  const [v, setV] = useState(() => ({ description: r?.description ?? '', workInProgress: !!r?.workInProgress, notes: r?.notes ?? '', batchSize: { min: r?.batchSize?.min ?? 1, def: r?.batchSize?.def ?? 100, max: r?.batchSize?.max ?? 100 }, units: r?.units ?? '', duration: r?.duration ?? '', product: { ...r?.product }, equipment: { ...r?.equipment } }))
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string[]>([])
   if (!r) return <></>
   const apply = (): boolean => {
-    const res = useExecutive.getState().setRecipeProps(name, { description: v.description, workInProgress: v.workInProgress, notes: v.notes, product: v.product, equipment: v.equipment as Recipe['equipment'] })
+    const bs = v.batchSize
+    if (![bs.min, bs.def, bs.max].every(Number.isFinite) || bs.min > bs.def || bs.def > bs.max) { setError('Batch size: Minimum <= Default <= Maximum'); return false }
+    const res = useExecutive.getState().setRecipeProps(name, { description: v.description, workInProgress: v.workInProgress, notes: v.notes, batchSize: v.batchSize, units: v.units, duration: v.duration, product: v.product, equipment: v.equipment as Recipe['equipment'] })
     if (!res.ok) { setError(res.error); return false }
     setError(null)
     return true
@@ -219,7 +221,7 @@ function RecipePropsDialog({ name, initialTab, onClose }: { name: string; initia
     <label>{label}:<input aria-label={label} value={v.product[key] ?? ''} onChange={e => setV({ ...v, product: { ...v.product, [key]: e.target.value } })} /></label>
   const options = v.equipment.mode === 'Unit Class' ? Object.keys(unitClasses).sort() : Object.keys(units).sort()
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${name} Properties`} onClose={onClose}>
-    <Tabs tabs={['General', 'Product', 'Recipe', 'Equipment', 'Tools']} active={tab} onChange={setTab} />
+    <Tabs tabs={['General', 'Product', 'Recipe', ...(r.level === 'Procedure' ? [] : ['Equipment']), 'Tools']} active={tab} onChange={setTab} />
     <div className="dvd-panel">
       {tab === 'General' && <div className="lib-dlg-fields">
         <p>Object type: {r.level}</p><p>Modified: {fmtTime(r.modified)}</p>
@@ -227,14 +229,21 @@ function RecipePropsDialog({ name, initialTab, onClose }: { name: string; initia
         <label className="lib-dlg-check"><input type="checkbox" aria-label="Work in progress" checked={v.workInProgress} onChange={e => setV({ ...v, workInProgress: e.target.checked })} /> Work in progress</label></div>}
       {tab === 'Product' && <div className="lib-dlg-fields">{field('Product name', 'name')}{field('Product code', 'code')}{field('Version', 'version')}{field('Author', 'author')}{field('Approved by', 'approvedBy')}
         <p className="exp-hint">The DeltaV Batch system expects a Version and Author for each recipe; a warning is given when downloading if they are blank.</p></div>}
-      {tab === 'Recipe' && <div className="lib-dlg-fields"><label>Notes:<textarea aria-label="Recipe notes" rows={5} value={v.notes} onChange={e => setV({ ...v, notes: e.target.value })} /></label>
+      {tab === 'Recipe' && <div className="lib-dlg-fields">
+        <fieldset className="lib-dlg-props"><legend>Batch Size</legend>
+          <label>Minimum:<input aria-label="Batch size minimum" type="number" value={v.batchSize.min} onChange={e => setV({ ...v, batchSize: { ...v.batchSize, min: Number(e.target.value) } })} /></label>
+          <label>Default:<input aria-label="Batch size default" type="number" value={v.batchSize.def} onChange={e => setV({ ...v, batchSize: { ...v.batchSize, def: Number(e.target.value) } })} /></label>
+          <label>Maximum:<input aria-label="Batch size maximum" type="number" value={v.batchSize.max} onChange={e => setV({ ...v, batchSize: { ...v.batchSize, max: Number(e.target.value) } })} /></label></fieldset>
+        <label>Units of measure:<select aria-label="Units of measure" value={v.units} onChange={e => setV({ ...v, units: e.target.value })}><option value="" />{['gallon', 'liter', 'kg', 'lb', 'each'].map(u => <option key={u}>{u}</option>)}</select></label>
+        <label>Estimated duration:<input aria-label="Estimated duration" value={v.duration} onChange={e => setV({ ...v, duration: e.target.value })} /></label>
+        <label>Abstract:<textarea aria-label="Recipe notes" rows={5} value={v.notes} onChange={e => setV({ ...v, notes: e.target.value })} /></label>
         <p className="exp-hint">These fields do not affect the recipe's execution.</p></div>}
       {tab === 'Equipment' && <div className="lib-dlg-fields">
         <label className="lib-dlg-check"><input type="radio" name="eqmode" aria-label="Unit" checked={v.equipment.mode === 'Unit'} onChange={() => setV({ ...v, equipment: { mode: 'Unit', name: '' } })} /> Unit</label>
         <label className="lib-dlg-check"><input type="radio" name="eqmode" aria-label="Unit Class" checked={v.equipment.mode === 'Unit Class'} onChange={() => setV({ ...v, equipment: { mode: 'Unit Class', name: '' } })} /> Unit Class</label>
         <label>Name:<select aria-label="Equipment name" value={v.equipment.name ?? ''} onChange={e => setV({ ...v, equipment: { mode: v.equipment.mode ?? 'Unit', name: e.target.value } })}>
           <option value="">(unassigned)</option>{options.map(o => <option key={o} value={o}>{o}</option>)}</select></label>
-        <p className="exp-hint">A unit based operation runs on the selected unit. A class based recipe selects the unit when it runs (not modeled).</p></div>}
+        <p className="exp-hint">A unit based recipe runs on the selected unit. A Unit Class based recipe runs on any unit of the class: the unit is chosen in the Unit Binding area when the batch is created, or when the operator is prompted for it.</p></div>}
       {tab === 'Tools' && <div className="lib-dlg-fields">
         <fieldset className="lib-dlg-props"><legend>Assign Recipe</legend>
           <p>Currently assigned to: <b>{assigned ? `PROPLUS Batch Executive (${assigned} assignment)` : '(none)'}</b></p>
@@ -250,15 +259,38 @@ function RecipePropsDialog({ name, initialTab, onClose }: { name: string; initia
   </SimulatorDialog>
 }
 
+/** Slides 10-25 / 10-60: Prompt, Confirm and Verify per Batch Executive action. Verify needs a confirmer, so ticking Verify ticks Confirm. */
+function ActionConfirmationPanel({ settings, onChange, same, onSame }: { settings: Record<ConfirmAction, ActionSetting>; onChange: (s: Record<ConfirmAction, ActionSetting>) => void; same: boolean; onSame: (v: boolean) => void }): JSX.Element {
+  const set = (a: ConfirmAction, patch: Partial<ActionSetting>): void => {
+    const next = { ...settings[a], ...patch }
+    if (patch.verify) next.confirm = true
+    if (patch.confirm === false) next.verify = false
+    onChange({ ...settings, [a]: next })
+  }
+  return <div className="lib-dlg-fields">
+    <label className="lib-dlg-check"><input type="checkbox" aria-label="Allow Confirmer and Verifier to be the same person" checked={same} onChange={e => onSame(e.target.checked)} /> Allow Confirmer and Verifier to be the same person</label>
+    <table className="dvx-details" aria-label="Action Confirmation Settings"><thead><tr><th>Action</th><th>Prompt</th><th>Confirm</th><th>Verify</th></tr></thead>
+      <tbody>{CONFIRM_ACTIONS.map(a => <tr key={a} data-action-row={a} title={NOT_SIMULATED_ACTIONS.includes(a) ? `${a} is listed as on the course screen; this simulator has no ${a} command` : ACTION_FUNCTION[a]}>
+        <td>{a}</td>
+        <td><input type="checkbox" aria-label={`${a} Prompt`} checked={settings[a].prompt} onChange={e => set(a, { prompt: e.target.checked })} /></td>
+        <td><input type="checkbox" aria-label={`${a} Confirm`} checked={settings[a].confirm} onChange={e => set(a, { confirm: e.target.checked })} /></td>
+        <td><input type="checkbox" aria-label={`${a} Verify`} checked={settings[a].verify} onChange={e => set(a, { verify: e.target.checked })} /></td></tr>)}</tbody></table>
+    <button className="tbtn sm" onClick={() => { onChange(defaultActionSettings()); onSame(true) }}>Restore Defaults</button>
+    <p className="exp-hint">The Confirmer needs the key for the function lock of the action (Function Security, default Batch Operate); the Verifier needs the key for BATCH_ACTION_VERIFY.</p></div>
+}
+
 /** Batch Executive Properties (p10-23 .. 10-25): General, Server, Action Confirmation. */
-function ExecutivePropsDialog({ onClose }: { onClose: () => void }): JSX.Element {
+function ExecutivePropsDialog({ initialTab, onClose }: { initialTab?: string; onClose: () => void }): JSX.Element {
   const x = useExecutive()
-  const [tab, setTab] = useState('General')
-  const [v, setV] = useState({ enabled: x.enabled, description: x.description, restart: x.restart, holdPropagation: x.holdPropagation, removeEventFilesDays: x.removeEventFilesDays })
+  const [tab, setTab] = useState(initialTab ?? 'General')
+  const [v, setV] = useState({ enabled: x.enabled, description: x.description, restart: x.restart, holdPropagation: x.holdPropagation, removeEventFilesDays: x.removeEventFilesDays, revision: x.revision })
+  const [confirm, setConfirm] = useState(() => JSON.parse(JSON.stringify(x.actionConfirm)) as Record<ConfirmAction, ActionSetting>)
+  const [same, setSame] = useState(x.allowSamePerson)
   const [error, setError] = useState<string | null>(null)
   const submit = (): void => {
     if (v.enabled !== x.enabled) { const r = useExecutive.getState().setEnabled(v.enabled); if (!r.ok) { setError(r.error); return } }
-    useExecutive.getState().setServerProps({ description: v.description, restart: v.restart, holdPropagation: v.holdPropagation, removeEventFilesDays: Number(v.removeEventFilesDays) || 30 })
+    useExecutive.getState().setServerProps({ description: v.description, restart: v.restart, holdPropagation: v.holdPropagation, removeEventFilesDays: Number(v.removeEventFilesDays) || 30, revision: v.revision })
+    if (JSON.stringify(confirm) !== JSON.stringify(x.actionConfirm) || same !== x.allowSamePerson) useExecutive.getState().setActionConfirmation(confirm, same)
     onClose()
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Batch Executive Properties" onClose={onClose}>
@@ -268,12 +300,85 @@ function ExecutivePropsDialog({ onClose }: { onClose: () => void }): JSX.Element
         <label className="lib-dlg-check"><input type="checkbox" aria-label="Enabled" checked={v.enabled} onChange={e => setV({ ...v, enabled: e.target.checked })} /> Enabled</label>
         <label>Description:<input aria-label="Batch Executive description" value={v.description} onChange={e => setV({ ...v, description: e.target.value })} /></label></div>}
       {tab === 'Server' && <div className="lib-dlg-fields">
+        <label>Revision:<input aria-label="Revision" value={v.revision} onChange={e => setV({ ...v, revision: e.target.value })} /></label>
         <label>Remove event files older than (days):<input aria-label="Remove event files older than" type="number" value={v.removeEventFilesDays} onChange={e => setV({ ...v, removeEventFilesDays: Number(e.target.value) })} /></label>
         <label>Restart behavior:<select aria-label="Restart behavior" value={v.restart} onChange={e => setV({ ...v, restart: e.target.value as typeof v.restart })}><option>Query User</option><option>Warm Restart</option><option>Cold Restart</option></select></label>
         <label>Hold propagation limit:<select aria-label="Hold propagation limit" value={v.holdPropagation} onChange={e => setV({ ...v, holdPropagation: e.target.value })}><option>Procedure</option><option>Unit Procedure</option><option>Operation</option></select></label>
         <p className="exp-hint">A hold is always propagated up the recipe to the top level. These settings are stored but only the single operation level is simulated.</p></div>}
-      {tab === 'Action Confirmation' && <table className="dvx-details"><thead><tr><th>Action</th><th>Prompt</th><th>Confirm</th><th>Verify</th></tr></thead>
-        <tbody>{['Add Batch', 'Start', 'Hold', 'Restart', 'Stop', 'Abort', 'Clear Failures', 'Acquire Phase', 'Release Phase', 'Start Phase', 'Answer Prompt'].map(a => <tr key={a}><td>{a}</td><td><input type="checkbox" disabled /></td><td><input type="checkbox" disabled /></td><td><input type="checkbox" disabled /></td></tr>)}</tbody></table>}
+      {tab === 'Action Confirmation' && <ActionConfirmationPanel settings={confirm} onChange={setConfirm} same={same} onSame={setSame} />}
+    </div>
+    <Buttons onOk={submit} onClose={onClose} /><Err error={error} />
+  </SimulatorDialog>
+}
+
+/** Executive right-click > Client Configuration (slide 10-61): the commands the Batch Operator Interface and DeltaV Operate offer. */
+function ClientConfigDialog({ onClose }: { onClose: () => void }): JSX.Element {
+  const x = useExecutive()
+  const [allow, setAllow] = useState(x.clientAllowLocal)
+  const [enabled, setEnabled] = useState({ ...x.clientEnabled })
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Client Configuration" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label className="lib-dlg-check"><input type="checkbox" aria-label="Allow settings to be configured at the local client" checked={allow} onChange={e => setAllow(e.target.checked)} /> Allow settings to be configured at the local client</label>
+      <fieldset className="lib-dlg-props"><legend>Local Client Actions</legend>
+        <table className="dvx-details" aria-label="Local Client Actions"><thead><tr><th>Action</th><th>Enable</th></tr></thead>
+          <tbody>{CONFIRM_ACTIONS.map(a => <tr key={a}><td>{a}</td><td><input type="checkbox" aria-label={`${a} Enable`} checked={enabled[a]} onChange={e => setEnabled({ ...enabled, [a]: e.target.checked })} /></td></tr>)}</tbody></table></fieldset>
+      <button className="tbtn sm" onClick={() => { setEnabled(defaultClientActions()); setAllow(true) }}>Restore Defaults</button>
+    </div>
+    <Buttons onOk={() => { useExecutive.getState().setClientConfig(allow, enabled); onClose() }} onClose={onClose} />
+  </SimulatorDialog>
+}
+
+/** The Batch Operator Interface's Config Tool (slide 10-64): which commands this workstation offers, when the Batch Executive allows it. */
+function OiConfigDialog({ onClose }: { onClose: () => void }): JSX.Element {
+  const x = useExecutive()
+  const [enabled, setEnabled] = useState({ ...x.localEnabled })
+  const editable = x.clientAllowLocal
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="DeltaV Batch OI Config" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <p>Default Batch Executive Node for Prompts Control: PROPLUS</p>
+      {!editable && <p className="exp-hint" role="status">Allow settings to be configured at the local client is not enabled on the Batch Executive (Client Configuration): the local client cannot override the Batch Executive server's options.</p>}
+      <fieldset className="lib-dlg-props"><legend>Actions</legend>
+        <table className="dvx-details" aria-label="OI Actions"><thead><tr><th>Action</th><th>Enable</th></tr></thead>
+          <tbody>{CONFIRM_ACTIONS.map(a => <tr key={a}><td>{a}</td><td><input type="checkbox" aria-label={`${a} OI Enable`} disabled={!editable || !x.clientEnabled[a]} checked={enabled[a] && x.clientEnabled[a]} onChange={e => setEnabled({ ...enabled, [a]: e.target.checked })} /></td></tr>)}</tbody></table></fieldset>
+    </div>
+    <Buttons disabled={!editable} onOk={() => { const r = useExecutive.getState().setLocalEnabled(enabled); if (r.ok) onClose() }} onClose={onClose} />
+  </SimulatorDialog>
+}
+
+/** Prompt / Confirm / Verify for an operator action, as set on the Batch Executive's Action Confirmation tab (slides 10-60, 10-74). */
+function ActionGateDialog({ onClose }: { onClose: () => void }): JSX.Element | null {
+  const gate = useExecUi(s => s.gate)
+  const cfg = useExecutive(s => (gate ? s.actionConfirm[gate.action] : undefined))
+  const me = useSecurity(s => s.currentUser)
+  const [comment, setComment] = useState('')
+  const [confirmUser, setConfirmUser] = useState(me)
+  const [confirmPw, setConfirmPw] = useState('')
+  const [verifyUser, setVerifyUser] = useState('')
+  const [verifyPw, setVerifyPw] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  if (!gate || !cfg) return null
+  const needId = cfg.confirm || cfg.verify
+  const submit = (): void => {
+    if (needId) {
+      const r = useExecutive.getState().authorizeAction(gate.action, gate.subject, { comment, confirm: { user: confirmUser, password: confirmPw }, verify: cfg.verify ? { user: verifyUser, password: verifyPw } : undefined }, gate.batchId)
+      if (!r.ok) { setError(r.error); return }
+    }
+    const run = gate.run
+    onClose()
+    run()
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label={needId ? 'Batch Operator Identification' : 'Confirm Action'} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel" data-action-gate={gate.action}>
+      <p role="status">{gate.action}: {gate.subject}</p>
+      {!needId && <p>Are you sure you want to do this?</p>}
+      {needId && <>
+        <label>Comment:<textarea aria-label="Gate comment" rows={2} value={comment} onChange={e => setComment(e.target.value)} /></label>
+        <fieldset className="lib-dlg-props"><legend>Confirm</legend>
+          <label>User Name:<input aria-label="Confirm user name" value={confirmUser} onChange={e => setConfirmUser(e.target.value)} /></label>
+          <label>Password:<input aria-label="Confirm password" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !cfg.verify) submit() }} /></label></fieldset>
+        {cfg.verify && <fieldset className="lib-dlg-props"><legend>Verify</legend>
+          <label>User Name:<input aria-label="Verify user name" value={verifyUser} onChange={e => setVerifyUser(e.target.value)} /></label>
+          <label>Password:<input aria-label="Verify password" type="password" value={verifyPw} onChange={e => setVerifyPw(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label></fieldset>}</>}
     </div>
     <Buttons onOk={submit} onClose={onClose} /><Err error={error} />
   </SimulatorDialog>
@@ -309,14 +414,20 @@ function AssignAreaDialog({ onClose }: { onClose: () => void }): JSX.Element {
 
 export function ExecutiveDialogHost(): JSX.Element | null {
   const dialog = useExecUi(s => s.dialog)
+  const gate = useExecUi(s => s.gate)
   const close = (): void => useExecUi.getState().openDialog(null)
-  if (!dialog) return null
-  switch (dialog.t) {
-    case 'newRecipe': return <NewRecipeDialog level={dialog.level} onClose={close} />
-    case 'rename': return <RenameDialog name={dialog.name} onClose={close} />
-    case 'recipeProps': return <RecipePropsDialog name={dialog.name} initialTab={dialog.tab} onClose={close} />
-    case 'execProps': return <ExecutivePropsDialog onClose={close} />
-    case 'downloadEquipment': return <DownloadEquipmentDialog onClose={close} />
-    case 'assignArea': return <AssignAreaDialog onClose={close} />
-  }
+  const gateDialog = gate ? <ActionGateDialog key={`${gate.action}:${gate.subject}`} onClose={() => useExecUi.getState().openGate(null)} /> : null
+  if (!dialog) return gateDialog
+  return <>{(() => {
+    switch (dialog.t) {
+      case 'newRecipe': return <NewRecipeDialog level={dialog.level} onClose={close} />
+      case 'rename': return <RenameDialog name={dialog.name} onClose={close} />
+      case 'recipeProps': return <RecipePropsDialog name={dialog.name} initialTab={dialog.tab} onClose={close} />
+      case 'execProps': return <ExecutivePropsDialog initialTab={dialog.tab} onClose={close} />
+      case 'clientConfig': return <ClientConfigDialog onClose={close} />
+      case 'oiConfig': return <OiConfigDialog onClose={close} />
+      case 'downloadEquipment': return <DownloadEquipmentDialog onClose={close} />
+      case 'assignArea': return <AssignAreaDialog onClose={close} />
+    }
+  })()}{gateDialog}</>
 }
