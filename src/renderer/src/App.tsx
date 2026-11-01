@@ -18,6 +18,11 @@ import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { BatchDialogHost } from './components/BatchDialogs'
 import { ExecutiveDialogHost } from './components/ExecutiveUi'
+import { VcDialogHost } from './components/VersionControlUi'
+import { HistorianDialogHost } from './components/HistorianUi'
+import { CampaignDialogHost } from './components/CampaignUi'
+import { HistorianAdminDisplay, BatchHistoryViewDisplay } from './displays/HistorianDisplays'
+import { CampaignManagerDisplay } from './displays/CampaignDisplay'
 import { NoticeHost } from './components/AppNotices'
 import { SaveReminderHost } from './components/StudioSaveReminder'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
@@ -96,6 +101,9 @@ export function App(): JSX.Element {
           {display === 'batchmgr' && <BatchManagerDisplay />}
           {display === 'batchlist' && <BatchListViewDisplay />}
           {display === 'unackprompts' && <UnacknowledgedPrDisplay />}
+          {display === 'histadmin' && <HistorianAdminDisplay />}
+          {display === 'histview' && <BatchHistoryViewDisplay />}
+          {display === 'campaigns' && <CampaignManagerDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
@@ -112,6 +120,9 @@ export function App(): JSX.Element {
       <BatchWindows />
       <BatchDialogHost />
       <ExecutiveDialogHost />
+      <VcDialogHost />
+      <HistorianDialogHost />
+      <CampaignDialogHost />
       <NoticeHost />
       <SaveReminderHost />
       <AccessDeniedToast />

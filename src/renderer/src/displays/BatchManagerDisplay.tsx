@@ -2,10 +2,16 @@ import { useState } from 'react'
 import { alertResult } from '../components/LibraryExplorer'
 import { useExecutive } from '../engine/executive'
 import { useStore } from '../engine/store'
+import { useCampaigns } from '../engine/campaignManager'
+import { useUi } from '../ui/uiStore'
+import { useWindows } from '../ui/windowStore'
 
 /** DeltaV Batch Application Manager (p10-37): start and stop the Batch Executive service and verify its phases. */
 export function BatchManagerDisplay(): JSX.Element {
   const x = useExecutive()
+  const camp = useCampaigns()
+  const campRunning = camp.service === 'RUNNING'
+  const [adv, setAdv] = useState(false)
   const time = useStore(s => s.time)
   const [tab, setTab] = useState<'Batch Executive' | 'Campaign Manager'>('Batch Executive')
   const running = x.service === 'RUNNING'
@@ -15,7 +21,21 @@ export function BatchManagerDisplay(): JSX.Element {
   return <div className="display bam" data-display="BatchApplicationManager">
     <div className="rs-title">DeltaV Batch Application Manager</div>
     <div className="boi-tabs" role="tablist">{(['Batch Executive', 'Campaign Manager'] as const).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</div>
-    {tab === 'Campaign Manager' ? <p className="exp-hint bam-pad">The Campaign Manager is not simulated in BatchLive.</p> : <div className="bam-body">
+    {tab === 'Campaign Manager' ? <div className="bam-body" data-campaign-tab>
+      <fieldset className="bam-box"><legend>Administer</legend>
+        <select aria-label="Administer campaign manager" defaultValue="PROPLUS"><option value="PROPLUS">PROPLUS</option></select>
+        <div className="bam-buttons"><button className="tbtn sm" disabled={campRunning} onClick={() => alertResult(useCampaigns.getState().toggleService())}>Start</button>
+          <button className="tbtn sm" disabled={!campRunning} onClick={() => alertResult(useCampaigns.getState().toggleService())}>Stop</button>
+          <button className="tbtn sm" onClick={() => setAdv(true)}>Advanced</button></div></fieldset>
+      <fieldset className="bam-box"><legend>Campaign Manager Status - PROPLUS</legend>
+        <dl className="bam-status"><dt>Service Status:</dt><dd data-bam="campaign-service" aria-label="Campaign Manager service status">{camp.service}</dd>
+          <dt>Enabled:</dt><dd>{camp.enabled ? 'Yes' : 'No (Explorer > PROPLUS > Campaign Manager > Properties)'}</dd>
+          <dt>Campaign Count:</dt><dd>{Object.keys(camp.campaigns).length}</dd></dl>
+        <button className="tbtn sm" disabled={!campRunning} onClick={() => { useWindows.getState().minimize('explorer'); useUi.getState().navigate('campaigns') }}>Campaign Manager Operator Interface</button></fieldset>
+      {adv && <fieldset className="bam-box"><legend>Campaign Manager Advanced</legend>
+        <p className="exp-hint">Clear locks on a campaign, if any. Purge clears the campaign journal files and the current state: a cold restart of the Campaign Manager server.</p>
+        <div className="bam-buttons"><button className="tbtn sm" onClick={() => alertResult(useCampaigns.getState().purge())}>Purge</button><button className="tbtn sm" onClick={() => setAdv(false)}>Close</button></div></fieldset>}
+    </div> : <div className="bam-body">
       <fieldset className="bam-box"><legend>Administer</legend>
         <select aria-label="Administer" defaultValue="PROPLUS"><option value="PROPLUS">PROPLUS</option></select>
         <div className="bam-buttons"><button className="tbtn sm" disabled={running} onClick={() => alertResult(x.startService())}>Start</button>

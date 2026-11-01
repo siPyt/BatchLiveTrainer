@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useSystem, SYSTEM_FEATURES, type SystemFeature } from '../engine/systemPreferences'
 import { useSecurity } from '../engine/security'
 import { SimulatorPanel } from '../components/SimulatorPanel'
+import { useVc } from '../engine/versionControl'
+import { useVcUi } from '../components/VersionControlUi'
 
 // Course 7016 pp 3-6..3-9 (DV09-108/109): the DeltaV System Preferences dialog (DeltaV -> Engineering -> System
 // Preferences) and the DeltaV Database Administrator (File -> Shutdown Server / Connect to Server, status bar).
@@ -41,6 +43,8 @@ export function SystemPreferencesDisplay(): JSX.Element {
   const closeClient = useSystem((s) => s.closeClient)
   const closeAll = useSystem((s) => s.closeAllClients)
   const isAdmin = useSecurity((s) => s.hasLock('SYSTEM_ADMIN'))
+  const vcEnabled = useVc((s) => s.enabled)
+  const vcOpen = useVcUi((s) => s.open)
   const selected = (f: SystemFeature): boolean => pending[f] ?? features[f]
   const current = (): Record<SystemFeature, boolean> => Object.fromEntries(SYSTEM_FEATURES.map(f => [f, selected(f)])) as Record<SystemFeature, boolean>
   const [draft, setDraft] = useState<Record<SystemFeature, boolean>>(current)
@@ -122,6 +126,16 @@ export function SystemPreferencesDisplay(): JSX.Element {
             </>}
           </div>
           {serverState === 'STOPPED' && <div>Configuration, download and Explorer changes are unavailable until you connect to the server.</div>}
+          <div className="sp-vc" data-vc-icons>
+            <b>Version Control</b> (Database Administrator icons, slides 13-5 .. 13-27)
+            <div className="dvd-buttons">
+              <button className="tbtn sm" onClick={() => vcOpen({ t: 'config' })}>Version Control Configuration</button>
+              <button className="tbtn sm" disabled={!vcEnabled || serverState !== 'RUNNING'} onClick={() => vcOpen({ t: 'snapshot' })}>Version Control Snapshot</button>
+              <button className="tbtn sm" disabled={!vcEnabled || serverState !== 'RUNNING'} onClick={() => { const r = useVc.getState().synchronize(); setMessage(r.ok ? `Synchronize Database: ${r.value}` : r.error) }}>Version Control Synchronize Database</button>
+              <button className="tbtn sm" disabled={!vcEnabled} onClick={() => vcOpen({ t: 'messages' })}>Version Control Messages</button>
+              <button className="tbtn sm" disabled title="Archive, Restore and CleanUpDatabase move Version Control data to archive files; not simulated">Archive / Restore / CleanUp Database</button>
+            </div>
+          </div>
         </div>
         <div className="sp-statusbar"><span data-server-state>{serverState === 'RUNNING' ? 'Database Server is Running' : 'Database Server is Shutdown'}</span></div>
       </section>

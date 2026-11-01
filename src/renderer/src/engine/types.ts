@@ -104,6 +104,8 @@ export interface AnalogParam {
 export interface ModuleDisplayProperties {
   primaryDisplay?: string
   detailDisplay?: string
+  /** Unwired input parameters added in Control Studio (Special Items > Input Parameter). */
+  inputParams?: string[]
 }
 
 export interface PidModule extends ModuleDisplayProperties {

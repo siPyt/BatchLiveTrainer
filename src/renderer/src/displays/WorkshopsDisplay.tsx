@@ -19,6 +19,12 @@ import { checkCourse7016Ch9 } from '../engine/course7016Ch9Checks'
 import { checkCourse7016Ch10 } from '../engine/course7016Ch10Checks'
 import { checkCourse7016Ch11 } from '../engine/course7016Ch11Checks'
 import { checkCourse7016Ch12 } from '../engine/course7016Ch12Checks'
+import { checkCourse7016Ch13 } from '../engine/course7016Ch13Checks'
+import { checkCourse7016Ch14 } from '../engine/course7016Ch14Checks'
+import { checkCourse7016Ch15 } from '../engine/course7016Ch15Checks'
+import { useHistorian } from '../engine/batchHistorian'
+import { useCampaigns } from '../engine/campaignManager'
+import { useVc } from '../engine/versionControl'
 import { useExecutive } from '../engine/executive'
 
 function stepIds(w: Workshop): string[] {
@@ -105,6 +111,9 @@ function WorkshopPanel({
   const library = useLibrary()
   const batch = useBatch()
   const exec = useExecutive()
+  const vc = useVc()
+  const hist = useHistorian()
+  const camp = useCampaigns()
   const system = useSystem()
   const em = useEm()
   const ch5: Ch5State = {
@@ -118,6 +127,9 @@ function WorkshopPanel({
     w.id.startsWith('7016-ch10-') ? checkCourse7016Ch10({ ...batch, ...exec }, eventLog, signature, tag => modules[tag]?.area) :
     w.id.startsWith('7016-ch11-') ? checkCourse7016Ch11(exec) :
     w.id.startsWith('7016-ch12-') ? checkCourse7016Ch12({ ...batch, ...exec }) :
+    w.id.startsWith('7016-ch13-') ? checkCourse7016Ch13(vc, Object.keys(exec.downloaded)) :
+    w.id.startsWith('7016-ch14-') ? checkCourse7016Ch14(hist) :
+    w.id.startsWith('7016-ch15-') ? checkCourse7016Ch15(camp, exec) :
     w.id.startsWith('7016-ch9-') ? checkCourse7016Ch9(batch, eventLog, namedSets, library.classes) :
     w.id.startsWith('7016-ch6-') && w.id !== '7016-ch6-optional' ? checkCourse7016Ch6(batch, eventLog, namedSets) :
     w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :

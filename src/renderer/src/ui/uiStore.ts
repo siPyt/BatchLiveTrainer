@@ -23,7 +23,9 @@ export type DisplayId =
   | 'batchmgr'
   | 'batchlist'
   | 'unackprompts'
-
+  | 'histadmin'
+  | 'histview'
+  | 'campaigns'
 export interface OpenFaceplate {
   tag: string
   x: number

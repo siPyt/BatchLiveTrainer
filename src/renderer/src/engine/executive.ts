@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useStore } from './store'
 import { libraryHooks } from './libraryStore'
 import { useBatch, activeKey, unitParamValue } from './batchStore'
+import { vcHooks } from './vcHooks'
 import { commandPhase, COMMAND_LABEL, STATE_LABEL, type PhaseCommand } from './batchConfig'
 import { useSecurity } from './security'
 import type { BatchFunction } from './securityTargets'
@@ -161,7 +162,7 @@ export interface ExecutiveState {
   discardDraft: (name: string) => void
   assignRecipe: (name: string) => Result<string>
   verifyRecipe: (name: string) => { errors: string[]; warnings: string[] }
-  downloadRecipe: (name: string) => Result<{ warnings: string[] }>
+  downloadRecipe: (name: string, opts?: { proceedUnauthorized?: boolean; proceedCheckedOut?: boolean }) => Result<{ warnings: string[] }>
   downloadEquipment: () => Result<number>
   startService: () => Result<string>
   stopService: () => Result<string>
@@ -823,12 +824,15 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
     saveRecipe: name => {
       const d = get().drafts[name]
       if (!d) return ok(name)
+      const blocked = vcHooks.gate(`Recipe:${name}`)
+      if (blocked) return fail(blocked)
       set(s => {
         const drafts = { ...s.drafts }
         delete drafts[name]
         return { recipes: { ...s.recipes, [name]: { ...d, revision: d.revision + 1, modified: now() } }, drafts }
       })
       useStore.getState().logEvent('CONFIGURE', name, `${d.level} ${name} saved in Recipe Studio`)
+      vcHooks.saved(`Recipe:${name}`)
       return ok(name)
     },
     discardDraft: name => set(s => { const drafts = { ...s.drafts }; delete drafts[name]; return { drafts } }),
@@ -896,7 +900,7 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
       if (!r.product.author.trim()) warnings.push('No author is set on the Product tab')
       return { errors, warnings }
     },
-    downloadRecipe: name => {
+    downloadRecipe: (name, opts) => {
       const s = get()
       const r = s.recipes[name]
       if (!r) return fail(`${name} does not exist`)
@@ -913,6 +917,8 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
       }
       const ce = collect(name)
       if (ce) return fail(`${name} cannot be downloaded: ${ce}`)
+      const vcError = vcHooks.downloadCheck(order, opts)
+      if (vcError) return fail(`${name} cannot be downloaded: ${vcError}`)
       const warnings: string[] = []
       for (const n of order) {
         const v = get().verifyRecipe(n)

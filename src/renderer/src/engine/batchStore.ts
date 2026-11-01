@@ -20,6 +20,7 @@ import { phaseBlockDefaults } from './phaseBlocks'
 import type { NamedSetDefinition } from './namedSets'
 import { findNamedSet } from './namedSetMatch'
 import { PHASE_IMPORT_FILES } from './course7016Imports'
+import { vcHooks } from './vcHooks'
 import { DEFAULT_ARB, acquireBlock, arbitrationError, decodeRequest, nextEquipmentId, resourceSet, type ArbConfig, type ArbDeployed, type OwnerTable } from './arbitration'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -937,8 +938,11 @@ export const useBatch = create<BatchState>((set, get) => ({
     if (!pc) return fail(`Phase class ${name} does not exist`)
     if (!draft) return ok(name)
     if (!requireUnlockedLock('CAN_CONFIGURE', `Save phase class ${name}`)) return fail('Requires the Can Configure key')
+    const blocked = vcHooks.gate(`PhaseClass:${name}`)
+    if (blocked) return fail(blocked)
     set({ phaseClasses: { ...s.phaseClasses, [name]: { ...draft, revision: pc.revision + 1 } }, phaseDrafts: withoutKeys(s.phaseDrafts, [name]) })
     log(name, `Phase logic saved (revision ${pc.revision + 1})`)
+    vcHooks.saved(`PhaseClass:${name}`)
     return ok(name)
   },
   discardPhaseDraft: name => set(s => ({ phaseDrafts: withoutKeys(s.phaseDrafts, [name]) })),

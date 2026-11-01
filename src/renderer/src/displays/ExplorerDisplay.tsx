@@ -39,6 +39,7 @@ import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, 
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
 import { useBatchUi } from '../ui/batchUi'
+import { vcMenuItems } from '../components/VersionControlUi'
 import { useDownloadPending } from '../components/useDownloadPending'
 import { askConfirm } from '../components/AppNotices'
 
@@ -714,6 +715,9 @@ export function ExplorerDisplay(): JSX.Element {
               >
                 Properties...
               </button>
+              {vcMenuItems(`Module:${menu.target}`).filter(i => !i.separator).map(i => (
+                <button key={i.label} className="ctx-item" disabled={!!i.disabled} title={i.disabled} onClick={() => { i.onClick?.(); setMenu(null) }}>{i.label}</button>
+              ))}
               {Object.keys(hardwareControllers).map(c => (
                 <button key={c} className="ctx-item" onClick={() => { alertResult(useLibrary.getState().assignModule(menu.target, c)); setMenu(null) }}>
                   Assign ▸ {c}

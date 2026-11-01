@@ -4,6 +4,7 @@ import { useLibrary } from '../engine/libraryStore'
 import { useSystem } from '../engine/systemPreferences'
 import { useUi } from '../ui/uiStore'
 import { useBatchUi } from '../ui/batchUi'
+import { vcMenuItems } from './VersionControlUi'
 import { useBatch, aliasesResolved, activeKey, unitDownloadState } from '../engine/batchStore'
 import {
   COMPOSITES, COMPOSITE_PARAMS, STATE_LABEL, SYSTEM_PHASE_PARAMS, UNIT_CLASS_PARAMS, UNIT_MODULE_PARAMS,
@@ -178,6 +179,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
         sep,
         { label: 'New ▸ Unit Parameter Definition', onClick: () => ui.openDialog({ t: 'unitParam', unitClass: name }) },
         { label: 'New ▸ Alias', onClick: () => ui.openDialog({ t: 'newAlias', unitClass: name }) },
+        ...vcMenuItems(`UnitClass:${name}`),
         ...common] : [
         { label: 'Explore', onClick: () => onSelect({ t: 'class', cls, name }) },
         { label: 'Open with Control Studio', onClick: () => openPhaseStudio(name) },
@@ -188,6 +190,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
         { label: 'New ▸ Phase Message', onClick: () => ui.openDialog({ t: 'param', phaseClass: name, kind: 'message' }) },
         { label: 'New ▸ Batch input/report parameter', onClick: () => ui.openDialog({ t: 'param', phaseClass: name, kind: 'batch' }) },
         { label: 'New ▸ Phase algorithm parameter', onClick: () => ui.openDialog({ t: 'param', phaseClass: name, kind: 'algorithm' }) },
+        ...vcMenuItems(`PhaseClass:${name}`),
         ...common]
     setMenu({ x: e.clientX, y: e.clientY, label: name, items })
   }

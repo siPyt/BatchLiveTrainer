@@ -1,4 +1,6 @@
 import { askConfirm } from '../components/AppNotices'
+import { useVc } from '../engine/versionControl'
+import { useVcUi } from '../components/VersionControlUi'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
@@ -38,6 +40,9 @@ import type { ReactNode } from 'react'
 // delete) backed by the 10 Hz simulation tick in engine/simulate.ts — every
 // CV shown is live-clickable, same as the faceplates.
 
+// Which module a check-out prompt is already open for, so a re-run of the effect does not ask twice.
+let vcPrompting: string | null = null
+
 export function ControlStudioDisplay(): JSX.Element {
   useDatabaseClient('DeltaV Control Studio')
   const studioTag = useUi((s) => s.studioTag)
@@ -49,6 +54,21 @@ export function ControlStudioDisplay(): JSX.Element {
     lifecycleModules({ modules: runtimeModules, moduleLifecycle }, studioTag ?? undefined), pidLifecycle), deviceLifecycle),
     [runtimeModules, moduleLifecycle, pidLifecycle, deviceLifecycle, studioTag])
   const m = studioTag ? modules[studioTag] : undefined
+  // Version Control (slide 13-32): a module that is not checked out is opened read-only unless the user checks it out when prompted.
+  useEffect(() => {
+    if (!studioTag) return
+    const vc = useVc.getState()
+    if (!vc.enabled || vc.preference === 'Auto Check Out and In') return
+    const key = `Module:${studioTag}`
+    const it = vc.ensureItem(key)
+    if (!it || it.checkedOutBy || vcPrompting === key) return
+    if (vc.preference === 'Auto Check Out') { useVc.getState().checkOut(key); return }
+    vcPrompting = key
+    void askConfirm(`${studioTag} is not checked out. Check it out so you can modify it? (No opens it read-only.)`).then(yes => {
+      vcPrompting = null
+      if (yes && !useVc.getState().items[key]?.checkedOutBy) { const r = useVc.getState().checkOut(key); if (!r.ok) window.alert(r.error) }
+    })
+  }, [studioTag])
   const openFaceplate = useUi((s) => s.openFaceplate)
   const select = useUi((s) => s.select)
   const openStudio = useUi((s) => s.openStudio)
@@ -1330,6 +1350,16 @@ function PaletteView({ area, width }: { area: string; width: number }): JSX.Elem
   const openStudio = useUi((s) => s.openStudio)
   const [pending, setPending] = useState<PaletteItem | null>(null)
   const [tag, setTag] = useState('')
+  const studioTag = useUi((s) => s.studioTag)
+  const inputParams = useStore((s) => (studioTag ? (s.modules[studioTag] as { inputParams?: string[] } | undefined)?.inputParams : undefined)) ?? []
+  const [paramName, setParamName] = useState<string | null>(null)
+  const [paramError, setParamError] = useState<string | null>(null)
+  const addParam = (): void => {
+    if (!studioTag || paramName === null) return
+    const e = useStore.getState().addInputParameter(studioTag, paramName)
+    if (e) setParamError(e)
+    else { setParamName(null); setParamError(null) }
+  }
   const normTag = tag.trim().toUpperCase()
   const nameError = moduleNameError(normTag)
   const exists = normTag.length > 0 && !!(modules[normTag] || sfcs[normTag])
@@ -1350,6 +1380,25 @@ function PaletteView({ area, width }: { area: string; width: number }): JSX.Elem
   return (
     <div className="studio-pane studio-palette" style={{ width, minWidth: width, flex: `0 0 ${width}px` }}>
       <div className="studio-palette-body">
+        <div className="studio-pal-group">
+          <div className="studio-pal-head">Special Items</div>
+          <div className="studio-pal-item" data-palette="Input Parameter" title="Add an input parameter to the module diagram (do not wire it)" onClick={() => { setParamName(''); setParamError(null) }}>
+            <span>Input Parameter</span>
+          </div>
+          {inputParams.map(p => <div key={p} className="studio-pal-item" data-input-param={p} title="Input parameter on this module"><span>▸ {p}</span></div>)}
+        </div>
+        {paramName !== null && (
+          <div className="studio-pal-create">
+            <div className="studio-pal-create-title">New Input Parameter</div>
+            <input className="studio-pal-tag" aria-label="Input parameter name" placeholder="Parameter name" value={paramName} autoFocus
+              onChange={(e) => setParamName(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && addParam()} />
+            {paramError && <div className="studio-pal-err" role="alert">{paramError}</div>}
+            <div className="studio-pal-create-btns">
+              <button className="tbtn sm" onClick={addParam}>Create</button>
+              <button className="tbtn sm" onClick={() => { setParamName(null); setParamError(null) }}>Cancel</button>
+            </div>
+          </div>
+        )}
         {PALETTE.map((g) => (
           <div key={g.group} className="studio-pal-group">
             <div className="studio-pal-head">{g.group}</div>
@@ -1468,6 +1517,7 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }
   panes: Record<StudioPane, boolean>; onToggle: (pane: StudioPane) => void
 }): JSX.Element {
   const [tab, setTab] = useState('Home')
+  const vcEnabled = useVc(s => s.enabled)
   const [showDownload, setShowDownload] = useState(false)
   const [showPidTransfer, setShowPidTransfer] = useState(false)
   const record = useStore(s => s.moduleLifecycle[tag])
@@ -1509,8 +1559,8 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }
   }
   const downloadUnavailable = pidRecord ? pidDownloadUnavailable : lifecycle ? undefined : pidTemplate ? 'Enable Saved PID_LOOP Lifecycle first' :
     'Enable Saved Module Lifecycle or Saved Device Lifecycle first'
-  const saveAction = lifecycle ? () => pidRecord ? savePid(tag) : deviceRecord ? deviceSave(ownerTag) : save(tag) : undefined
-  const saveUnavailable = !lifecycle ? 'Enable a saved lifecycle first' : lifecycle.online ? 'Go Offline before saving configuration' : undefined
+  const saveAction = lifecycle ? () => pidRecord ? savePid(tag) : deviceRecord ? deviceSave(ownerTag) : save(tag) : vcEnabled ? () => useStore.getState().logEvent('CONFIGURE', tag, 'Module saved in Control Studio') : undefined
+  const saveUnavailable = !lifecycle ? (vcEnabled ? undefined : 'Enable a saved lifecycle first') : lifecycle.online ? 'Go Offline before saving configuration' : undefined
   const noClipboard = 'Block clipboard operations are not implemented'
   const tinyNote = 'This command is not implemented in the simulator'
   return (
@@ -1601,10 +1651,13 @@ function StudioRibbon({ tag, onNew, onFaceplate, zoom, onZoom, panes, onToggle }
             </Stack>
           </Group>
           <Group label="Version Control">
-            <Btn glyph="checkOut" label="Check Out" unavailable="Configuration Audit Trail (Version Control) is an optional licensed feature; configuration changes are recorded in the Event Journal" />
+            <Btn glyph="checkOut" label="Check Out" onClick={vcEnabled ? () => { const r = useVc.getState().checkOut(`Module:${tag}`); if (!r.ok) window.alert(r.error) } : undefined}
+              unavailable={vcEnabled ? undefined : 'Version Control is not enabled (DeltaV Database Administrator > Version Control Configuration)'} />
             <Stack>
-              <Btn glyph="checkIn" label="Check In" size="tiny" unavailable={tinyNote} />
-              <Btn glyph="undoCheckOut" label="Undo Check Out" size="tiny" unavailable={tinyNote} />
+              <Btn glyph="checkIn" label="Check In" size="tiny" onClick={vcEnabled ? () => useVcUi.getState().open({ t: 'checkIn', key: `Module:${tag}` }) : undefined} unavailable={vcEnabled ? undefined : tinyNote} />
+              <Btn glyph="undoCheckOut" label="Undo Check Out" size="tiny" onClick={vcEnabled ? () => { const r = useVc.getState().undoCheckOut(`Module:${tag}`); if (!r.ok) window.alert(r.error) } : undefined} unavailable={vcEnabled ? undefined : tinyNote} />
+              <Btn glyph="history" label="Show History" size="tiny" onClick={vcEnabled ? () => useVcUi.getState().open({ t: 'history', key: `Module:${tag}` }) : undefined} unavailable={vcEnabled ? undefined : tinyNote} />
+              <Btn glyph="history" label="Show Differences" size="tiny" onClick={vcEnabled ? () => useVcUi.getState().open({ t: 'diff', key: `Module:${tag}`, a: Math.max(1, useVc.getState().items[`Module:${tag}`]?.versions.length ?? 1), b: 'current' }) : undefined} unavailable={vcEnabled ? undefined : tinyNote} />
             </Stack>
           </Group>
         </>}

@@ -10,6 +10,7 @@ import { useExecUi } from '../ui/executiveUi'
 import { useUi } from '../ui/uiStore'
 import { useWindows } from '../ui/windowStore'
 import { askConfirm } from './AppNotices'
+import { vcMenuItems, recipeAuthItems } from './VersionControlUi'
 
 type MenuItem = { label: string; onClick?: () => void; disabled?: string; separator?: boolean; danger?: boolean }
 type Menu = { x: number; y: number; label: string; items: MenuItem[] }
@@ -57,6 +58,8 @@ export function RecipesTree({ depth, selection, onSelect }: { depth: number; sel
     { label: 'Explore', onClick: () => pick({ t: 'recipe', name: r.name }) },
     { label: 'Open with Recipe Studio', onClick: () => openRecipeStudio(r.name) },
     { label: 'Assign to Batch Executive...', onClick: () => { alertResult(useExecutive.getState().assignRecipe(r.name)) } },
+    ...vcMenuItems(`Recipe:${r.name}`),
+    ...recipeAuthItems(r.name),
     sep,
     { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete ${r.name}?`).then(ok => { if (ok) alertResult(useExecutive.getState().deleteRecipe(r.name)) }) } },
     { label: 'Rename', onClick: () => ui.openDialog({ t: 'rename', name: r.name }) },
@@ -144,7 +147,8 @@ export function RecipeDetail({ sel }: { sel: Extract<BatchSel, { t: 'recipes' | 
 export function ExecutiveDetail({ name }: { name: string }): JSX.Element {
   const x = useExecutive()
   const ui = useExecUi()
-  if (name === 'Batch Historian') return <div className="dvx-contents"><p className="exp-hint">Batch Historian subsystem on the ProfessionalPLUS workstation: batch history collection is not simulated in BatchLive; the Batch Event Journal in the Batch Operator Interface records batch events.</p></div>
+  if (name === 'Batch Historian') return <div className="dvx-contents"><p className="exp-hint">Batch Historian subsystem on the ProfessionalPLUS workstation. Right-click > Properties to enable it and configure its inputs and output databases; then download the workstation and use the Historian Administration Tool and Batch History View (display list).</p></div>
+  if (name === 'Campaign Manager') return <div className="dvx-contents"><p className="exp-hint">Campaign Manager subsystem on the ProfessionalPLUS workstation. Right-click > Properties to enable it, start it on the Campaign Manager tab of the Batch Application Manager and use the Campaign Manager Operator Interface (display list).</p></div>
   if (name === 'Assigned Areas') return <div className="dvx-contents"><Actions><button className="tbtn sm" onClick={() => ui.openDialog({ t: 'assignArea' })}>Assign Area...</button></Actions>
     <ContentsList rows={x.assignedAreas.map(a => ({ key: a, icon: <BatchIcon kind="folder" />, name: a, type: 'Assigned plant area', data: { 'data-assigned-area': a } }))} empty="No areas are assigned. A Batch Executive controls only the equipment in its assigned areas." /></div>
   if (name === 'Assigned Recipes') return <div className="dvx-contents">

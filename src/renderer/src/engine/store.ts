@@ -85,6 +85,7 @@ import { prepareControllerModuleTransfer, type ManagedReview } from './controlle
 import { configureSplitter, createSplitter } from './splitter'
 import { areaNameError } from './areas'
 import { moduleNameError } from './naming'
+import { vcHooks } from './vcHooks'
 import { conditionSourceError } from './fbCondition'
 import { isPidTargetMode, pidTargetAllowed, pidExecutionBad } from './pidModes'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from './deviceDescriptors'
@@ -247,6 +248,8 @@ interface StoreState extends PlantState {
   setModuleOnline: (tag: string, online: boolean) => boolean
   editModuleDraft: (tag: string, patch: AoDraftPatch) => boolean
   saveModuleConfiguration: (tag: string) => boolean
+  /** Control Studio Special Items > Input Parameter (Chapter 13 workshop): an unwired input parameter on the module diagram; null when added. */
+  addInputParameter: (tag: string, name: string) => string | null
   loadSavedModuleConfiguration: (tag: string) => boolean
   verifyAoDownload: (tag: string, scope: 'FULL' | 'PARTIAL') => boolean
   downloadModule: (tag: string, scope: 'FULL' | 'PARTIAL', expected?: AoConfiguration) => boolean
@@ -2662,6 +2665,21 @@ export const useStore = create<StoreState>((set, get) => ({
     set(s => ({ moduleLifecycle: { ...s.moduleLifecycle, [tag]: { ...record, draft } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', tag, 'Offline AO draft changed; runtime unchanged')
     return true
+  },
+
+  addInputParameter: (tag, raw) => {
+    const m = get().modules[tag]
+    const name = raw.trim().toUpperCase()
+    if (!m) return `Module ${tag} does not exist`
+    if (!/^[A-Z][A-Z0-9_]{0,15}$/.test(name)) return 'Parameter names start with a letter, use letters, digits and underscores, and are at most 16 characters'
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Add input parameter ${name} to ${tag}`)) return 'Requires the Can Configure key'
+    const blocked = vcHooks.gate(`Module:${tag}`)
+    if (blocked) return blocked
+    const list = (m as unknown as { inputParams?: string[] }).inputParams ?? []
+    if (list.includes(name)) return `${name} already exists on ${tag}`
+    set(s => ({ modules: { ...s.modules, [tag]: { ...m, inputParams: [...list, name] } as typeof m }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', tag, `Input parameter ${name} added in Control Studio`)
+    return null
   },
 
   saveModuleConfiguration: (tag) => {

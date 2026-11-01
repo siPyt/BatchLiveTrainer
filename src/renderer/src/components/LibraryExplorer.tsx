@@ -21,6 +21,9 @@ import { BatchClassTree, BatchDetail, BatchIcon, DRAG_CM_DEVICE, DRAG_PCELL, DRA
 import { askConfirm } from './AppNotices'
 import { ExecutiveRows } from './ExecutiveUi'
 import { useExecUi } from '../ui/executiveUi'
+import { useWindows } from '../ui/windowStore'
+import { useHistUi } from './HistorianUi'
+import { useCampUi } from './CampaignUi'
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
@@ -409,7 +412,18 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
           {batchOn && <ExecutiveRows depth={depth + 3} selection={selection} onSelect={onSelect} />}
           {batchOn && <Row depth={depth + 3} icon={<BatchIcon kind="subsystem" />} label={<span>Batch Historian</span>}
             sub="Subsystem" dataAttr={{ 'data-subsystem': 'Batch Historian' }} selected={selection?.kind === 'batch' && selection.sel.t === 'subsystem' && selection.sel.name === 'Batch Historian'}
-            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Batch Historian' } })} />}
+            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Batch Historian' } })}
+            onContextMenu={e => { onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Batch Historian' } }); setMenu({ x: e.clientX, y: e.clientY, label: 'Batch Historian', items: [
+              { label: 'Explore', onClick: () => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Batch Historian' } }) },
+              { label: 'Historian Administration Tool', onClick: () => { useWindows.getState().minimize('explorer'); useUi.getState().navigate('histadmin') } },
+              { label: 'Properties', onClick: () => useHistUi.getState().open() }] }) }} />}
+          {batchOn && <Row depth={depth + 3} icon={<BatchIcon kind="subsystem" />} label={<span>Campaign Manager</span>}
+            sub="Subsystem" dataAttr={{ 'data-subsystem': 'Campaign Manager' }} selected={selection?.kind === 'batch' && selection.sel.t === 'subsystem' && selection.sel.name === 'Campaign Manager'}
+            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Campaign Manager' } })}
+            onContextMenu={e => { onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Campaign Manager' } }); setMenu({ x: e.clientX, y: e.clientY, label: 'Campaign Manager', items: [
+              { label: 'Explore', onClick: () => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Campaign Manager' } }) },
+              { label: 'Client Configuration', onClick: () => useCampUi.getState().open('clientConfig') },
+              { label: 'Properties', onClick: () => useCampUi.getState().open('props') }] }) }} />}
         </Row>}
         {all.filter(c => c.commissioned).map(c => node(c, depth + 2))}
       </Row>
