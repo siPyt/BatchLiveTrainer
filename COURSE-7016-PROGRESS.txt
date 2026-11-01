@@ -486,8 +486,10 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        yet: ..." (course7016Ch6Checks.ts check() returns the plain detail; the UI adds the label);
                        the phase parameter dialog's Engineering units suggestions now include "sec" (BatchDialogs.tsx).
                        Pushed to origin/main.
-- 2026-11-01  (uncommitted)  Chapter 7 (DRAIN): Explorer Import Phase Class..., DRAIN phase class, workshop with live
+- 2026-11-01  a6f977e  Chapter 7 (DRAIN): Explorer Import Phase Class..., DRAIN phase class, workshop with live
                        checks, tests/course7016-ch7.test.cjs, shared prerequisite fixture tests/helpers/. See section 5B.
+                       Pushed to origin/main (the terminal cannot prompt for GitHub credentials; the push was done with
+                       the GitKraken tool).
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -896,8 +898,8 @@ WHERE WE LEFT OFF (2026-11-01):
   course7016Imports.ts / Ch7Checks.ts / Ch7Workshops.ts, one new batchStore action importPhaseClass, a new dialog and two
   menu entries for phase classes, one regex alternative in securityTargets.ts, CHAPTER7 appended to the workshop list,
   one test exclusion). Chapter 4, 5, 6 and whole-course tests re-run afterwards: 47/47.
-- Changes are local in this working tree; NOT committed or pushed. Untracked: source_pdfs/ (holds the course PDFs, which
-  *.pdf in .gitignore covers, but also loose .txt/.docx/.html that it does NOT - do not `git add .`).
+- Committed and pushed to origin/main as a6f977e. Untracked and deliberately NOT committed: source_pdfs/ (holds the course
+  PDFs, which *.pdf in .gitignore covers, but also loose .txt/.docx/.html that it does NOT - do not `git add .`).
 - Tests: npm test 809/810 (dv09-audit needs pdf_om.txt, as before); npm run test:course7 5/5; typecheck and build clean.
 - Rule for future sessions (user, 2026-11-01): be careful changing anything that belongs to chapters before the one being
   worked, because the student has done and debugged those by hand. Keep changes additive, re-run the earlier chapters'
