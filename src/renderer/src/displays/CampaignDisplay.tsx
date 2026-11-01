@@ -33,6 +33,7 @@ function RecipePicker({ value, onChange, label }: { value: CampRecipe; onChange:
 
 export function CampaignManagerDisplay(): JSX.Element {
   const s = useCampaigns()
+  useExecutive(x => x.batches)
   const [server, setServer] = useState('PROPLUS')
   const [connected, setConnected] = useState(false)
   const [selC, setSelC] = useState<string | null>(null)

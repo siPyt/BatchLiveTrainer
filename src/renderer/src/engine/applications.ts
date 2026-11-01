@@ -82,8 +82,26 @@ export const DELTAV_APPLICATIONS: DeltaVApplication[] = [
   },
   {
     id: 'batch-manager', native: 'DeltaV Batch Application Manager', role: 'Administration', display: 'batchmgr',
-    does: ['Start and stop the Batch Executive service and Verify Phases'],
-    notSupported: ['Campaign Manager', 'Multiple Batch Executive subsystems'],
+    does: ['Start and stop the Batch Executive service and Verify Phases, and start and stop the Campaign Manager service (Advanced: purge)'],
+    notSupported: ['Multiple Batch Executive subsystems'],
+    keys: []
+  },
+  {
+    id: 'historian-admin', native: 'DeltaV Historian Administration Tool', role: 'Administration', display: 'histadmin',
+    does: ['Connect to the Batch Historian server, start and stop the Historian service, create archive databases and folders, archive batches and events, and configure maintenance'],
+    notSupported: ['Backup and restore of the real SQL databases', 'Multiple Batch Historian servers or database sizing'],
+    keys: []
+  },
+  {
+    id: 'batch-history-view', native: 'DeltaV Batch History View', role: 'Diagnostics', display: 'histview',
+    does: ['Browse collected batches, expand the batch chart to unit phases, list and comment batch events, compare two batches and trend a module over a phase'],
+    notSupported: ['Crystal Reports and the Process History View add-ins', 'Printing and exporting history'],
+    keys: []
+  },
+  {
+    id: 'campaign-manager', native: 'DeltaV Campaign Manager Operator Interface', role: 'Operate', display: 'campaigns',
+    does: ['Create campaigns from a base recipe, edit batches, add batches to the Batch Executive and start them, and run a campaign in Manual, Auto Release or Auto Start mode'],
+    notSupported: ['Product scaling inside the recipe (scale is stored only)', 'Campaign reports and electronic signatures on campaign actions'],
     keys: []
   },
   {

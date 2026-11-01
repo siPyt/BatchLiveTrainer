@@ -502,6 +502,111 @@ failure handling, operator log, prompts, formulas, Phase Control and Arbitration
   tests/helpers/course7016-prereq.cjs.
 
 
+5E2. CHAPTERS 8-10 PAGE-BY-PAGE AUDIT (incl. optional workshops)  [added 2026-11-01]
+---------------------------------------------------------------------------
+The user asked for a page-by-page pass over chapters 8-10 with every optional workshop. Chapters 8 and 9 matched the
+slides; chapter 10 had gaps that are now closed:
+- Batch Executive Properties > Action Confirmation (per action: Prompt / Confirm / Verify), Client Configuration (which
+  actions the client may use, allow local settings), Batch Operator Interface Configuration, "Batch Operator
+  Identification" and "Confirm Action" gate dialogs, tied to the BATCH_* function locks (securityTargets fn-batch-*).
+- Electronic signatures on batch actions and on XV-501 MODE changes (optional exercise), signature events in Process
+  History View, command numbers on the batch faceplates, Procedure as Table and Unacknowledged Prompts displays.
+- tests/course7016-ch10.test.cjs grew to 13 tests (41 checks, optional exercises verified).
+- Simplified: the real Batch Executive, signatures and server are BatchLive's own simulation.
+
+
+5F. CHAPTER 11 - UNIT PROCEDURES AND PROCEDURES (pp 11-1 .. 11-50)  [added 2026-11-01]
+---------------------------------------------------------------------------
+6 workshops / 24 live checks (engine/course7016Ch11Workshops.ts, course7016Ch11Checks.ts; ids 7016-11a/u/p/f/c/m).
+- engine/executive.ts: three recipe levels (operation, unit procedure, procedure). Hierarchical batches spawn hidden child
+  batches (id PARENT/STEP) that reuse the operation loop; simultaneous steps; link groups (52nn/55nn phase-partner
+  rendezvous per group); unit aliases (#ALIAS#) and bindings chosen at batch creation or deferred (Bind prompt);
+  Unit Class equipment (class-based recipes); recipe rename after download (references follow); level-aware verify and
+  download (contained recipes are downloaded with the procedure).
+- UI: Recipe Studio (Add Simultaneous Step, Step Properties with unit alias / acquire / retain / key parameter / phase
+  partners, Unit Aliases..., Link Groups...), Explorer Unit Procedures and Procedures folders, BOI Add Batch with the Unit
+  Binding area, nested PFC. The Link Groups dialog is capped to the viewport so OK stays visible.
+- UI verification: seed (through Chapter 10) then scripts for the operations, UP_BL_500 / UP_COLOR_100, PRC_PAINT with
+  LINK_COLOR, assign / verify / download, batches of each formula, class-based renames, PRC_MIX_COLORS with unit aliasing
+  and a deferred #BLENDER# bind prompt. Two passes (fresh profiles): Workshops page 24/24 Verified both times.
+- Fix found in the UI pass: the Link Groups dialog was taller than the window (OK off screen).
+- tests/course7016-ch11.test.cjs: 8 tests.
+
+
+5G. CHAPTER 12 - DYNAMIC REFERENCING (pp 12-1 .. 12-xx)  [added 2026-11-01]
+---------------------------------------------------------------------------
+3 workshops / 16 live checks (course7016Ch12Workshops.ts, course7016Ch12Checks.ts).
+- batchConfig.ts / batchStore.ts: parameter type Dynamic Reference (fields $REF, ST, CST, AWST; only for algorithm
+  parameters). Writing $REF sets CST = 1 and resolves on the next scan (CST 0 ok, 2 fail); .CV / .TARGET / .ACTUAL pass
+  through to the resolved //path. Unit class parameters (New > Unit Parameter Definition) with per-unit values; phase
+  logic reads them as //^/UNIT.CV/PARAM; unit-alias paths ^/UNIT.CV and #UNIT#; SELSTR(index, s1..s5).
+- executive.ts: recipe expressions may read unit-class parameters (CLASS/PARAM); Operation-level branch transitions that
+  loop back to an earlier step (verify rule: a branch may only loop back).
+- UI: Dynamic Reference type and Unit Parameter dialogs in Explorer; Recipe Studio "Add Branch Transition..." and branch
+  rows in the diagram. Two UI passes on fresh profiles: Workshops page 16/16 Verified both times.
+- Simplified / best reading: message REQUEST codes 3401 Boolean, 3202 Integer, 3303 Float, acquire 4020, release 4220;
+  the slide hint "use the UNIT phase parameter" was interpreted as the //^/UNIT.CV/PARAM path (not confirmed on DeltaV).
+- tests/course7016-ch12.test.cjs: 9 tests (helper tests/helpers/course7016-ch12-spec.cjs).
+
+
+5H. CHAPTER 13 - VERSION CONTROL (pp 13-1 .. 13-65)  [added 2026-11-01]
+---------------------------------------------------------------------------
+4 workshops / 12 live checks (course7016Ch13Workshops.ts, course7016Ch13Checks.ts).
+- engine/versionControl.ts (store useVc) and engine/vcHooks.ts (hooks so the stores do not import version control).
+  Enable (needs RUNNING Database server and no open clients; synchronizes and shuts the server down), check out / in /
+  undo, history, line diff, rollback (leaves the item checked out), labels, snapshots, recover / purge, search, history
+  report, recipe authorization (signers, sign, clear, approval report).
+- UI: components/VersionControlUi.tsx; System Preferences Version Control buttons; context-menu entries in Explorer,
+  Batch Explorer and recipe tree; Control Studio Version Control ribbon group, check-out prompt on open, Special Items >
+  Input Parameter palette item.
+- UI verification: enable, check out FIC-404, add two Input Parameters, Show History / Differences, check in, rollback,
+  snapshot, disable; authorization and preferences. Two passes: 12/12 Verified both times.
+- Simplified: VC covers modules (configuration fields), phase classes, unit classes and recipes; displays are a flag only;
+  Archive / Restore / CleanUp Database are disabled; function locks VC_* are not enforced; signers can approve without
+  holding the lock; the Recipe Tools tab has no "Proceed with download..." boxes (the engine supports the option).
+- tests/course7016-ch13.test.cjs: 10 tests.
+
+
+5I. CHAPTER 14 - BATCH HISTORIAN (pp 14-1 .. 14-60)  [added 2026-11-01]
+---------------------------------------------------------------------------
+4 workshops / 15 live checks (course7016Ch14Workshops.ts, course7016Ch14Checks.ts; ids 7016-14a/b/c/d).
+- engine/batchHistorian.ts (store useHistorian): configuration (enable, inputs Batch Executive / Alarms And Events, output
+  databases with a path and size), "downloaded" flag set by a workstation download, server Connect, service Start/Stop,
+  collection on every tick while RUNNING (batch trees with unit-phase nodes, batch events, process events, 2 s samples of a
+  fixed module list), comments, folders, archive databases, archiveBatch (a batch still in the Batch Executive list is
+  refused), archiveEvents, maintenance, batch compare and trend.
+- UI: Explorer > Batch Historian > Properties (General / Input / Output) and the Historian Administration Tool (Connect,
+  Start/Stop Historian, Create Archive, New Folder, Maintenance, right-click batch > Archive > name) and Batch History View
+  (select, Details with the chart expanded to unit phases, Batch Events with Add Comment, Process Events, Process Trend,
+  Compare Batches with a Process Trend Comparison). Display ids histadmin, histview; catalogued in applications.ts.
+- UI verification: configure db1 / db2 (10 Mb), download PROPLUS, connect, start the service, run two OP_FINISH_500 batches,
+  details, AGITATE events + comment, compare, DRAIN trend on XV-503, create OldBatches, archive refused while listed,
+  remove from the BOI list, archive, folder and AutoBackup. Two passes: Workshops page 15/15 Verified both times.
+- Simplified: no real SQL databases or reports; trends use a fixed module list; the service must be running during the
+  batch or nothing is collected.
+- tests/course7016-ch14.test.cjs: 5 tests.
+
+
+5J. CHAPTER 15 - CAMPAIGN MANAGER (pp 15-1 .. 15-39)  [added 2026-11-01]
+---------------------------------------------------------------------------
+3 workshops / 15 live checks (course7016Ch15Workshops.ts, course7016Ch15Checks.ts; ids 7016-15a/b/c/o).
+- engine/campaignManager.ts (store useCampaigns): Properties (enabled, node, auto-remove rules, Action Confirmation),
+  Client Configuration (sequence length, hide completed, columns, colors, enabled actions), service Start/Stop (needs the
+  Campaign Manager enabled and the Batch Executive RUNNING), Purge, campaigns with a base recipe / unit bindings / formula /
+  scale, batch ids NAME_01.., New / Delete / Edit Batch, release (adds to the Batch Executive), start, remove from
+  executive, comments, modes Manual / Auto Release / Auto Start (keep max-active running plus one released-ready batch),
+  optional setup and cleanup batches, states Defined / Active - Ready / Running / Held / Complete.
+- UI: Explorer > Campaign Manager > Properties and Client Configuration; Batch Application Manager Campaign Manager tab
+  (Start / Stop / Advanced Purge); Campaign Manager Operator Interface (display id campaigns).
+- UI verification (from a Chapter 11 profile with class-based PRC_PAINT): enable and start, create InteriorLatex (2 batches,
+  max 1 active, bind UM_BL_500 / UM_COLOR_100, Sky Blue), edit batch 2 (Baby Blue), add batch 3 (Navy Blue), comment, Auto
+  Release, Auto Start (batch 1 Running, 2 Ready, 3 Defined), Manual, start / remove each batch, remove the campaign,
+  Client Configuration. Two passes: Workshops page 15/15 Verified both times.
+- Fix found in the UI pass: the operator display did not re-render when the Batch Executive batch states changed.
+- Simplified: scale is stored only (not applied inside the recipe); no campaign reports.
+- tests/course7016-ch15.test.cjs: 5 tests.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -542,7 +647,15 @@ failure handling, operator log, prompts, formulas, Phase Control and Arbitration
 - tests/course7016-ch9.test.cjs     Chapter 9 CHG_BASE / BASE_HEADER / shared HEADER class (npm run test:course9):
                                     10 tests, see section 5D.
 - tests/course7016-ch10.test.cjs    Chapter 10 Batch Executive / Recipe Studio / BOI (npm run test:course10):
-                                                    12 tests, see section 5E.
+                                                    13 tests, see sections 5E and 5E2.
+- tests/course7016-ch11.test.cjs    Chapter 11 unit procedures / procedures / link groups / aliases (npm run test:course11):
+                                    8 tests, see section 5F. Helpers: tests/helpers/course7016-ch11-setup.cjs (through-Ch10
+                                    fixture) and course7016-ch11-workshops.cjs.
+- tests/course7016-ch12.test.cjs    Chapter 12 dynamic referencing (npm run test:course12): 9 tests, section 5G.
+- tests/course7016-ch13.test.cjs    Chapter 13 version control (npm run test:course13): 10 tests, section 5H.
+- tests/course7016-ch14.test.cjs    Chapter 14 Batch Historian (npm run test:course14): 5 tests, section 5I.
+- tests/course7016-ch15.test.cjs    Chapter 15 Campaign Manager (npm run test:course15): 5 tests, section 5J.
+- Full suite after Chapter 15: 875 of 876 pass (2026-11-01); only dv09-audit fails (needs pdf_om.txt). Typecheck clean.
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
   build are clean.
@@ -560,10 +673,10 @@ failure handling, operator log, prompts, formulas, Phase Control and Arbitration
 
 7. NOT SIMULATED (shown as disabled with an explanation)
 --------------------------------------------------------
-Batch Executive procedures (unit procedures / procedure, Chapter 11), electronic signatures, Procedure as Table (the
-Chapter 10 operation-level Recipe Studio, Executive and Batch Operator Interface are simulated, see 5E),
-Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
-Studio, version control (Check Out), unit arbitration and Modelock Override, batch history/reporting, EM algorithm
+Input/Output/Internal Read/Write parameter palette items other than Input Parameter, clipboard/undo
+in Control Studio, version control of displays (flag only) and of items other than modules / phase classes / unit classes /
+recipes, Version Control Archive / Restore / CleanUp Database, unit arbitration and Modelock Override, real SQL
+historian databases and reports, product scaling inside recipes (campaign scale is stored only), EM algorithm
 types other than Command driven and State driven, Shared module blocks can be bound but variant substitution
 checks only the class name. EM Control Studio: Set Operator (only "=" is simulated), the Categorized parameter
 view, the contents/parameters of DRIVE, TARGET, TARGET_REACHED and MONITOR (not documented in the course or the
@@ -639,6 +752,11 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        checks, tests/course7016-ch10.test.cjs. See section 5E.
 - 2026-11-01  (this commit)  Chapter 10 fixes from the UI passes (Recipe Properties button, Phase Control state kept, no
                        spurious revision bump) and a second clean UI pass: all 46 steps Verified.
+- 2026-11-01  (uncommitted until the Chapter 15 pass was done, then one commit)  Chapters 8-10 page-by-page audit incl. the optional
+                       workshops (Action Confirmation, Client Configuration, electronic signatures, Procedure as Table,
+                       Unacknowledged Prompts); Chapter 11 (unit procedures, procedures, link groups, aliases, class-based
+                       recipes), 12 (dynamic referencing), 13 (version control), 14 (Batch Historian), 15 (Campaign Manager).
+                       Each of 11-15 was walked through the real UI twice from start to finish. See sections 5F-5J.
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -1041,12 +1159,23 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01, Chapter 10 - latest, DONE):
+WHERE WE LEFT OFF (2026-11-01, Chapters 8-15 - latest, DONE):
+- Everything through Chapter 15 is built, tested and was walked through the real browser UI (Playwright against the Vite
+  preview, port 5199). Chapters 8-10 were re-audited page by page (optional workshops included); Chapters 11, 12, 13, 14
+  and 15 were each done twice from start to finish on fresh profiles and the Workshops page showed every step Verified
+  both times (Ch11 24/24, Ch12 16/16, Ch13 12/12, Ch14 15/15, Ch15 15/15).
+- Next candidates: the open items listed in sections 5F-5J (each section ends with "Simplified / not implemented").
+  Nothing is known to be broken. The course PDFs/docx stay local (copyrighted, not in git).
+- Playwright scripts used for the passes are NOT in the repository (they live in the session folder): seed.mjs seeds the
+  through-Chapter-10 state through the in-page helpers, then per chapter drive the dialogs and displays.
+
+WHERE WE LEFT OFF (2026-11-01, Chapter 10 - superseded, DONE):
 - Chapter 10 is complete and was walked through the real UI twice (details in section 5E). The second pass from a clean
   profile ran every script end to end (create operation, chart, executive set-up, service + BOI batch, failure, comments,
   prompt logic, downloads, formulas, Phase Control / Arbitration) and the Workshops page showed all 7 Chapter 10 workshops
   (46 steps) Verified. Next: Chapter 11 (unit procedures UP_BL_500 / UP_COLOR_100, procedure PRC_PAINT with a link group,
   OP_CHARGE_500 / OP_COLOR_100). Optional leftovers: electronic signatures, client configuration, Procedure as Table.
+  (SUPERSEDED: the optional leftovers and Chapters 11-15 were done later; see the next entry.)
 - Earlier notes for this chapter (kept for the build details; the UI-verification gaps listed there are now closed):
 
 WHERE WE LEFT OFF (2026-11-01, Chapter 10, earlier note):

@@ -123,7 +123,7 @@ export const SECURITY_TARGETS: SecurityTarget[] = [
     /^(Verify AO download|Confirm verified AO download|Download module|Full Download managed|Update AO cold-restart memory|Re-send last good module download|Re-send controller-owned AO transfers|Download PID_LOOP|Download SFC|Full download device) /),
   t('function', 'fn-cold-restart', 'Cold restart a module', 'DIAGNOSTIC', /^Cold restart module /),
   t('function', 'fn-module-config', 'Configure AO and discrete modules, parameters and alarms', 'CAN_CONFIGURE',
-    /^Configure \S+ (AO|discrete alarm)$|^Create \S+ input parameter$/),
+    /^Configure \S+ (AO|discrete alarm)$|^Create \S+ input parameter$|^Add input parameter /),
   t('function', 'fn-module-create', 'Create a module', 'CAN_CONFIGURE', /^Create module /),
   t('function', 'fn-module-configure', 'Configure a module: mode fields, tracking, generic properties', 'CAN_CONFIGURE',
     /^Configure \S+$|^Configure (mode fields|tracking) /),
