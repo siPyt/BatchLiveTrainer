@@ -13,6 +13,7 @@ import { useEm } from '../engine/emStore'
 import { checkCourse7016BlenderColor, checkCourse7016BlenderOutlet, checkCourse7016BlendersUnit, checkCourse7016Ch5Optional, checkCourse7016RunProcess, checkCourse7016VerifyEms, blendersDownloadedAt, type Ch5State } from '../engine/course7016Ch5Checks'
 import { checkCourse7016ManualOp } from '../engine/course7016Ch2Checks'
 import { checkCourse7016Ch6 } from '../engine/course7016Ch6Checks'
+import { checkCourse7016Ch7 } from '../engine/course7016Ch7Checks'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -104,6 +105,7 @@ function WorkshopPanel({
     assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims, runSince: blendersDownloadedAt(em.deployed)
   }
   const checks: StepCheck[] | null =
+    w.id === '7016-ch7-drain' ? checkCourse7016Ch7(batch, eventLog, namedSets) :
     w.id.startsWith('7016-ch6-') && w.id !== '7016-ch6-optional' ? checkCourse7016Ch6(batch, eventLog, namedSets) :
     w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :
     w.id === '7016-ch2-manual' ? checkCourse7016ManualOp(library.transfers) :

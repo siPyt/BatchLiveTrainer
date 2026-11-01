@@ -199,6 +199,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
         { label: 'Explore', onClick: () => onSelect({ t: 'cat', cls, name: cat }) },
         { label: cls === 'pcell' ? 'New Process Cell Class' : cls === 'unit' ? 'New Unit Class' : 'New Phase Class', onClick: () => newClass(cat) },
         { label: 'New Category', onClick: () => newCategory(cat) },
+        ...(cls === 'phase' ? [{ label: 'Import Phase Class...', onClick: () => ui.openDialog({ t: 'importPhase' }) }] : []),
         sep,
         { label: 'Unprotect', disabled: NOT_MODELED }, { label: 'Protect', disabled: NOT_MODELED },
         sep,
@@ -256,6 +257,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
       onContextMenu={e => { onSelect({ t: 'root', cls }); setMenu({ x: e.clientX, y: e.clientY, label: ROOT_LABEL[cls], items: [
         { label: 'Explore', onClick: () => onSelect({ t: 'root', cls }) },
         { label: 'New Category', onClick: () => newCategory(null) },
+        ...(cls === 'phase' ? [{ label: 'Import Phase Class...', onClick: () => ui.openDialog({ t: 'importPhase' }) }] : []),
         sep,
         { label: "What's this?", onClick: () => window.alert(`${ROOT_LABEL[cls]} — right-click to create a New Category, then right-click the category to create a class.`) }
       ] }) }}>

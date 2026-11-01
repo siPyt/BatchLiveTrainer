@@ -4,6 +4,7 @@ import type { BatchClassKind, PhaseParamKind } from '../engine/batchConfig'
 export type BatchDialog =
   | { t: 'newUnitClass'; category: string }
   | { t: 'newPhaseClass'; category: string }
+  | { t: 'importPhase' }
   | { t: 'newAlias'; unitClass: string }
   | { t: 'alias'; unit: string; alias: string }
   | { t: 'param'; phaseClass: string; kind: PhaseParamKind; original?: string }

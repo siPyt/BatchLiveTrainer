@@ -19,6 +19,7 @@ import type { AnyModule } from './types'
 import { phaseBlockDefaults } from './phaseBlocks'
 import type { NamedSetDefinition } from './namedSets'
 import { findNamedSet } from './namedSetMatch'
+import { PHASE_IMPORT_FILES } from './course7016Imports'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 function ok<T>(value: T): Result<T> { return { ok: true, value } }
@@ -66,6 +67,7 @@ interface BatchState {
   newUnitClass: (category: string, name: string) => Result<string>
   newPhaseClass: (category: string, name: string) => Result<string>
   /** New ▸ Start From Existing: copy a saved unit or phase class into category under a new name. */
+  importPhaseClass: (file: string) => Result<string>
   copyClass: (kind: 'unit' | 'phase', category: string, source: string, name: string) => Result<string>
   renameClass: (kind: BatchClassKind, name: string, next: string) => Result<string>
   deleteClass: (kind: BatchClassKind, name: string) => Result<string>
@@ -619,6 +621,21 @@ export const useBatch = create<BatchState>((set, get) => ({
     set({ phaseClasses: { ...s.phaseClasses, [name]: newPhaseClass(name, category) } })
     log(name, `Phase Class created in ${category}`)
     return ok(name)
+  },
+  importPhaseClass: file => {
+    const s = get()
+    const entry = PHASE_IMPORT_FILES.find(f => f.file.toUpperCase() === file.trim().toUpperCase())
+    if (!entry) return fail(`${file} is not a Course 7016 import file`)
+    if (s.phaseClasses[entry.phaseClass]) return fail(`Phase class ${entry.phaseClass} already exists. Delete it or rename it before importing ${entry.file}`)
+    if (batchNameTaken(s, entry.phaseClass)) return fail(`The name ${entry.phaseClass} is already used in the library`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Import phase class ${entry.phaseClass}`)) return fail('Requires the Can Configure key')
+    const key = catKey('phase', entry.category)
+    set({
+      categories: s.categories[key] ? s.categories : { ...s.categories, [key]: { name: entry.category, kind: 'phase', parent: null } },
+      phaseClasses: { ...s.phaseClasses, [entry.phaseClass]: entry.build() }
+    })
+    log(entry.phaseClass, `Phase Class imported from ${entry.file} into ${entry.category}`)
+    return ok(entry.phaseClass)
   },
   copyClass: (kind, category, source, raw) => {
     const s = get()

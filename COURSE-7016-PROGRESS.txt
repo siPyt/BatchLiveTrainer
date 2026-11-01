@@ -340,6 +340,39 @@ Verification:
 - Chapters 1-5 whole-course regression remains green. No saved student project was reset or populated.
 
 
+5B. CHAPTER 7 - DRAIN Unit Phase (pp 7-1 .. 7-6)  [added 2026-11-01]
+---------------------------------------------------------------------
+Source: Course 7016 Rev 13 slides 7-4 and 7-5 (the whole chapter is one six-step workshop). The PDF is kept locally in
+source_pdfs/ (git-ignored by *.pdf; Emerson copyrighted material, do not commit).
+- Step 1 "Import a phase": the course ships DRAIN as a file on the training disk. The trainer offers it as Explorer >
+  right-click Phase Classes (or a phase class category) > Import Phase Class... (dialog lists DRAIN.fhx). Engine:
+  engine/course7016Imports.ts builds the phase class (BlenderClasses; R_DRAIN_LEVEL real Input 0-250-1000 gal,
+  RPT_AMNT_DRAINED real Report gal; RUN/HOLD/RESTART/STOP/ABORT logic; FAIL_MONITOR with CNDs BASE_VLV_OPEN,
+  COLOR_VLV_OPEN, AGITATOR_RUNNING, PUMP_STOPPED, PRODUCT_VLV_CLOSED -> BFI1 -> MESSAGE -> BLOCK1). batchStore
+  importPhaseClass(file) creates the category when missing and refuses a second import. The logic is the trainer's
+  design (the slide gives only the table), written in the same style as AGITATE: seal the blender (base and color
+  valves closed, agitator stopped), open the outlet in 'Releasing Product - CAS', start OUT_PUMP, drain until
+  '//#TANK_LEVEL#' <= R_DRAIN_LEVEL, stop the pump, close the outlet, return everything to AUTO.
+  RPT_AMNT_DRAINED holds the starting level until the end, then start level minus final level.
+- Step 2: failure messages 9 (AGITATOR_RUNNING), 10 (PUMP_STOPPED), 11 (PRODUCT_VLV_CLOSED) go in phase_failures;
+  7 and 8 (base / color valve open) already exist from AGITATE. Added in Explorer > System Configuration > Setup >
+  Named Sets > phase_failures (Add...), then Changed Setup Data download to the workstation AND CTLR1.
+- Steps 3-5 use existing Explorer features (Add To Unit Class, unit phase Properties - the imported unit phase starts
+  as Disabled, set it to Controller - and unit module Download). Step 6 runs from the Process picture.
+- Known behaviour: the level lands 15-20 gal under the target (pump coast-down and valve travel, same as the
+  Chapter 2/5 hand-draining notes). BLENDER 500 starts at 250 gal, so the default R_DRAIN_LEVEL of 250 does nothing there.
+- Workshop module "7016 - Ch 7 DRAIN Unit Phase" (engine/course7016Ch7Workshops.ts) with live checks
+  (engine/course7016Ch7Checks.ts, ids 7016-7-1 .. 7016-7-6); the optional failure workshop has no checks.
+- Verified 2026-11-01 in the browser UI (headless Edge against the Vite preview, own profile): import, Control Studio
+  view of DRAIN, adding the three messages, both downloads, Add To Unit Class, unit phase properties, unit downloads,
+  load/start DRAIN on both blenders from the Process picture (500: 250 -> 82 gal, report 168; 600: 120 -> 24 gal,
+  report 96), PUMP_STOPPED trip -> Held with the message on the graphic -> Clear Failures -> Restart -> Complete, and all
+  six checks showing Verified on the Workshops page. The Chapter 5/6 prerequisites were seeded with
+  tests/helpers/course7016-prereq.cjs (the student's own project was not touched).
+- tests/course7016-ch7.test.cjs (npm run test:course7): import contents, both-blender runs, all five failures with
+  recovery on both blenders, Hold/Restart/Stop, and the checkers.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -369,6 +402,11 @@ Verification:
                                     early Hold/Stop/Abort, DeltaV-style editors (function block wiring, branch drawing,
                                     block/edge/composite dialogs), HOLD_LOGIC drawn from the course diagram, optional
                                     holding-agitation loop, Process -> blender unit links.
+- tests/course7016-ch7.test.cjs     Chapter 7 DRAIN (npm run test:course7): import contents and expression checks,
+                                    both-blender runs to a level with the amount reported, all five failures with
+                                    Clear Failures/Restart on both blenders, Hold/Restart/Stop, workshop checkers.
+                                    Uses tests/helpers/course7016-prereq.cjs (Chapter 5 + phase_failures 4-8 set-up;
+                                    also evaluated inside the running browser app for UI walkthroughs).
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
   build are clean.
@@ -448,6 +486,8 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        yet: ..." (course7016Ch6Checks.ts check() returns the plain detail; the UI adds the label);
                        the phase parameter dialog's Engineering units suggestions now include "sec" (BatchDialogs.tsx).
                        Pushed to origin/main.
+- 2026-11-01  (uncommitted)  Chapter 7 (DRAIN): Explorer Import Phase Class..., DRAIN phase class, workshop with live
+                       checks, tests/course7016-ch7.test.cjs, shared prerequisite fixture tests/helpers/. See section 5B.
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -849,6 +889,26 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     values and BLOCK_ERR/BAD_MASK/ERROR_OPT/ALGO_OPTS, CALC temporary variables and VAR...END_VAR, bitwise operators (& | ^ ~),
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
+
+WHERE WE LEFT OFF (2026-11-01):
+- Chapter 7 (DRAIN) is implemented and verified; details in section 5B. Student position: Chapter 6 was worked by hand
+  (and fixed where needed) - CHAPTER 6 AND EARLIER WERE NOT CHANGED by this session: the diff is additive only (new files
+  course7016Imports.ts / Ch7Checks.ts / Ch7Workshops.ts, one new batchStore action importPhaseClass, a new dialog and two
+  menu entries for phase classes, one regex alternative in securityTargets.ts, CHAPTER7 appended to the workshop list,
+  one test exclusion). Chapter 4, 5, 6 and whole-course tests re-run afterwards: 47/47.
+- Changes are local in this working tree; NOT committed or pushed. Untracked: source_pdfs/ (holds the course PDFs, which
+  *.pdf in .gitignore covers, but also loose .txt/.docx/.html that it does NOT - do not `git add .`).
+- Tests: npm test 809/810 (dv09-audit needs pdf_om.txt, as before); npm run test:course7 5/5; typecheck and build clean.
+- Rule for future sessions (user, 2026-11-01): be careful changing anything that belongs to chapters before the one being
+  worked, because the student has done and debugged those by hand. Keep changes additive, re-run the earlier chapters'
+  tests, and update this file as things change.
+- Not done: Chapter 8 (DUMP and CHARGE COLOR: equipment arbitration, phase requests, REQUEST codes 4001/5201...) and
+  Chapter 9 (CHARGE BASE: Import Phase Class CHG_BASE, shared HEADER control module class, BASE_HEADER arbitration).
+  Chapter 9 will reuse Explorer > Import Phase Class: add its file to PHASE_IMPORT_FILES (engine/course7016Imports.ts).
+  Neither chapter is audited against the course text yet.
+- Open choices for Chapter 7 that the student may want to match to the real plant: DRAIN's logic is the trainer's own
+  design (the slide only gives parameters and failure conditions), RPT_AMNT_DRAINED temporarily holds the starting level
+  while draining, and the level lands 15-20 gal under R_DRAIN_LEVEL (pump/valve coast-down).
 
 WHERE WE LEFT OFF (2026-10-27):
 - Student position: Chapter 6, slide 6-16 Step 7 (INITIALIZE_EQUIP actions on the AGITATE RUN_LOGIC). Use the Insert

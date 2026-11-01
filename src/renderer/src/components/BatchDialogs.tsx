@@ -6,6 +6,7 @@ import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
 import { useBatch, aliasesResolved, moduleParamNames, type UploadRow } from '../engine/batchStore'
 import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
+import { PHASE_IMPORT_FILES } from '../engine/course7016Imports'
 import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
 import { askConfirm } from './AppNotices'
 
@@ -325,6 +326,23 @@ export function PickDialog({ title, prompt, options, onPick, onClose }: { title:
   </SimulatorDialog>
 }
 
+/** Explorer ▸ Import Phase Class... lists the import files supplied with Course 7016 (Chapter 7 DRAIN, p7-4). */
+export function ImportPhaseDialog({ onClose }: { onClose: () => void }): JSX.Element {
+  const [sel, setSel] = useState(PHASE_IMPORT_FILES[0]?.file ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const entry = PHASE_IMPORT_FILES.find(f => f.file === sel)
+  const submit = (): void => { const e = asErr(useBatch.getState().importPhaseClass(sel)); if (e) setError(e); else onClose() }
+  return <SimulatorDialog className="module-download-dialog dvd" label="Import Phase Class" onClose={onClose}>
+    <p>Select the file to import (Course 7016 files):</p>
+    <select aria-label="Import file" size={4} className="dvd-list" value={sel} onChange={e => setSel(e.target.value)} onDoubleClick={submit}>
+      {PHASE_IMPORT_FILES.map(f => <option key={f.file} value={f.file}>{f.file}</option>)}
+    </select>
+    {entry && <p className="exp-hint">{entry.description}</p>}
+    <Buttons disabled={!sel} onOk={submit} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
 /** Assign ▸ Unit Module to Node / Unit And All Contained Modules to Node (p4-31). */
 export function AssignNodeDialog({ unit, includeContained: initial, controller: preset, onClose }: { unit: string; includeContained: boolean; controller?: string; onClose: () => void }): JSX.Element {
   const controllers = Object.keys(useStore(s => s.hardware.controllers))
@@ -450,6 +468,7 @@ export function BatchDialogHost(): JSX.Element | null {
       return <NewObjectDialog objectType="Phase Class" algorithm="Phase Algorithm" existing={Object.keys(b.phaseClasses).sort()} onClose={close}
         onOk={n => created(useBatch.getState().newPhaseClass(d.category, n))} onCopy={(src, n) => created(useBatch.getState().copyClass('phase', d.category, src, n))} />
     }
+    case 'importPhase': return <ImportPhaseDialog onClose={close} />
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
     case 'alias': return <AliasResolveDialog unit={d.unit} alias={d.alias} onClose={close} />
     case 'param': return <PhaseParamDialog phaseClass={d.phaseClass} kind={d.kind} original={d.original} onClose={close} />
