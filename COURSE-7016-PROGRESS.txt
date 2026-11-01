@@ -586,7 +586,7 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        Control Module..., COLOR_HEADER), phase REQUEST decoding with Clear request, DUMP / CHG_COLOR
                        workshops with 19 live checks, tests/course7016-ch8.test.cjs. See section 5C. Verified twice
                        through the UI. Pushed to origin/main.
-- 2026-11-01  (this commit)  Chapter 9 (CHARGE BASE): CHG_BASE.fhx import, BASE_HEADER arbitration on XV-501/XV-601,
+- 2026-11-01  dda382c  Chapter 9 (CHARGE BASE): CHG_BASE.fhx import, BASE_HEADER arbitration on XV-501/XV-601,
                        New Control Module Class (blank HEADER), shared module block + Properties binding dialog,
                        3 workshops / 15 live checks, tests/course7016-ch9.test.cjs. See section 5D.
 
@@ -991,7 +991,28 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01, Chapter 9 - latest):
+WHERE WE LEFT OFF (2026-11-01, Chapter 10 - latest, IN PROGRESS):
+- Chapter 10 (Batch Operations) is built but only PARTLY verified through the UI. Added (all new, Chapters 1-9 untouched except
+  small wiring): engine/executive.ts (Recipe Studio operations, Batch Executive service/equipment/areas, batches, prompts,
+  formulas, manual phase control + arbitration, journal), course7016Ch10Checks.ts (33 checks) / Ch10Workshops.ts (7 workshops),
+  displays RecipeStudioDisplay / BoiDisplay (Batch Operator Interface + Operate BatchListView) / BatchManagerDisplay,
+  components/ExecutiveUi.tsx (Explorer Recipes tree, Batch Executive + PROPLUS menus, properties dialogs), ui/executiveUi.ts,
+  status bar batch failure / prompt buttons, tests/course7016-ch10.test.cjs (npm run test:course10, 12 tests), prerequisite
+  option `agitate` in tests/helpers/course7016-prereq.cjs. batchStore: PROMPT_* parameters, setRequest(..., viaExecutive).
+  The Batch Executive answers REQUEST codes 40nn/42nn/30nn/31nn/32-35nn/52nn-55nn for phases it owns (owner DeltaV Batch).
+- UI-verified in the browser (profile with Chapters 5-7): OP_FINISH_500 create + Recipe Studio (equipment, steps, default
+  transitions, save), executive Properties/Assigned Areas/Download Workstation, recipe Product/Tools (assign, verify, download),
+  Batch Application Manager start + Verify Phases (4 phases, 0 bad), BOI add/start/PFC/complete, failure -> Batch failures
+  button -> Alarm Summary -> Clear Failures -> Restart -> Complete, BOI + Operate comments, Operate batch list batch, phase
+  message + prompt in AGITATE Control Studio, unit downloads, equipment download, prompt answered Yes -> batch Complete.
+- NOT yet UI-verified: formulas workshop (defer R_BLEND_TIME / R_DRAIN_LEVEL, Large/Medium/Small, run each) - the Playwright
+  run stopped at its first click (probably selecting the DRAIN:1 step or the parameter row); and the Phase Control /
+  Arbitration screens (acquire, start with Batch ID, batch waits, release). Engine tests cover both. Then a second clean pass.
+- Tests: npm test 837/838 (dv09-audit as before); typecheck clean.
+- Not done: Chapter 11 (unit procedures UP_BL_500 / UP_COLOR_100, procedure PRC_PAINT, link groups); electronic signatures
+  (10-9..10-20, optional exercise), Batch Executive client configuration, Procedure as Table.
+
+WHERE WE LEFT OFF (2026-11-01, Chapter 9, superseded):
 - Chapter 9 (CHARGE BASE) is implemented and was walked through the real UI after the second Chapter 8 pass, in the same
   clean project (profile with Chapter 8 already done); details in section 5D. Chapters 1-8 workshop content was not
   changed. Edits outside Chapter 9 files, all additive: libraryStore createBlankClass, addModuleBlock now accepts a library
