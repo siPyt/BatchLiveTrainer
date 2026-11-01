@@ -16,6 +16,7 @@ import { EmDetail, ModuleInstanceRows } from './EmExplorer'
 import { useEm } from '../engine/emStore'
 import { fmt } from '../utils/format'
 import { askConfirm } from './AppNotices'
+import { ExecutiveDetail, RecipeDetail } from './ExecutiveUi'
 
 export const DRAG_PCELL_CLASS = 'application/x-bl-pcell-class'
 export const DRAG_UNIT_CLASS = 'application/x-bl-unit-class'
@@ -38,6 +39,8 @@ export type BatchSel =
   | { t: 'aliases'; unit: string }
   | { t: 'external' }
   | { t: 'subsystem'; name: string }
+  | { t: 'recipes'; folder: string }
+  | { t: 'recipe'; name: string }
   | { t: 'emRoot' }
   | { t: 'emCat'; name: string }
   | { t: 'emClass'; name: string }
@@ -51,7 +54,8 @@ const CLASS_TYPE: Record<BatchClassKind, string> = { pcell: 'Process Cell Class'
 export function batchLabel(s: BatchSel): string {
   switch (s.t) {
     case 'root': return ROOT_LABEL[s.cls]
-    case 'cat': case 'class': case 'cell': case 'unit': case 'subsystem': return s.name
+    case 'cat': case 'class': case 'cell': case 'unit': case 'subsystem': case 'recipe': return s.name
+    case 'recipes': return s.folder
     case 'composite': return s.composite
     case 'uphase': return s.phase
     case 'aliases': return 'Aliases'
@@ -580,7 +584,9 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
     case 'emRoot': case 'emCat': case 'emClass': case 'emInstance': case 'cmDevice':
       return <EmDetail sel={sel} onSelect={onSelect} />
     case 'subsystem':
-      return pane(<p className="exp-hint">{sel.name} subsystem on the ProfessionalPLUS workstation. Batch {sel.name === 'Batch Executive' ? 'Executive services (procedures, unit procedures, operations, Campaign Manager)' : 'Historian collection'} are not simulated in BatchLive; unit phases are run manually from DeltaV Operate (unit and phase faceplates, BatchHelp).</p>)
+      return <ExecutiveDetail name={sel.name} />
+    case 'recipes': case 'recipe':
+      return <RecipeDetail sel={sel} />
     case 'ucBlock': {
       const m = b.unitClasses[sel.unitClass]?.modules?.[sel.name]
       if (!m) return <div className="exp-empty">Not found.</div>

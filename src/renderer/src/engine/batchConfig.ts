@@ -135,6 +135,7 @@ export const SYSTEM_PHASE_PARAMS: [string, string][] = [
   ['AUTO_RESTART', 'False'], ['BATCH_ID', ''], ['BCOMMAND', '0'], ['BSTATUS', 'Idle'], ['CLASS', ''], ['COMMANDMASK', '0'],
   ['DOWNLOAD_REQ', 'False'], ['FAIL_INDEX', '0'], ['OWNER', 'DeltaV Batch'], ['PAUSE_REQ', 'False'], ['PAUSED', 'False'],
   ['REQDATA1', '0'], ['REQDATA2', '0'], ['REQDATA3', '0'], ['REQDATA4', '0'], ['REQDATA5', '0'], ['REQUEST', '0'],
+  ['PROMPT_BOOL', 'False'], ['PROMPT_FLOAT', '0'], ['PROMPT_INT', '0'], ['PROMPT_STRING', ''],
   ['RESTART_TYPE', '0'], ['SINGLE_STEP', 'False'], ['SIZE', '0'], ['STATE_TIME', '0'], ['STATUS', '0'], ['STEP_INDEX', '0'],
   ['SWITCHED_OVER', 'False'], ['TIME', '0'], ['TOO_LONG_TIME', '0'], ['UNIT', ''], ['WATCHDOG', '0'], ['WDOG_STATE', 'OK'],
   ['WDOG_TIME', '0'], ['XCOMMAND', '0']

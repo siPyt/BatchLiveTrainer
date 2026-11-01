@@ -71,7 +71,25 @@ export const DELTAV_APPLICATIONS: DeltaVApplication[] = [
   {
     id: 'batch', native: 'DeltaV Operate unit and phase faceplates (BatchHelp picture)', role: 'Operate', display: 'batchhelp',
     does: ['Load and unload unit phases, toggle the phase owner, send Start/Hold/Restart/Stop/Abort/Reset commands and edit batch input parameters'],
-    notSupported: ['Batch Operator Interface, Recipe Studio and Batch Executive procedures', 'Batch history and reporting'],
+    notSupported: ['Unit procedures and procedures (Chapter 11), Campaign Manager', 'Batch history and reporting'],
+    keys: ['BATCH_OPERATE']
+  },
+  {
+    id: 'recipe-studio', native: 'Recipe Studio', role: 'Engineering', display: 'recipestudio',
+    does: ['Build unit based operations (steps, transitions), defer batch input parameters to recipe parameters, create formulas, save'],
+    notSupported: ['Unit procedures and procedures (Chapter 11)', 'The full PFC palette, graphics and recipe simulator'],
+    keys: ['CAN_CONFIGURE']
+  },
+  {
+    id: 'batch-manager', native: 'DeltaV Batch Application Manager', role: 'Administration', display: 'batchmgr',
+    does: ['Start and stop the Batch Executive service and Verify Phases'],
+    notSupported: ['Campaign Manager', 'Multiple Batch Executive subsystems'],
+    keys: []
+  },
+  {
+    id: 'boi', native: 'DeltaV Batch Operator Interface', role: 'Operate', display: 'boi',
+    does: ['Batch List, PFC with comments, event journal, unacknowledged prompts, phase control, arbitration, alarm summary and active phases'],
+    notSupported: ['Procedure as table, client configuration tool and electronic signatures on batch actions', 'Unit procedures and procedures (Chapter 11)'],
     keys: ['BATCH_OPERATE']
   },
   {

@@ -34,6 +34,7 @@ import {
   LibraryTree, PhysicalNetworkTree, LibraryDetail, InstanceContents, ContextMenu, ControllerDownloadDialog,
   instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, type LibrarySelection, type ContentsRow
 } from '../components/LibraryExplorer'
+import { RecipesTree, openExecutiveApp } from '../components/ExecutiveUi'
 import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, useBatchEnabled } from '../components/BatchExplorer'
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
@@ -425,7 +426,9 @@ export function ExplorerDisplay(): JSX.Element {
         { label: 'Applications', items: [
           { label: 'Control Studio', onClick: () => useUi.getState().navigate('studio') },
           { label: 'DeltaV Operate', onClick: () => useUi.getState().navigate('process') },
-          { label: 'Batch Operator Interface', disabled: 'Batch Operator Interface is not part of Course 7016 Chapters 1 and 4; run unit phases from the Process and BatchHelp pictures' },
+          { label: 'Recipe Studio', onClick: () => openExecutiveApp('recipestudio') },
+          { label: 'Batch Application Manager', onClick: () => openExecutiveApp('batchmgr') },
+          { label: 'Batch Operator Interface', onClick: () => openExecutiveApp('boi') },
           { label: 'Diagnostics', onClick: () => useUi.getState().navigate('hardware') },
           { label: 'Process History View', onClick: () => useUi.getState().navigate('trend') }] },
         { label: 'Tools', items: [{ label: 'User Manager', onClick: () => useUi.getState().navigate('users') },
@@ -476,8 +479,7 @@ export function ExplorerDisplay(): JSX.Element {
           <LibraryTree depth={1} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }} />
           <TreeRow depth={1} open={open.SYSCONFIG !== false} onToggle={() => setOpen(o => ({ ...o, SYSCONFIG: o.SYSCONFIG === false }))} selected={containerSelected('sysconfig')}
             icon={<DvIcon kind="sysconfig" />} pending={dp.anyArea || dp.anyController ? tri : undefined} label={<span>System Configuration</span>} onClick={() => pickNode('sysconfig')}>
-            {batchOn && <TreeRow depth={2} selected={containerSelected('recipes')} icon={<DvIcon kind="recipes" />} label={<span>Recipes</span>}
-              sub="Recipes are built in Recipe Studio (not used in Course 7016 Chapters 1 and 4)" onClick={() => pickNode('recipes')} />}
+            {batchOn && <RecipesTree depth={2} selection={libSel} onSelect={s => { setNode(null); setLibSel(s) }} />}
             <TreeRow depth={2} open={open.SETUP !== false} onToggle={() => toggle('SETUP')} selected={containerSelected('setup')}
               icon={<DvIcon kind="setup" />} label={<span>Setup</span>} onClick={() => pickNode('setup')}>
               {setupItem('namedSets', 'Named Sets', 3, {

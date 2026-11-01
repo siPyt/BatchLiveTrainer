@@ -19,6 +19,8 @@ import { useDownloadPending } from './useDownloadPending'
 import { useBatchUi } from '../ui/batchUi'
 import { BatchClassTree, BatchDetail, BatchIcon, DRAG_CM_DEVICE, DRAG_PCELL, DRAG_UNIT, ROOT_LABEL, useBatchEnabled, type BatchSel } from './BatchExplorer'
 import { askConfirm } from './AppNotices'
+import { ExecutiveRows } from './ExecutiveUi'
+import { useExecUi } from '../ui/executiveUi'
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
@@ -399,10 +401,15 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         {onWorkstation && <Row depth={depth + 2} selected={workstationSelected} icon={<DvIcon kind="workstation" />}
           open={batchOn ? open.proplus !== false : undefined} onToggle={batchOn ? () => setOpen(o => ({ ...o, proplus: o.proplus === false })) : undefined}
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}
+          onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: 'PROPLUS', items: [
+            { label: 'Explore', onClick: onWorkstation },
+            { label: 'Download ▸ Workstation...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }), disabled: batchOn ? undefined : 'Enable Batch in System Preferences first' },
+            { label: 'Properties', onClick: onWorkstation }] }) }}
           dataAttr={{ 'data-workstation': 'PROPLUS' }}>
-          {batchOn && ['Batch Executive', 'Batch Historian'].map(name => <Row key={name} depth={depth + 3} icon={<BatchIcon kind="subsystem" />} label={<span>{name}</span>}
-            sub="Subsystem" dataAttr={{ 'data-subsystem': name }} selected={selection?.kind === 'batch' && selection.sel.t === 'subsystem' && selection.sel.name === name}
-            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name } })} />)}
+          {batchOn && <ExecutiveRows depth={depth + 3} selection={selection} onSelect={onSelect} />}
+          {batchOn && <Row depth={depth + 3} icon={<BatchIcon kind="subsystem" />} label={<span>Batch Historian</span>}
+            sub="Subsystem" dataAttr={{ 'data-subsystem': 'Batch Historian' }} selected={selection?.kind === 'batch' && selection.sel.t === 'subsystem' && selection.sel.name === 'Batch Historian'}
+            onClick={() => onSelect({ kind: 'batch', sel: { t: 'subsystem', name: 'Batch Historian' } })} />}
         </Row>}
         {all.filter(c => c.commissioned).map(c => node(c, depth + 2))}
       </Row>

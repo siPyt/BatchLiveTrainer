@@ -8,7 +8,7 @@ import { useWindows, WINDOW_IDS, isWindowId, type WindowId, type WindowRect } fr
 const KEY = 'batchlive-ui-session'
 const UI_FIELDS = ['display', 'history', 'histIndex', 'pictureHistory', 'builderPicture', 'builderRun', 'selectedTag', 'studioTag',
   'studioClass', 'studioInstance', 'studioPhase', 'studioComposite', 'studioEm', 'sfcName', 'studioLayout'] as const
-const DISPLAYS: DisplayId[] = ['alarms', 'trend', 'journal', 'explorer', 'studio', 'sfc', 'builder', 'workshops', 'users', 'system', 'applications', 'hardware', 'process', 'batchhelp']
+const DISPLAYS: DisplayId[] = ['alarms', 'trend', 'journal', 'explorer', 'studio', 'sfc', 'builder', 'workshops', 'users', 'system', 'applications', 'hardware', 'process', 'batchhelp', 'recipestudio', 'boi', 'batchmgr', 'batchlist']
 
 interface SavedWindow { open: boolean; minimized: boolean; maximized: boolean; rect: WindowRect | null; z: number }
 interface Saved { ui: Record<string, unknown>; base: DisplayId; wins: Record<WindowId, SavedWindow> }

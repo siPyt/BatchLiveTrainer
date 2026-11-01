@@ -2,6 +2,7 @@ import { useStore } from './store'
 import { useLibrary, courseNamedSets } from './libraryStore'
 import { useBatch } from './batchStore'
 import { useEm } from './emStore'
+import { useExecutive } from './executive'
 
 // BatchLiveTrainer keeps the student's Course 7016 DV_School database between sessions: the configuration
 // built in Chapters 1-5 (classes, modules, unit/phase/EM configuration, assignments, downloads) and the
@@ -12,11 +13,12 @@ export const COURSE_SAVE_KEY = 'batchlivetrainer.course7016.database.v1'
 const VERSION = 1
 
 type Store = { getState: () => object; setState: (partial: Record<string, unknown>) => void }
-const STORES: Record<'main' | 'library' | 'batch' | 'em', Store> = {
+const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive', Store> = {
   main: useStore as unknown as Store,
   library: useLibrary as unknown as Store,
   batch: useBatch as unknown as Store,
-  em: useEm as unknown as Store
+  em: useEm as unknown as Store,
+  executive: useExecutive as unknown as Store
 }
 
 export interface CourseSave { version: number; savedAt: number; stores: Record<string, Record<string, unknown>> }

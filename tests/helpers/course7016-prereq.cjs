@@ -131,4 +131,72 @@ module.exports = function course7016Prereq(ctx) {
     entries: [...ns.configured.phase_failures.entries, ...names.map((name, i) => ({ name, value: i + 4, visible: true, userSelectable: true }))] } } } })
   M().downloadChangedNamedSets({ kind: 'workstation' })
   M().downloadChangedNamedSets({ kind: 'controller', tag: 'CTLR1' })
+
+  // Chapter 6 (only when asked for): a working AGITATE phase on both blenders, with the failure monitor, Hold and Restart logic.
+  if (ctx.agitate) {
+    if (!B().categories['phase:BlenderClasses']) value(B().renameCategory('phase', value(B().newCategory('phase', null)), 'BlenderClasses'))
+    value(B().newPhaseClass('BlenderClasses', 'AGITATE'))
+    value(B().savePhaseParam('AGITATE', { ...cfg.newParam('batch', {}), name: 'R_BLEND_TIME', type: 'Integer', direction: 'Input', group: 'Operating', units: 'sec', low: 0, high: 300, defaultValue: 30 }))
+    value(B().savePhaseParam('AGITATE', { ...cfg.newParam('batch', B().phaseClasses.AGITATE.params), name: 'RPT_BLEND_TIME', type: 'Integer', direction: 'Report', group: 'Report', units: 'sec', low: 0, high: 300, defaultValue: 0 }))
+    const al = (n, p) => `'//#${n}#/${p}'`
+    const CN = ['AGITATOR_STOPPED', 'PRODUCT_VLV_OPEN', 'WASTE_VLV_OPEN', 'BASE_VLV_OPEN', 'COLOR_VLV_OPEN']
+    const DIS = (n, v) => `'^/FAIL_MONITOR/${n}/DISABLE.CV' := ${v};`
+    const DISALL = v => CN.map(n => DIS(n, v))
+    const idx = n => `'^/STEP_INDEX.CV' := ${n};`
+    const mode = (n, v) => `${al(n, 'DC1/MODE.TARGET')} := ${v};`
+    const BASE_MODE = v => `${al('BASE_IN_VLV', 'MODE.TARGET')} := ${v};`
+    const AGIT_START = `${al('AGITATOR', 'CAS_SP.CV')} := 'mtr2-sp:START';`, AGIT_STOP = `${al('AGITATOR', 'CAS_SP.CV')} := 'mtr2-sp:STOP';`
+    const AGIT_RUNNING = `${al('AGITATOR', 'DC1/PV_D.CV')} = 'mtr2-pv:RUNNING'`, AGIT_STOPPED = `${al('AGITATOR', 'DC1/PV_D.CV')} = 'mtr2-pv:STOPPED'`
+    const PUMP_STOP = `${al('OUT_PUMP', 'CAS_SP.CV')} := 'mtr2-sp:STOP';`, PUMP_STOPPED = `${al('OUT_PUMP', 'DC1/PV_D.CV')} = 'mtr2-pv:STOPPED'`
+    const BASE_CLOSE = `${al('BASE_IN_VLV', 'CAS_SP.CV')} := 'vlvnc-sp:CLOSE';`, BASE_CLOSED = `${al('BASE_IN_VLV', 'PV.CV')} = 'vlvnc-pv:CLOSED'`
+    value(B().editPhaseDraft('AGITATE', d => {
+      d.logic.RUN_LOGIC = sequence([
+        ['INITIALIZE', [idx(1), mode('OUT_PUMP', 'CAS'), BASE_MODE('CAS'), mode('AGITATOR', 'CAS')], 'INIT_DONE', 'TRUE'],
+        ['SEAL', [idx(2), PUMP_STOP, BASE_CLOSE], 'SEALED', `${PUMP_STOPPED} AND ${BASE_CLOSED}`],
+        ['START_AGIT', [idx(3), AGIT_START, ...DISALL(0).slice(1)], 'AGIT_RUNNING', AGIT_RUNNING],
+        ['BLEND', [idx(4), DIS('AGITATOR_STOPPED', 0)], 'BLEND_DONE', "'/BLEND/TIME.CV' >= '^/R_BLEND_TIME.CV'"],
+        ['STOP_AGIT', [idx(5), DIS('AGITATOR_STOPPED', 1), AGIT_STOP], 'AGIT_STOPPED', AGIT_STOPPED],
+        ['RESET_EQUIP', [idx(0), mode('OUT_PUMP', 'AUTO'), BASE_MODE('AUTO'), mode('AGITATOR', 'AUTO'), "'^/RPT_BLEND_TIME.CV' := '^/R_BLEND_TIME.CV';", ...DISALL(1)], 'DONE', "'/RESET_EQUIP/TIME.CV' >= 3"]
+      ])
+      const conditions = [AGIT_STOPPED, `${al('BLNDR_OUTLET', 'PRODUCT_VLV/PV.CV')} = 'vlvnc-pv:OPEN'`, `${al('BLNDR_OUTLET', 'WASTE_VLV/PV.CV')} = 'vlvnc-pv:OPEN'`,
+        `${al('BASE_IN_VLV', 'PV.CV')} = 'vlvnc-pv:OPEN'`, `${al('BLNDR_COLOR', 'COLOR_IN_VLV/PV.CV')} != 'vlvnc-2stage-pv:CLOSED'`]
+      const fm = Object.fromEntries(CN.map((name, i) => [name, { type: 'CND', expression: conditions[i], inputs: [], disabled: true }]))
+      fm.BFI1 = { type: 'BFI', expression: '', disabled: false, inputs: CN.map(n => `/${n}/OUT_D.CV`) }
+      fm.MESSAGE = { type: 'CALC', inputs: ['/BFI1/FIRST_OUT.CV'], disabled: false, expression: "'OUT1.CV' := 'IN1.CV' != 0 ? LOG2(2, 'IN1.CV') + 4 : 0;" }
+      fm.BLOCK1 = { type: 'CALC', inputs: [], disabled: false, expression: "if ( '^/BFI1/OUT_D.CV' != 0 ) and ( '/+/FAIL_INDEX.CV' = 0 ) then\n  '/+/FAIL_INDEX.CV' := '^/MESSAGE/OUT1.CV';\nendif;" }
+      d.logic.FAIL_MONITOR.blocks = fm
+      d.logic.HOLD_LOGIC = sequence([
+        ['HOLD_STATE', DISALL(1), 'T_HS', 'TRUE'],
+        ['NULL', [], 'T_NULL', 'TRUE'],
+        ['FAIL_SAFE', [BASE_MODE('CAS'), mode('OUT_PUMP', 'CAS'), mode('AGITATOR', 'CAS'), BASE_CLOSE, PUMP_STOP, AGIT_STOP], 'T_FS', `${AGIT_STOPPED} AND ${BASE_CLOSED}`],
+        ['STOP_AGITATOR', [mode('AGITATOR', 'CAS'), AGIT_STOP], 'T_SA', AGIT_STOPPED],
+        ['HELD', [], 'T_HELD', 'TRUE']
+      ])
+      d.logic.HOLD_LOGIC.routes = [
+        { from: 'NULL', to: 'FAIL_SAFE', condition: "'^/FAIL_INDEX.CV' != 0" },
+        { from: 'NULL', to: 'STOP_AGITATOR', condition: "'^/STEP_INDEX.CV' = 3 OR '^/STEP_INDEX.CV' = 4" },
+        { from: 'NULL', to: 'HELD', condition: 'TRUE' },
+        { from: 'FAIL_SAFE', to: 'HELD', condition: `${AGIT_STOPPED} AND ${BASE_CLOSED}` }
+      ]
+      d.logic.RESTART_LOGIC = sequence([
+        ['RESTARTING', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:Continue';", "'^/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;"], 'T_R', 'TRUE'],
+        ['RESTART_TOP', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:From_Start';"], 'T_RT', 'TRUE'],
+        ['START_AGITATOR', [mode('AGITATOR', 'CAS'), AGIT_START], 'T_SA2', AGIT_RUNNING],
+        ['ENABLE_PC', DISALL(0), 'T_EN', 'TRUE'],
+        ['NULL', [], 'T_N', 'TRUE']
+      ])
+      d.logic.RESTART_LOGIC.routes = [
+        { from: 'RESTARTING', to: 'RESTART_TOP', condition: "'^/STEP_INDEX.CV' = 1 OR '^/STEP_INDEX.CV' = 2" },
+        { from: 'RESTARTING', to: 'START_AGITATOR', condition: "'^/STEP_INDEX.CV' = 3 OR '^/STEP_INDEX.CV' = 4" },
+        { from: 'RESTARTING', to: 'NULL', condition: 'TRUE' },
+        { from: 'RESTART_TOP', to: null, condition: 'TRUE' }
+      ]
+      for (const c of ['STOP_LOGIC', 'ABORT_LOGIC']) d.logic[c] = sequence([['SAFE', [...DISALL(1), mode('AGITATOR', 'CAS'), AGIT_STOP], 'T_SAFE', AGIT_STOPPED]])
+    }))
+    value(B().savePhaseClass('AGITATE'))
+    value(B().assignPhaseClass('BLENDERS', 'AGITATE'))
+    for (const u of ['UM_BL_500', 'UM_BL_600']) value(B().setUnitPhaseProps(u, 'AGITATE', { phaseType: 'Controller' }))
+    value(L().downloadController('CTLR1'))
+    for (const u of ['UM_BL_500', 'UM_BL_600']) value(B().downloadUnit(u, true))
+  }
 }

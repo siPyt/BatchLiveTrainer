@@ -17,6 +17,7 @@ import { AlarmSummary } from './displays/AlarmSummary'
 import { EventJournalDisplay } from './displays/EventJournalDisplay'
 import { TrendDisplay } from './displays/TrendDisplay'
 import { BatchDialogHost } from './components/BatchDialogs'
+import { ExecutiveDialogHost } from './components/ExecutiveUi'
 import { NoticeHost } from './components/AppNotices'
 import { SaveReminderHost } from './components/StudioSaveReminder'
 import { BatchHelpDisplay, BatchWindows } from './components/BatchFaceplates'
@@ -29,6 +30,9 @@ import { SystemPreferencesDisplay } from './displays/SystemPreferencesDisplay'
 import { ApplicationsDisplay } from './displays/ApplicationsDisplay'
 import { PhysicalNetworkDisplay } from './displays/PhysicalNetworkDisplay'
 import { AppWindows } from './components/AppWindows'
+import { RecipeStudioDisplay } from './displays/RecipeStudioDisplay'
+import { BoiDisplay, BatchListViewDisplay } from './displays/BoiDisplay'
+import { BatchManagerDisplay } from './displays/BatchManagerDisplay'
 import { isWindowId, useWindows } from './ui/windowStore'
 
 export function App(): JSX.Element {
@@ -87,6 +91,10 @@ export function App(): JSX.Element {
           {display === 'trend' && <TrendDisplay />}
           {display === 'process' && <ProcessDisplay key={processViewRevision} />}
           {display === 'batchhelp' && <BatchHelpDisplay />}
+          {display === 'recipestudio' && <RecipeStudioDisplay />}
+          {display === 'boi' && <BoiDisplay />}
+          {display === 'batchmgr' && <BatchManagerDisplay />}
+          {display === 'batchlist' && <BatchListViewDisplay />}
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
@@ -102,6 +110,7 @@ export function App(): JSX.Element {
       <FaceplateHost />
       <BatchWindows />
       <BatchDialogHost />
+      <ExecutiveDialogHost />
       <NoticeHost />
       <SaveReminderHost />
       <AccessDeniedToast />

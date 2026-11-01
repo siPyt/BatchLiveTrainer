@@ -131,7 +131,7 @@ interface BatchState {
   /** New ▸ Control Module in a process cell (an empty module such as COLOR_HEADER that only carries arbitration settings). */
   createResourceModule: (cell: string, tag: string, description: string) => Result<string>
   /** Operator answers a phase REQUEST (the Batch Executive's job): only 0 is accepted; 40nn / 42nn are arbitrated. */
-  setRequest: (unit: string, phase: string, value: number) => Result<string>
+  setRequest: (unit: string, phase: string, value: number, viaExecutive?: boolean) => Result<string>
   setTwoStage: (tag: string, position: 'CLOSE' | 'DRIBBLE' | 'BULK') => Result<string>
   /** Faceplate MODE target of a course valve/motor (DC block): AUTO/MAN return it to the operator, CAS hands it to the phase or equipment module. */
   setDeviceMode: (tag: string, mode: 'AUTO' | 'MAN' | 'CAS') => Result<string>
@@ -1455,7 +1455,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     log(tag, `Control Module created in process cell ${cell}`)
     return ok(tag)
   },
-  setRequest: (unit, phase, value) => {
+  setRequest: (unit, phase, value, viaExecutive = false) => {
     const s = get()
     const key = activeKey(unit, phase)
     const a = s.active[key]
@@ -1464,8 +1464,8 @@ export const useBatch = create<BatchState>((set, get) => ({
     const code = Number(a.rt.params.REQUEST ?? 0)
     const info = decodeRequest(code)
     if (info.kind === 'none') return ok('0')
-    if (a.owner !== 'EXTERNAL') return fail(`${key} is owned by DeltaV Batch; toggle the phase owner to External to answer its requests`)
-    if (!requireUnlockedLock('BATCH_OPERATE', `Clear request of unit phase ${key}`)) return fail('Requires the Batch Operate key')
+    if (viaExecutive ? a.owner !== 'BATCH' : a.owner !== 'EXTERNAL') return fail(viaExecutive ? `${key} is not owned by DeltaV Batch` : `${key} is owned by DeltaV Batch; toggle the phase owner to External to answer its requests`)
+    if (!viaExecutive && !requireUnlockedLock('BATCH_OPERATE', `Clear request of unit phase ${key}`)) return fail('Requires the Batch Operate key')
     const owners = liveOwners(s)
     if (info.kind === 'acquire' || info.kind === 'release') {
       const tag = Object.entries(s.arbDeployed).find(([, d]) => d.participate && d.equipmentId === info.id)?.[0]

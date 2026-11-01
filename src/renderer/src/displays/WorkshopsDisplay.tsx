@@ -16,6 +16,8 @@ import { checkCourse7016Ch6 } from '../engine/course7016Ch6Checks'
 import { checkCourse7016Ch7 } from '../engine/course7016Ch7Checks'
 import { checkCourse7016Ch8 } from '../engine/course7016Ch8Checks'
 import { checkCourse7016Ch9 } from '../engine/course7016Ch9Checks'
+import { checkCourse7016Ch10 } from '../engine/course7016Ch10Checks'
+import { useExecutive } from '../engine/executive'
 
 function stepIds(w: Workshop): string[] {
   return w.steps.map((s) => s.id)
@@ -99,6 +101,7 @@ function WorkshopPanel({
   const namedSets = useStore((s) => s.namedSets)
   const library = useLibrary()
   const batch = useBatch()
+  const exec = useExecutive()
   const system = useSystem()
   const em = useEm()
   const ch5: Ch5State = {
@@ -109,6 +112,7 @@ function WorkshopPanel({
   const checks: StepCheck[] | null =
     w.id === '7016-ch7-drain' ? checkCourse7016Ch7(batch, eventLog, namedSets) :
     w.id.startsWith('7016-ch8-') ? checkCourse7016Ch8(batch, eventLog) :
+    w.id.startsWith('7016-ch10-') ? checkCourse7016Ch10({ ...batch, ...exec }, eventLog) :
     w.id.startsWith('7016-ch9-') ? checkCourse7016Ch9(batch, eventLog, namedSets, library.classes) :
     w.id.startsWith('7016-ch6-') && w.id !== '7016-ch6-optional' ? checkCourse7016Ch6(batch, eventLog, namedSets) :
     w.id === '7016-ch1-level-indicator' || w.id === '7016-ch1-instances' ? checkCourse7016Ch1(library, modules, makeReader(library)) :

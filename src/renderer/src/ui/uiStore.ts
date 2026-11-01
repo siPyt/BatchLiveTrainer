@@ -18,6 +18,10 @@ export type DisplayId =
   | 'hardware'
   | 'process'
   | 'batchhelp'
+  | 'recipestudio'
+  | 'boi'
+  | 'batchmgr'
+  | 'batchlist'
 
 export interface OpenFaceplate {
   tag: string
