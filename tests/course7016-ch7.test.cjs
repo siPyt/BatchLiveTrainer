@@ -62,7 +62,7 @@ function drainWorkshop() {
 }
 
 test('Chapter 7: the course supplies DRAIN as an import with the parameters and failure monitor of slide 7-4', () => fixture(() => {
-  assert.deepEqual(PHASE_IMPORT_FILES.map(f => f.file), ['DRAIN.fhx'])
+  assert.ok(PHASE_IMPORT_FILES.map(f => f.file).includes('DRAIN.fhx'))
   assert.match(B().importPhaseClass('NOPE.fhx').error, /not a Course 7016 import file/)
   assert.equal(value(B().importPhaseClass('DRAIN.fhx')), 'DRAIN')
   assert.match(B().importPhaseClass('DRAIN.fhx').error, /already exists/)

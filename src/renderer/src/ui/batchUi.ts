@@ -22,6 +22,8 @@ export type BatchDialog =
   | { t: 'moduleBlock'; unitClass: string; className: string }
   | { t: 'moduleDesc'; tag: string }
   | { t: 'bindBlock'; unit: string; block: string }
+  | { t: 'blockProps'; unit: string; block: string }
+  | { t: 'newCmClass'; category: string }
 
 export type Renaming = { kind: 'cat'; cls: BatchClassKind; name: string } | { kind: 'class'; cls: BatchClassKind; name: string } | { kind: 'cell'; name: string } | { kind: 'unit'; name: string }
   | { kind: 'emCat'; name: string } | { kind: 'emClass'; name: string } | { kind: 'emBlock'; cls: string; name: string } | { kind: 'ucBlock'; unitClass: string; name: string } | { kind: 'module'; name: string }

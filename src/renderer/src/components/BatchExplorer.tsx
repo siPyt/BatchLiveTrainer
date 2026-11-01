@@ -169,7 +169,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
         { label: 'Open with Control Studio', disabled: 'Unit class algorithm type is <None>' },
         { label: 'Assign Phase Class...', onClick: () => ui.openDialog({ t: 'assignPhase', unitClass: name }) },
         { label: 'Configure', disabled: NOT_MODELED },
-        { label: 'Add ▸', disabled: NOT_MODELED },
+        { label: 'Add ▸ Module Class...', onClick: () => { setOpen(o => ({ ...o, [`class:${name}`]: true })); ui.openDialog({ t: 'moduleBlock', unitClass: name, className: '' }) } },
         { label: 'Unused aliases...', onClick: () => window.alert(unusedAliases(name)) },
         sep,
         { label: 'New ▸ Unit Parameter Definition', disabled: NOT_MODELED },

@@ -420,6 +420,44 @@ What was built (all additive; Chapters 1-7 untouched):
   amounts of 40/30/50 gal or less (FILL first for more).
 
 
+5D. CHAPTER 9 - CHARGE BASE (pp 9-1 .. 9-12)  [added 2026-11-01]
+----------------------------------------------------------------
+Source: Course 7016 slides 9-4 (BASE_HEADER), 9-5..9-8 (shared control module class) and 9-9/9-10 (CHG_BASE). Three workshops
+(engine/course7016Ch9Workshops.ts; engine/course7016Ch9Checks.ts, ids 7016-9h-1..5, 9s-1..4, 9p-1..5, 9v-1 = 15 checks,
+none pre-verified).
+- BASE_HEADER Resource: the Chapter 8 arbitration UI reused. XV-501 / XV-601 (the BASE_IN_VLV modules under the unit
+  modules) take part with their default IDs, BASE_HEADER is created with process cell New > Control Module..., ID 30, needs
+  both valves, assigned to CTLR1 and downloaded. REQUEST 4030 acquires it, 4230 releases it.
+- Shared Control Module Class: Library > Control Module Classes > right-click General > New Control Module Class...
+  (new dialog: Object name, Object type, Algorithm type Function Block Diagram; libraryStore createBlankClass creates an
+  empty class, template "FBD"; createInstance refuses it because it has no AI block). Unit class right-click >
+  Add > Module Class... (the existing "Add Module Class" dialog; Browse now also lists library classes; a library class
+  can only be Shared). The new block HEADER_1 is renamed BASE_HDR in place. <unbound> (BASE_HDR) under a unit module >
+  right-click Properties... opens "BASE_HDR Properties" (Class name, Ownership type, Bound module name, Browse...) as on
+  slide 9-8; the older Bind... item still works. Allow variant is what lets BASE_HEADER (not a HEADER instance) be bound.
+- CHG_BASE: Explorer > Import Phase Class... > CHG_BASE.fhx (engine/course7016Imports.ts buildChgBase). BlenderClasses;
+  R_BASE_AMNT 0-100-1000 gal, R_BASE_RATE 0-90-100 gpm, RPT_FEED_AMNT gal report, INIT_LEVEL algorithm parameter. Failure
+  conditions in BFI order with message numbers 5 PRODUCT_VLV_OPEN, 6 WASTE_VLV_OPEN, 8 COLOR_VLV_OPEN, 9 AGITATOR_RUNNING
+  (existing) and the new 12 MTR_403_STOPPED, 13 FIC_404_CLOSED, 14 BASE_VLV_CLOSED, 15 PUMP_RUNNING (slide 9-9). Run logic:
+  INITIALIZE, ACQ_HEADER (REQUEST 4030), SETUP_FLOW (valve and MTR-403 to CAS, FIC-404 AUTO with SP = R_BASE_RATE, open
+  BASE_IN_VLV), START_PUMP (MTR-403), ESTABLISH_FLOW (FIC-404 output > 0), CHARGE (enables the failure conditions, ends
+  when the blender level has risen R_BASE_AMNT minus 4 s of flow), STOP_PUMP, CLOSE_BASE_VLV, RELEASE_HEADER (4230,
+  RPT_FEED_AMNT = level rise). Equipment shared by both blenders (MTR-403, FIC-404) is only touched after the header is
+  acquired. HOLD secures the pump and valve; RESTART restores them; STOP/ABORT make it safe. Writing a PID MODE.TARGET from
+  phase logic is now supported (batchStore writeModule); the failures need the FIC mode, SP and OUT readable ('OUT.CV').
+- Verified 2026-11-01 through the browser UI (same clean project as the second Chapter 8 pass): XV-501/601 arbitration
+  (IDs 3 and 4 after the Chapter 8 IDs), controller download, BASE_HEADER create/ID 30/needs/assign/download; HEADER
+  class from General, Add Module Class (Shared, variant), rename to BASE_HDR, Properties binding on both units;
+  import CHG_BASE, adding messages 9-15 in the phase_failures set (9-11 are the student's Chapter 7 messages) and downloading
+  Changed Setup Data to the workstation and controller, Add To Unit Class, Controller phase type and unit module downloads;
+  Verify: 100 gal at 90 gpm on blender 500 (charged 99.2, RPT_FEED_AMNT 99.2, requests 4030 then 4230), both blenders
+  together (500 got the header first, clearing 600's 4030 was refused with "BASE_HEADER is owned by UM_BL_500/CHG_BASE",
+  600 acquired after 500 released, 39.8 and 38.5 gal of 40). The Workshops page shows all 15 steps Verified.
+- tests/course7016-ch9.test.cjs: import contents and expression checks, header workshop, shared class and bindings (and
+  the variant refusal), charges on both blenders with a scripted Batch Executive, accuracy at 30-100 gpm, header contention,
+  all eight failures with recovery, Hold/Restart/Stop, checkers pending -> verified.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -457,6 +495,8 @@ What was built (all additive; Chapters 1-7 untouched):
 - tests/course7016-ch8.test.cjs     Chapter 8 DUMP / CHG_COLOR and equipment arbitration (npm run test:course8):
                                     6 tests, see section 5C. Uses tests/helpers/course7016-ch8-spec.cjs and the
                                     prerequisite option colorTanks in tests/helpers/course7016-prereq.cjs.
+- tests/course7016-ch9.test.cjs     Chapter 9 CHG_BASE / BASE_HEADER / shared HEADER class (npm run test:course9):
+                                    10 tests, see section 5D.
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
   build are clean.
@@ -540,10 +580,13 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        checks, tests/course7016-ch7.test.cjs, shared prerequisite fixture tests/helpers/. See section 5B.
                        Pushed to origin/main (the terminal cannot prompt for GitHub credentials; the push was done with
                        the GitKraken tool).
-- 2026-11-01  (this commit)  Chapter 8 (DUMP and CHARGE COLOR): equipment arbitration (Properties > Arbitration, New >
+- 2026-11-01  7d084f6  Chapter 8 (DUMP and CHARGE COLOR): equipment arbitration (Properties > Arbitration, New >
                        Control Module..., COLOR_HEADER), phase REQUEST decoding with Clear request, DUMP / CHG_COLOR
                        workshops with 19 live checks, tests/course7016-ch8.test.cjs. See section 5C. Verified twice
-                       through the UI.
+                       through the UI. Pushed to origin/main.
+- 2026-11-01  (this commit)  Chapter 9 (CHARGE BASE): CHG_BASE.fhx import, BASE_HEADER arbitration on XV-501/XV-601,
+                       New Control Module Class (blank HEADER), shared module block + Properties binding dialog,
+                       3 workshops / 15 live checks, tests/course7016-ch9.test.cjs. See section 5D.
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -946,7 +989,24 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01, Chapter 8 - latest):
+WHERE WE LEFT OFF (2026-11-01, Chapter 9 - latest):
+- Chapter 9 (CHARGE BASE) is implemented and was walked through the real UI after the second Chapter 8 pass, in the same
+  clean project (profile with Chapter 8 already done); details in section 5D. Chapters 1-8 workshop content was not
+  changed. Edits outside Chapter 9 files, all additive: libraryStore createBlankClass, addModuleBlock now accepts a library
+  class (Shared only), Add > Module Class... enabled on a unit class menu (was a disabled placeholder), PID MODE.TARGET
+  can be written from phase logic, tests/course7016-ch7.test.cjs asserts DRAIN is in the import list instead of being
+  the only file.
+- Tests: npm test 825/826 (dv09-audit needs pdf_om.txt, as before); npm run test:course9 10/10; typecheck clean.
+- Next: Chapter 10 (Batch Operations: operations / unit procedures / procedure, Recipe Studio, Batch Operator Interface;
+  OP_CHG_BASE, UP_CHG_BASE ... in the text) - not audited against the course text yet. The Batch Executive is still
+  simulated by hand (Clear request); Chapter 10 is where the executive would start phases itself.
+- Open choices for Chapter 9: CHG_BASE logic is the trainer's own design (the slide gives only the parameters and
+  failure conditions and the hint "acquire and release BASE_HEADER"); FIC-404 and MTR-403 are read and written by absolute
+  path ('//FIC-404/...') rather than through unit aliases because they sit outside the blender; the charge ends
+  CHG_BASE_COAST_SECONDS (4 s of flow) early to allow for the pump coast-down and valve travel, so it lands within about
+  2 gal of the target; the shared HEADER class is empty and is only used as the type of the shared block.
+
+WHERE WE LEFT OFF (2026-11-01, Chapter 8, superseded):
 - Chapter 8 (DUMP and CHARGE COLOR) is implemented and was walked through the real UI twice from clean projects; details
   in section 5C. Chapters 1-7 were not changed (additive diff: arbitration.ts, Ch8 checks/workshops/tests, new
   batchStore state/actions, Arbitration tab and New Control Module dialog, Request row on phase faceplates, regex

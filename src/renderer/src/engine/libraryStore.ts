@@ -8,7 +8,7 @@ import type { AlarmLimit, AnalogIndicator, AnyModule } from './types'
 import type { NamedSetDefinition } from './namedSets'
 import { makeModule, type NewModuleSpec } from './plant'
 import {
-  COURSE_SIMS, DEFAULT_CATEGORIES, TEMPLATE_DEFINITIONS, cloneDefinition, configurableParams, defaultClassName,
+  COURSE_SIMS, DEFAULT_CATEGORIES, TEMPLATE_DEFINITIONS, BLANK_FBD_TEMPLATE, blankDefinition, cloneDefinition, configurableParams, defaultClassName,
   defaultInstanceName, executeAi, findTemplate, getParam, initialCourseProcess, instanceConfigurable, libraryNameError,
   paramValueError, parseReference, pruneOverrides, resolveInstance, stepCourseProcess, wireError, BASE_CAPACITY, BASE_MAX_FLOW,
   type AiRuntime, type ClassCategory, type ClassInstance, type ControlModuleClass, type CourseProcess,
@@ -102,6 +102,8 @@ interface LibraryState {
   deleteCategory: (name: string) => Result<string>
 
   createClassFromTemplate: (template: string, category: string) => Result<string>
+  /** Right-click a category > New Control Module Class (Create New, Function Block Diagram). */
+  createBlankClass: (category: string, name: string) => Result<string>
   renameClass: (name: string, next: string) => Result<string>
   moveClass: (name: string, category: string) => Result<string>
   deleteClass: (name: string) => Result<string>
@@ -394,6 +396,18 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     return ok(name)
   },
 
+  createBlankClass: (category, raw) => {
+    const s = get()
+    const name = raw.trim().toUpperCase()
+    if (!s.categories[category]) return fail(`Category ${category} does not exist`)
+    const error = libraryNameError(name, 'Class') ?? (libraryNameTaken(s, name) ? `The name ${name} is already used in the library` : null)
+    if (error) return fail(error)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Create control module class ${name}`)) return fail('Requires the Can Configure key')
+    set({ classes: { ...s.classes, [name]: { name, category, template: BLANK_FBD_TEMPLATE, definition: blankDefinition(), revision: 1 } } })
+    log(name, `Control Module Class created in ${category} (Function Block Diagram)`)
+    return ok(name)
+  },
+
   renameClass: (name, next) => {
     const s = get()
     const to = next.trim().toUpperCase()
@@ -495,6 +509,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     const s = get()
     const cls = s.classes[className]
     if (!cls) return fail(`Class ${className} does not exist`)
+    if (!cls.definition.blocks.AI1) return fail(`${className} has no function blocks; BatchLive creates modules from classes with an AI block. A shared module block of this class is bound to an existing module instead`)
     if (!useStore.getState().areas.includes(area)) return fail(`Area ${area} does not exist`)
     const tag = defaultInstanceName(className, t => tagTaken(s, t))
     if (!requireUnlockedLock('CAN_CONFIGURE', `Create class-based module ${tag}`)) return fail('Requires the Can Configure key')

@@ -492,6 +492,8 @@ export function BatchDialogHost(): JSX.Element | null {
     }
     case 'importPhase': return <ImportPhaseDialog onClose={close} />
     case 'newResource': return <NewResourceModuleDialog cell={d.cell} onClose={close} />
+    case 'newCmClass': return <NewCmClassDialog category={d.category} onClose={close} />
+    case 'blockProps': return <BlockPropsDialog unit={d.unit} block={d.block} onClose={close} />
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
     case 'alias': return <AliasResolveDialog unit={d.unit} alias={d.alias} onClose={close} />
     case 'param': return <PhaseParamDialog phaseClass={d.phaseClass} kind={d.kind} original={d.original} onClose={close} />
@@ -589,6 +591,60 @@ function EmClassPropsDialog({ cls, onClose }: { cls: string; onClose: () => void
   </SimulatorDialog>
 }
 
+/** Library category ▸ New Control Module Class (p9-5): Object name, Create New with Algorithm type Function Block Diagram. */
+function NewCmClassDialog({ category, onClose }: { category: string; onClose: () => void }): JSX.Element {
+  const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const submit = (): void => {
+    const r = useLibrary.getState().createBlankClass(category, name)
+    if (!r.ok) { setError(r.error); return }
+    onClose()
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label="New" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Object name:<input aria-label="Object name" autoFocus value={name} onChange={e => setName(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+      <label>Object type:<select aria-label="Object type" disabled value="cm"><option value="cm">Control Module Class</option></select></label>
+      <label>Algorithm type:<select aria-label="Algorithm type" disabled value="fbd"><option value="fbd">Function Block Diagram</option></select></label>
+      <p className="exp-hint">Creates an empty Control Module Class in {category}. Add it to a unit class as a shared module block, then bind the block to a module.</p>
+    </div>
+    <Buttons disabled={!name.trim()} onOk={submit} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
+/** Shared module block properties (p9-8): Class name, Ownership type, Bound module name with Browse. */
+function BlockPropsDialog({ unit, block, onClose }: { unit: string; block: string; onClose: () => void }): JSX.Element {
+  const u = useBatch(s => s.units[unit])
+  const blk = useBatch(s => (u ? s.unitClasses[u.unitClass]?.modules?.[block] : undefined))
+  const modules = useStore(s => s.modules)
+  const cmInstances = useEm(s => s.cmInstances)
+  const instances = useEm(s => s.instances)
+  const [bound, setBound] = useState(u?.blocks?.[block] ?? '')
+  const [browse, setBrowse] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const options = (blk?.kind === 'em' ? Object.values(instances).filter(i => blk.allowVariant || i.className === blk.className).map(i => i.tag) :
+    Object.values(modules).filter(m => blk?.allowVariant || cmInstances[m.tag]?.className === blk?.className).map(m => m.tag)).sort()
+  const submit = (): void => {
+    const r = useBatch.getState().bindBlock(unit, block, bound.trim() || null)
+    if (!r.ok) { setError(r.error); return }
+    onClose()
+  }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`${block} Properties`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Class name:<input aria-label="Class name" readOnly value={blk?.className ?? ''} /></label>
+      <label>Ownership type:<input aria-label="Ownership type" readOnly value={blk?.ownership ?? ''} /></label>
+      <div className="dvd-inline"><label style={{ flex: 1 }}>Bound module name:
+        <input aria-label="Bound module name" value={bound} onChange={e => setBound(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') submit() }} /></label>
+      <button className="tbtn sm" onClick={() => setBrowse(v => !v)}>Browse...</button></div>
+      {browse && <div className="lib-browse" role="listbox" aria-label="Browse modules">
+        {options.map(n => <button key={n} className="ctx-item" onClick={() => { setBound(n); setBrowse(false) }}>{n}</button>)}
+      </div>}
+    </div>
+    <Buttons onOk={submit} onClose={onClose} />
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
 /** Module block (p5-26 / 5-27): Class name, Ownership type, Allow variant module to be substituted on module instances. */
 function ModuleBlockDialog({ unitClass, className, onClose }: { unitClass: string; className: string; onClose: () => void }): JSX.Element {
   const [cls, setCls] = useState(className)
@@ -597,6 +653,7 @@ function ModuleBlockDialog({ unitClass, className, onClose }: { unitClass: strin
   const [browse, setBrowse] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const ems = Object.keys(useEm(s => s.classes))
+  const libraryClasses = Object.keys(useLibrary(s => s.classes))
   const submit = (): void => {
     const r = useBatch.getState().addModuleBlock(unitClass, cls.trim().toUpperCase(), ownership, variant)
     // Start the in-place rename after the dialog has unmounted and returned focus, or the editor would blur-commit at once.
@@ -608,7 +665,7 @@ function ModuleBlockDialog({ unitClass, className, onClose }: { unitClass: strin
         <div className="dvd-inline"><label style={{ flex: 1 }}>Class name:<input aria-label="Class name" autoFocus value={cls} onChange={e => setCls(e.target.value)} /></label>
           <button className="tbtn sm" onClick={() => setBrowse(v => !v)}>Browse...</button></div>
         {browse && <div className="lib-browse" role="listbox" aria-label="Browse module classes">
-          {[...ems, ...Object.keys(CM_DEVICE_CLASSES)].map(n => <button key={n} className="ctx-item" onClick={() => { setCls(n); setBrowse(false) }}>{n}</button>)}
+          {[...ems, ...Object.keys(CM_DEVICE_CLASSES), ...libraryClasses].map(n => <button key={n} className="ctx-item" onClick={() => { setCls(n); setBrowse(false) }}>{n}</button>)}
         </div>}
         <label>Ownership type:<select aria-label="Ownership type" value={ownership} onChange={e => setOwnership(e.target.value as 'Private' | 'Shared')}>
           <option>Private</option><option>Shared</option></select></label>

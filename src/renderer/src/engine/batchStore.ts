@@ -236,7 +236,7 @@ export function moduleParamNames(m: AnyModule | undefined, simParams?: string[],
   if (!m) return []
   if (m.type === 'VALVE' || m.type === 'MOTOR') return ['CAS_SP.CV', 'MODE.TARGET', 'MODE.ACTUAL', 'PV.CV', 'PV_D.CV', 'SP_D.CV', 'DC1/MODE.TARGET', 'DC1/PV_D.CV', 'DC1/SP_D.CV']
   if (m.type === 'AI') return ['AI1/PV.CV', 'AI1/OUT.CV', 'PV.CV', 'OUT.CV']
-  if (m.type === 'PID') return ['PID1/PV.CV', 'PID1/SP.CV', 'PID1/OUT.CV', 'MODE.TARGET', 'PV.CV', 'SP.CV']
+  if (m.type === 'PID') return ['PID1/PV.CV', 'PID1/SP.CV', 'PID1/OUT.CV', 'MODE.TARGET', 'MODE.ACTUAL', 'PV.CV', 'SP.CV', 'OUT.CV']
   return ['PV.CV']
 }
 
@@ -337,6 +337,16 @@ function writeModule(path: string, value: Value): void {
       return
     } else throw new EvalError(`${m.tag}/${sp.param} cannot be written`)
     applyRemote(m.tag)
+    return
+  }
+  if (m.type === 'PID' && sp.param === 'MODE') {
+    if (sp.field === 'ACTUAL') throw new EvalError('MODE.ACTUAL is read-only; write MODE.TARGET')
+    const mode = modeWord(value)
+    if (m.permittedModes && !m.permittedModes.includes(mode as never)) throw new EvalError(`${m.tag} MODE.PERMITTED does not allow ${mode}`)
+    useStore.setState(s => {
+      const cur = s.modules[m.tag]
+      return cur?.type === 'PID' ? { modules: { ...s.modules, [m.tag]: { ...cur, mode: mode as typeof cur.mode } } } : {}
+    })
     return
   }
   if (m.type === 'PID' && (sp.param === 'SP' || sp.param === 'PID1/SP')) {
@@ -1235,8 +1245,9 @@ export const useBatch = create<BatchState>((set, get) => ({
     const s = get()
     const uc = s.unitClasses[unitClass]
     if (!uc) return fail(`Unit class ${unitClass} does not exist`)
-    const kind = CM_DEVICE_CLASSES[className] ? 'cm' : useEm.getState().classes[className] ? 'em' : null
+    const kind = CM_DEVICE_CLASSES[className] || useLibrary.getState().classes[className] ? 'cm' : useEm.getState().classes[className] ? 'em' : null
     if (!kind) return fail(`${className} is not an Equipment Module Class or a Control Module Class that can be added to a unit class`)
+    if (!CM_DEVICE_CLASSES[className] && kind === 'cm' && ownership === 'Private') return fail(`${className} can only be added as a Shared module block: BatchLive builds Private modules from the NC_VALVE / motor classes and Equipment Module Classes`)
     const modules = uc.modules ?? {}
     const name = blockName(className, n => !!modules[n] || !!uc.aliases[n])
     if (!requireUnlockedLock('CAN_CONFIGURE', `Add module block ${className} to unit class ${unitClass}`)) return fail('Requires the Can Configure key')

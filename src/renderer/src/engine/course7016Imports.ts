@@ -119,7 +119,116 @@ function buildDrain(): PhaseClass {
   return pc
 }
 
+/** CHG_BASE (Chapter 9, p9-9). BFI input order; the failure message numbers follow phase_failures: 5, 6, 8 and 9 exist from Chapters 6 and 7, 12-15 are new on slide 9-9. */
+export const CHG_BASE_CONDITIONS = ['PRODUCT_VLV_OPEN', 'WASTE_VLV_OPEN', 'COLOR_VLV_OPEN', 'AGITATOR_RUNNING', 'MTR_403_STOPPED', 'FIC_404_CLOSED', 'BASE_VLV_CLOSED', 'PUMP_RUNNING'] as const
+export const CHG_BASE_MESSAGES = [5, 6, 8, 9, 12, 13, 14, 15] as const
+export const CHG_BASE_NEW_FAILURES = [['MTR_403_STOPPED', 12], ['FIC_404_CLOSED', 13], ['BASE_VLV_CLOSED', 14], ['PUMP_RUNNING', 15]] as const
+/** Equipment ID of BASE_HEADER (slide 9-4): the REQUEST to acquire it is 4030 and 4230 releases it. */
+export const BASE_HEADER_ID = 30
+/** The charge stops this many seconds of flow early: the pump coasts and the block valve takes 2 s to close. */
+export const CHG_BASE_COAST_SECONDS = 4
+
+function buildChgBase(): PhaseClass {
+  const pc = newPhaseClass('CHG_BASE', 'BlenderClasses')
+  pc.description = 'Charges a blender with a specified amount of base product from BASE 400 at a specified rate. The base header is acquired for the charge and released afterwards.'
+  const real = (name: string, direction: 'Input' | 'Report', group: string, id: number, low: number, defaultValue: number, high: number, units: string, description: string, kind: 'batch' | 'algorithm' = 'batch') =>
+    ({ ...newParam(kind, {}), name, type: 'Real' as const, direction, group, id, low, high, defaultValue, units, description })
+  pc.params.R_BASE_AMNT = real('R_BASE_AMNT', 'Input', 'Operating', 1, 0, 100, 1000, 'gal', 'Amount of base to charge')
+  pc.params.R_BASE_RATE = real('R_BASE_RATE', 'Input', 'Operating', 2, 0, 90, 100, 'gpm', 'Charge rate (FIC-404 setpoint)')
+  pc.params.RPT_FEED_AMNT = real('RPT_FEED_AMNT', 'Report', 'Report', 3, 0, 0, 1000, 'gal', 'Amount of base charged')
+  pc.params.INIT_LEVEL = real('INIT_LEVEL', 'Input', 'Algorithm', 4, 0, 0, 1000, 'gal', 'Blender level when the charge started', 'algorithm')
+
+  const alias = (name: string, p: string): string => `'//#${name}#/${p}'`
+  const DIS = (name: string, v: 0 | 1): string => `'^/FAIL_MONITOR/${name}/DISABLE.CV' := ${v};`
+  const confirmed = (expression: string, confirm: string, extra: Partial<ActionDef> = {}): ActionDef => act(expression, { confirm, confirmTimeout: 10, ...extra })
+  const ALL = [...CHG_BASE_CONDITIONS]
+  const REQUEST = (n: number): string => `'^/REQUEST.CV' := ${n};`
+  const MTR = (p: string): string => `'//MTR-403/${p}'`
+  const FIC = (p: string): string => `'//FIC-404/${p}'`
+  const PUMP_START = `${MTR('CAS_SP.CV')} := 'mtr2-sp:START';`
+  const PUMP_STOP = `${MTR('CAS_SP.CV')} := 'mtr2-sp:STOP';`
+  const PUMP_RUNNING = `${MTR('DC1/PV_D.CV')} = 'mtr2-pv:RUNNING'`
+  const PUMP_STOPPED = `${MTR('DC1/PV_D.CV')} = 'mtr2-pv:STOPPED'`
+  const BASE_OPEN = `${alias('BASE_IN_VLV', 'CAS_SP.CV')} := 'vlvnc-sp:OPEN';`
+  const BASE_CLOSE = `${alias('BASE_IN_VLV', 'CAS_SP.CV')} := 'vlvnc-sp:CLOSE';`
+  const BASE_OPENED = `${alias('BASE_IN_VLV', 'PV.CV')} = 'vlvnc-pv:OPEN'`
+  const BASE_CLOSED = `${alias('BASE_IN_VLV', 'PV.CV')} = 'vlvnc-pv:CLOSED'`
+  const FIC_AUTO = `${FIC('MODE.TARGET')} := AUTO;`
+  const FIC_RATE = `${FIC('SP.CV')} := '^/R_BASE_RATE.CV';`
+  const FIC_ZERO = `${FIC('SP.CV')} := 0;`
+  const modes = (v: string): string[] => [`${MTR('DC1/MODE.TARGET')} := ${v};`, `${alias('BASE_IN_VLV', 'MODE.TARGET')} := ${v};`]
+  const level = "'//#TANK_LEVEL#'"
+  const step = (n: number): string => `'^/STEP_INDEX.CV' := ${n};`
+
+  pc.logic.RUN_LOGIC = sequence([
+    ['INITIALIZE', [step(1), "'^/RPT_FEED_AMNT.CV' := 0;"]],
+    ['ACQ_HEADER', [step(2), REQUEST(4000 + BASE_HEADER_ID)], "'^/REQUEST.CV' = 0"],
+    ['SETUP_FLOW', [step(3), ...modes('CAS'), `'^/INIT_LEVEL.CV' := ${level};`, FIC_AUTO, FIC_RATE, confirmed(BASE_OPEN, BASE_OPENED)], "'/SETUP_FLOW/PENDING_CONFIRMS.CV' = 0"],
+    ['START_PUMP', [step(4), PUMP_START], PUMP_RUNNING],
+    ['ESTABLISH_FLOW', [step(5)], `${FIC('OUT.CV')} > 0`],
+    ['CHARGE', [step(6), ...ALL.map(n => DIS(n, 0))],
+      `${level} >= '^/INIT_LEVEL.CV' + '^/R_BASE_AMNT.CV' - '^/R_BASE_RATE.CV' / 60 * ${CHG_BASE_COAST_SECONDS}`],
+    ['STOP_PUMP', [step(7), DIS('MTR_403_STOPPED', 1), DIS('FIC_404_CLOSED', 1), PUMP_STOP], PUMP_STOPPED],
+    ['CLOSE_BASE_VLV', [step(8), DIS('BASE_VLV_CLOSED', 1), FIC_ZERO, confirmed(BASE_CLOSE, BASE_CLOSED)], "'/CLOSE_BASE_VLV/PENDING_CONFIRMS.CV' = 0"],
+    ['RELEASE_HEADER', [step(0), ...ALL.map(n => DIS(n, 1)), ...modes('AUTO'), `'^/RPT_FEED_AMNT.CV' := ${level} - '^/INIT_LEVEL.CV';`, REQUEST(4200 + BASE_HEADER_ID)], "'^/REQUEST.CV' = 0"]
+  ])
+
+  const conditions = [`${alias('BLNDR_OUTLET', 'PRODUCT_VLV/PV.CV')} = 'vlvnc-pv:OPEN'`, `${alias('BLNDR_OUTLET', 'WASTE_VLV/PV.CV')} = 'vlvnc-pv:OPEN'`,
+    `${alias('BLNDR_COLOR', 'COLOR_IN_VLV/PV.CV')} != 'vlvnc-2stage-pv:CLOSED'`, `${alias('AGITATOR', 'DC1/PV_D.CV')} = 'mtr2-pv:RUNNING'`,
+    PUMP_STOPPED, `${FIC('OUT.CV')} <= 0`, BASE_CLOSED, `${alias('OUT_PUMP', 'DC1/PV_D.CV')} = 'mtr2-pv:RUNNING'`]
+  const fm = Object.fromEntries(ALL.map((name, i) => [name, { type: 'CND' as const, expression: conditions[i], inputs: [], disabled: true }]))
+  const k = "LOG2(2, 'IN1.CV')"
+  const blocks: NonNullable<PhaseSfc['blocks']> = {
+    ...fm,
+    BFI1: { type: 'BFI', expression: '', disabled: false, inputs: ALL.map(n => `/${n}/OUT_D.CV`) },
+    // FIRST_OUT is 2^(n-1) for input n; inputs 1-2, 3-4 and 5-8 map to messages 5-6, 8-9 and 12-15.
+    MESSAGE: { type: 'CALC', inputs: ['/BFI1/FIRST_OUT.CV'], disabled: false, expression: `'OUT1.CV' := 'IN1.CV' != 0 ? ${k} + (${k} < 2 ? 5 : (${k} < 4 ? 6 : 8)) : 0;` },
+    BLOCK1: { type: 'CALC', inputs: [], disabled: false, expression: "if ( '^/BFI1/OUT_D.CV' != 0 ) and ( '/+/FAIL_INDEX.CV' = 0 ) then\n  '/+/FAIL_INDEX.CV' := '^/MESSAGE/OUT1.CV';\nendif;" }
+  }
+  pc.logic.FAIL_MONITOR = { ...pc.logic.FAIL_MONITOR, blocks }
+
+  const secure = (): ActionDef[] => [confirmed(PUMP_STOP, PUMP_STOPPED), act(FIC_ZERO), confirmed(BASE_CLOSE, BASE_CLOSED)]
+  pc.logic.HOLD_LOGIC = sequence([
+    ['HOLD_STATE', ALL.map(n => DIS(n, 1))],
+    ['NULL', []],
+    ['SECURE', [...modes('CAS'), ...secure()], "'/SECURE/PENDING_CONFIRMS.CV' = 0"],
+    ['HELD', []]
+  ])
+  pc.logic.HOLD_LOGIC.routes = [
+    route('NULL', 'SECURE', "'^/FAIL_INDEX.CV' != 0 OR ('^/STEP_INDEX.CV' >= 3 AND '^/STEP_INDEX.CV' <= 8)"),
+    route('NULL', 'HELD', 'TRUE'),
+    route('SECURE', 'HELD', "'/SECURE/PENDING_CONFIRMS.CV' = 0")
+  ]
+
+  pc.logic.RESTART_LOGIC = sequence([
+    ['RESTARTING', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:Continue';", "'^/FAIL_MONITOR/BFI1/RESET_IN.CV' := 1;"]],
+    ['RESTART_TOP', ["'^/RESTART_TYPE.CV' := '$phase_restart_types:From_Start';"]],
+    ['RESTORE', [...modes('CAS'), FIC_AUTO, FIC_RATE, confirmed(BASE_OPEN, BASE_OPENED)], "'/RESTORE/PENDING_CONFIRMS.CV' = 0"],
+    ['START_PUMP', [PUMP_START], PUMP_RUNNING],
+    ['ENABLE_PC', ALL.map(n => DIS(n, 0))],
+    ['NULL', []]
+  ])
+  const PENDING = "'/RESTORE/PENDING_CONFIRMS.CV' = 0"
+  pc.logic.RESTART_LOGIC.routes = [
+    route('RESTARTING', 'RESTART_TOP', "'^/STEP_INDEX.CV' = 1 OR '^/STEP_INDEX.CV' = 2"),
+    route('RESTARTING', 'RESTORE', "'^/STEP_INDEX.CV' >= 3 AND '^/STEP_INDEX.CV' <= 6"),
+    route('RESTARTING', 'NULL', 'TRUE'),
+    route('RESTART_TOP', 'NULL', 'TRUE'),
+    route('RESTORE', 'START_PUMP', `${PENDING} AND '^/STEP_INDEX.CV' >= 4`),
+    route('RESTORE', 'NULL', `${PENDING} AND '^/STEP_INDEX.CV' = 3`),
+    route('START_PUMP', 'ENABLE_PC', `${PUMP_RUNNING} AND '^/STEP_INDEX.CV' = 6`),
+    route('START_PUMP', 'NULL', PUMP_RUNNING),
+    route('ENABLE_PC', 'NULL', 'TRUE')
+  ]
+
+  for (const c of ['STOP_LOGIC', 'ABORT_LOGIC'] as const)
+    pc.logic[c] = sequence([['SAFE', [...ALL.map(n => DIS(n, 1)), ...modes('CAS'), PUMP_STOP, FIC_ZERO, BASE_CLOSE], `${PUMP_STOPPED} AND ${BASE_CLOSED}`]])
+  return pc
+}
+
 export const PHASE_IMPORT_FILES: PhaseImportFile[] = [
   { file: 'DRAIN.fhx', phaseClass: 'DRAIN', category: 'BlenderClasses', build: buildDrain,
-    description: 'DRAIN: drains a blender to R_DRAIN_LEVEL (0-250-1000 gal) and reports RPT_AMNT_DRAINED. Failure conditions: BASE_IN_VLV open, COLOR_IN_VLV open, AGITATOR running, OUT_PUMP stopped, PRODUCT_VLV closed.' }
+    description: 'DRAIN: drains a blender to R_DRAIN_LEVEL (0-250-1000 gal) and reports RPT_AMNT_DRAINED. Failure conditions: BASE_IN_VLV open, COLOR_IN_VLV open, AGITATOR running, OUT_PUMP stopped, PRODUCT_VLV closed.' },
+  { file: 'CHG_BASE.fhx', phaseClass: 'CHG_BASE', category: 'BlenderClasses', build: buildChgBase,
+    description: 'CHG_BASE: charges a blender with R_BASE_AMNT (0-1000 gal) of base at R_BASE_RATE (0-100 gpm) through BASE_IN_VLV, MTR-403 and FIC-404 and reports RPT_FEED_AMNT. Acquires and releases BASE_HEADER (REQUEST 4030 / 4230). Failure conditions: MTR_403 stopped, FIC_404 closed, BASE_IN_VLV closed, OUT_PUMP running, product / waste outlet valve open, COLOR_IN_VLV open, AGITATOR running.' }
 ]

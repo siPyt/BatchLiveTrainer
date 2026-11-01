@@ -312,6 +312,12 @@ export function defaultClassName(template: string, used: (name: string) => boole
   }
 }
 
+/** Template name of a class created with New Control Module Class (Create New, Function Block Diagram): no blocks yet. */
+export const BLANK_FBD_TEMPLATE = 'FBD'
+export function blankDefinition(): ModuleDefinition {
+  return { description: '', primaryDisplay: '', detailDisplay: '', instrumentDisplay: '', blocks: {}, params: {}, wires: [], alarms: {} }
+}
+
 export function defaultSpecialName(d: ModuleDefinition, item: SpecialItemKind): string {
   const stem = item === 'INPUT' ? 'IN' : 'OUT'
   for (let n = 1; ; n++) if (!d.params[`${stem}${n}`] && !d.blocks[`${stem}${n}`]) return `${stem}${n}`

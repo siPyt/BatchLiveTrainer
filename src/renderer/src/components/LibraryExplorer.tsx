@@ -236,6 +236,7 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
 
   const categoryMenu = (name: string, e: React.MouseEvent): void => setMenu({ x: e.clientX, y: e.clientY, label: name, items: [
     { label: 'Explore', onClick: () => onSelect({ kind: 'category', name }) },
+    { label: 'New Control Module Class...', onClick: () => useBatchUi.getState().openDialog({ t: 'newCmClass', category: name }) },
     { label: 'New Category', onClick: () => newCategory(name) },
     sep,
     { label: 'Delete', danger: true, onClick: () => alertResult(lib.getState().deleteCategory(name)) },
