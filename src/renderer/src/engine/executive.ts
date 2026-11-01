@@ -399,7 +399,9 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
       if (p.equipment?.mode === 'Unit' && p.equipment.name && !useBatch.getState().units[p.equipment.name]) return fail(`Unit ${p.equipment.name} does not exist`)
       if (p.equipment?.mode === 'Unit Class' && p.equipment.name && !useBatch.getState().unitClasses[p.equipment.name]) return fail(`Unit class ${p.equipment.name} does not exist`)
       const { product, ...rest } = p
-      const next: Recipe = { ...r, ...rest, product: { ...r.product, ...(product ?? {}) }, revision: r.revision + 1, modified: now() }
+      const merged: Recipe = { ...r, ...rest, product: { ...r.product, ...(product ?? {}) } }
+      if (JSON.stringify(merged) === JSON.stringify(r)) return ok(name)
+      const next: Recipe = { ...merged, revision: r.revision + 1, modified: now() }
       set(s => ({ recipes: { ...s.recipes, [name]: next }, drafts: s.drafts[name] ? { ...s.drafts, [name]: { ...s.drafts[name], ...rest, product: next.product } } : s.drafts }))
       return ok(name)
     },

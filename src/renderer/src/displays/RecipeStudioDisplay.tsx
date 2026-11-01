@@ -206,7 +206,8 @@ export function RecipeStudioDisplay(): JSX.Element {
       <button className="tbtn sm" onClick={save} disabled={!dirty}>Save</button>
       <button className="tbtn sm" onClick={() => setDlg({ t: 'step' })}>Add Step</button>
       <button className="tbtn sm" onClick={del}>Delete Step</button>
-      <button className="tbtn sm" onClick={props}>Properties...</button>
+      <button className="tbtn sm" onClick={props}>Step Properties...</button>
+      <button className="tbtn sm" onClick={() => useExecUi.getState().openDialog({ t: 'recipeProps', name })}>Recipe Properties...</button>
       <button className="tbtn sm" onClick={() => useExecUi.getState().openDialog({ t: 'recipeProps', name, tab: 'Equipment' })}>Equipment...</button>
       <button className="tbtn sm" onClick={() => setDlg({ t: 'formula', name: null })}>New Formula...</button>
       <button className="tbtn sm" onClick={leave}>Close</button>

@@ -21,6 +21,8 @@ interface ExecUi {
   setScreen: (s: BoiScreen) => void
   selectedBatch: string | null
   selectBatch: (id: string | null) => void
+  phaseCtl: { showUnits: boolean; unit: string; phase: string }
+  setPhaseCtl: (p: Partial<{ showUnits: boolean; unit: string; phase: string }>) => void
 }
 
 export const useExecUi = create<ExecUi>(set => ({
@@ -31,5 +33,7 @@ export const useExecUi = create<ExecUi>(set => ({
   screen: 'list',
   setScreen: screen => set({ screen }),
   selectedBatch: null,
-  selectBatch: selectedBatch => set({ selectedBatch })
+  selectBatch: selectedBatch => set({ selectedBatch }),
+  phaseCtl: { showUnits: false, unit: '', phase: '' },
+  setPhaseCtl: p => set(s => ({ phaseCtl: { ...s.phaseCtl, ...p } }))
 }))

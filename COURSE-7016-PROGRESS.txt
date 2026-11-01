@@ -460,6 +460,48 @@ none pre-verified).
   all eight failures with recovery, Hold/Restart/Stop, checkers pending -> verified.
 
 
+5E. CHAPTER 10 - BATCH OPERATIONS (pp 10-1 .. 10-xx)  [added 2026-11-01]
+---------------------------------------------------------------------------
+Source: Course 7016 chapter 10 workshops (Recipe Studio, Batch Executive, Batch Operator Interface, Operate BatchListView,
+failure handling, operator log, prompts, formulas, Phase Control and Arbitration). 7 workshops / 33 live checks
+(engine/course7016Ch10Workshops.ts, course7016Ch10Checks.ts; ids 7016-10a/v/f/l/o/r/x). Not pre-verified.
+- engine/executive.ts (zustand store useExecutive): the Batch Executive. Recipes (operation OP_FINISH_500 with steps
+  AGITATE:1 and DRAIN:1, transitions as expressions such as AGITATE:1/BSTATUS = $phase_state:Complete), product info,
+  assign / verify / download, equipment download (4 unit phases known), assigned areas, Enabled, service Start/Stop and
+  Verify Phases, batches (add/start/hold/restart/stop/abort/complete), batch parameters, formulas, journal.
+  The Executive loads a phase with owner BATCH, starts it, and answers the phase REQUEST codes: 40nn/42nn arbitration,
+  30nn message, 31nn clear, 32-35nn prompts (answers land in PROMPT_INT / FLOAT / BOOL / STRING), 52nn/55nn rendezvous.
+  Prompt text substitutes 'PARAM' references. A batch whose phase is owned by someone else waits ("Waiting to acquire");
+  Stop/Abort resets and unloads once the phase settles.
+- UI: Explorer Recipes tree and Library > PROPLUS / Batch Executive menus (Properties, Assigned Areas, Download > Workstation,
+  Download Equipment), Recipe Studio (equipment, steps, transitions, Step Properties..., Recipe Properties... with
+  Product / Tools tabs: Assign, Verify, Download), Batch Application Manager (service Start/Stop, Verify Phases), Batch
+  Operator Interface (batch list, Add, Start, PFC, Comments, Phase Control with a Display Units toggle, Arbitration, Prompts,
+  Journal), Operate batch list display, status bar buttons "Batch failures" (-> Alarm Summary, Clear Failures) and
+  "Unacknowledged Prompts (n)". PROMPT_* system parameters added to batchConfig.
+- Verified through the browser UI twice from clean projects (first pass in a project with Chapters 5-7, second pass from a
+  fresh seed with the same prerequisites; scripts not kept): create OP_FINISH_500 and build its chart in Recipe Studio;
+  executive Properties / Assigned Areas / Download Workstation (4 unit phases); recipe assign, verify, download; Batch
+  Application Manager Start and Verify Phases (4 phases, 0 bad); BOI add / start / PFC / complete; failure on AGITATE
+  (PRODUCT_VLV_OPEN) -> Batch failures button -> Alarm Summary -> Clear Failures -> Restart -> Complete; BOI and Operate
+  comments tagged [BOI] / [Operate]; AGITATE message + prompt logic written in Control Studio (REQUEST 3401, then waits for
+  REQUEST = 0 and PROMPT_BOOL) and downloaded to the unit and the equipment, prompt answered Yes -> Complete; formulas
+  Large / Medium / Small with R_BLEND_TIME and R_DRAIN_LEVEL deferred (55/50, 45/75, 30/100, prompt shows the dynamic
+  value); Phase Control: acquire as OPERATOR, start with Batch ID, answer prompt, Reset keeps ownership, a batch waits
+  for the phase, Arbitration shows "needed by OP_FINISH_500", Release hands the phase to the batch. On the clean second
+  profile the Workshops page showed all 46 Chapter 10 steps (7 workshops) Verified.
+- Fixes found during the passes: toolbar Properties... split into Step Properties... and Recipe Properties...; Phase
+  Control screen state kept in the UI store so the screen survives rerenders; setRecipeProps no longer bumps the revision
+  when nothing changed (OK on the dialog after a download made the recipe look stale and failed 10a-8); the prompt-message
+  check accepts the dynamic-value text of the optional exercise; formula and batch-formula names match case-insensitively.
+- Simplified / not real DeltaV behaviour: the Executive is BatchLive's own simulation. Not implemented: electronic
+  signatures (10-9 .. 10-20, optional exercise), Batch Executive client configuration, Procedure as Table, unit
+  procedures and link groups (Chapter 11).
+- tests/course7016-ch10.test.cjs (npm run test:course10): 12 tests covering the Executive, recipe download rules, prompts,
+  failure handling, formulas, arbitration and workshop checkers. Uses the prerequisite option agitate in
+  tests/helpers/course7016-prereq.cjs.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -499,6 +541,8 @@ none pre-verified).
                                     prerequisite option colorTanks in tests/helpers/course7016-prereq.cjs.
 - tests/course7016-ch9.test.cjs     Chapter 9 CHG_BASE / BASE_HEADER / shared HEADER class (npm run test:course9):
                                     10 tests, see section 5D.
+- tests/course7016-ch10.test.cjs    Chapter 10 Batch Executive / Recipe Studio / BOI (npm run test:course10):
+                                                    12 tests, see section 5E.
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
   build are clean.
@@ -516,7 +560,8 @@ none pre-verified).
 
 7. NOT SIMULATED (shown as disabled with an explanation)
 --------------------------------------------------------
-Batch Executive procedures, Recipe Studio and the Batch Operator Interface (not used in Chapters 1, 4 and 5),
+Batch Executive procedures (unit procedures / procedure, Chapter 11), electronic signatures, Procedure as Table (the
+Chapter 10 operation-level Recipe Studio, Executive and Batch Operator Interface are simulated, see 5E),
 Input/Output/Internal Read/Write parameter palette items, clipboard/undo in Control
 Studio, version control (Check Out), unit arbitration and Modelock Override, batch history/reporting, EM algorithm
 types other than Command driven and State driven, Shared module blocks can be bound but variant substitution
@@ -589,6 +634,11 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
 - 2026-11-01  dda382c  Chapter 9 (CHARGE BASE): CHG_BASE.fhx import, BASE_HEADER arbitration on XV-501/XV-601,
                        New Control Module Class (blank HEADER), shared module block + Properties binding dialog,
                        3 workshops / 15 live checks, tests/course7016-ch9.test.cjs. See section 5D.
+- 2026-11-01  c63d8a0  Chapter 10 (Batch Operations): Batch Executive engine, Recipe Studio, Batch Operator Interface,
+                       Batch Application Manager, prompts, formulas, Phase Control / Arbitration, 7 workshops / 33 live
+                       checks, tests/course7016-ch10.test.cjs. See section 5E.
+- 2026-11-01  (this commit)  Chapter 10 fixes from the UI passes (Recipe Properties button, Phase Control state kept, no
+                       spurious revision bump) and a second clean UI pass: all 46 steps Verified.
 
 Walkthrough of slides 6-14 / 6-15 (2026-10-26, after 03fd3b7), in a browser on the preview origin (port 5199, a fresh
 DV_School database, not the student's saved project):
@@ -991,8 +1041,16 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01, Chapter 10 - latest, IN PROGRESS):
-- Chapter 10 (Batch Operations) is built but only PARTLY verified through the UI. Added (all new, Chapters 1-9 untouched except
+WHERE WE LEFT OFF (2026-11-01, Chapter 10 - latest, DONE):
+- Chapter 10 is complete and was walked through the real UI twice (details in section 5E). The second pass from a clean
+  profile ran every script end to end (create operation, chart, executive set-up, service + BOI batch, failure, comments,
+  prompt logic, downloads, formulas, Phase Control / Arbitration) and the Workshops page showed all 7 Chapter 10 workshops
+  (46 steps) Verified. Next: Chapter 11 (unit procedures UP_BL_500 / UP_COLOR_100, procedure PRC_PAINT with a link group,
+  OP_CHARGE_500 / OP_COLOR_100). Optional leftovers: electronic signatures, client configuration, Procedure as Table.
+- Earlier notes for this chapter (kept for the build details; the UI-verification gaps listed there are now closed):
+
+WHERE WE LEFT OFF (2026-11-01, Chapter 10, earlier note):
+- Chapter 10 (Batch Operations) was built but only PARTLY verified through the UI. Added (all new, Chapters 1-9 untouched except
   small wiring): engine/executive.ts (Recipe Studio operations, Batch Executive service/equipment/areas, batches, prompts,
   formulas, manual phase control + arbitration, journal), course7016Ch10Checks.ts (33 checks) / Ch10Workshops.ts (7 workshops),
   displays RecipeStudioDisplay / BoiDisplay (Batch Operator Interface + Operate BatchListView) / BatchManagerDisplay,

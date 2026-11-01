@@ -65,7 +65,7 @@ export function checkCourse7016Ch10(s: Ch10State, _events: EventLogEntry[]): Ste
     check('7016-10l-1', s.journal.some(j => j.kind === 'Comment' && j.text.startsWith('[BOI]')), 'a comment was submitted to the Electronic Operator Log from the Batch Operator Interface'),
     check('7016-10l-2', s.journal.some(j => j.kind === 'Comment' && j.text.startsWith('[Operate]')), 'a comment was added from the DeltaV Operate BatchListView'),
 
-    check('7016-10o-1', !!msg && /OK to begin agitation\?/.test(String(msg.defaultValue)), 'AGITATE has the phase message "OK to begin agitation?" with Message ID 1'),
+    check('7016-10o-1', !!msg && /OK to begin agitation/i.test(String(msg.defaultValue)), 'AGITATE has the phase message "OK to begin agitation?" with Message ID 1'),
     check('7016-10o-2', /REQUEST\.CV'\s*:=\s*3[2-5]01\b/.test(agitateText) && /PROMPT_/.test(agitateText), 'AGITATE RUN_LOGIC requests operator prompt message 1 and waits for the response'),
     check('7016-10o-3', !!msg && unitsCurrent('AGITATE'), 'the AGITATE changes are downloaded to both blender unit modules'),
     check('7016-10o-4', !!s.verify && s.verify.bad === 0 && BLENDERS.every(u => (s.deployedUnits[u]?.at ?? 0) <= s.verify!.at), 'the equipment was downloaded to the Batch Executive (Verify Phases reports 0 bad phases)'),
