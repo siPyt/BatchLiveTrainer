@@ -1,0 +1,122 @@
+After finishing ***Applying S88***, do **not** jump straight to page 1 of a single PDF and read it cover-to-cover. Because *Applying S88* puts the ISA-88 Equipment Hierarchy (*Control Modules $\rightarrow$ Equipment Modules $\rightarrow$ Units $\rightarrow$ Phases*) fresh in your mind, the best way to lock that knowledge in is to follow the exact **bottom-up engineering sequence** across your PDFs.
+
+Here is the exact reading order using the three PDFs you have, starting with a targeted 100-page bridge in **Course 7017** before diving into **Course 7016**:
+
+---
+
+### Step 1: Read Course 7017 — Modules 4 & 5 FIRST *(PDF Pages 202–311)*
+
+* **File:** `729782550-7017-v143-Rev1.pdf` (523 pages)
+
+
+* **Why start here right after *Applying S88*:**
+In *Applying S88*, Parshall and Lamb spend chapters explaining what a **Control Module (CM)** and an **Equipment Module (EM)** should do in theory. Modules 4 and 5 of **Course 7017** show you how Emerson actually builds those two foundation layers in DeltaV:
+
+
+1. **Module 4 (Pages 202–250): Class-Based Modules & Equipment Modules**
+
+* Shows you how to create a **Control Module Class** (`SOLENOID_VLV`) and expose instance-specific parameters (`Allow instance value to be configured`).
+
+
+* Teaches the **Expression Syntax** (`//` external, `/` module-relative, `^` block-relative, `/+/` phase-relative) on page 220—which you will use constantly in Course 7016.
+
+
+* Walks through building your first **Command-Driven Equipment Module** (`BASE_400_OUT`) using `A_COMMAND` and SFC sub-blocks.
+
+
+
+
+2. **Module 5 (Pages 251–311): Device Control (`EDC`, `DCC`, & `AT` Blocks)**
+
+* Before a Batch Phase can command a valve, agitator, or pump, the underlying Control Module needs clean interlocks, permissives, and mode handling. This section shows how the **`EDC`**, **`DCC`** (Interlock / Permissive / Force Setpoint), and **`AT`** (Analog Tracking) blocks work so you never put hardware safety interlocks inside your Batch Phase logic.
+
+
+
+
+
+
+
+(Note: If you haven't built a basic SFC in DeltaV before, take a quick 15-minute detour to **Course DV-09, Module 7, PDF Pages 270–279** just to review the SFC Action Qualifiers chart—`N`, `P`, `S`, `R`, `D`—on page 276.)
+
+---
+
+### Step 2: Read Course 7016 — Modules 1 through 12 NEXT *(PDF Pages 1–370)*
+
+* **File:** `958791105-7016-8.pdf` (616 pages)
+
+
+* **Why this is your main event:**
+This is the direct, 1-to-1 DeltaV implementation of ***Applying S88***. Every single concept from the book comes to life here in the exact order you would engineer a real batch plant:
+* **Modules 1–4 (Pages 1–116): S88 Hierarchy, `Unit Classes`, `Aliases`, & Your First `FILL` Phase**
+
+* You’ll see how `Unit Classes` (`COLORTANKS`) define `#INLET_VLV#`, `#OUTLET_VLV#`, and `#TANK_LEVEL#` aliases so a single `FILL` Phase Class can run on three different tanks without changing a single line of code.
+
+
+* You’ll build your first S88 Phase State Diagram (`RUN_LOGIC`, `HOLD_LOGIC`, `RESTART_LOGIC`).
+
+
+
+
+* **Module 5 (Pages 117–170): Command-Driven vs. State-Driven Equipment Module Classes**
+
+* Answers the classic S88 question: when to use a **Command-Driven EM** (`BLENDER_COLOR` for 2-stage bulk/dribble valve sequencing) vs. a **State-Driven EM** (`BLENDER_OUTLET` truth-table matrix for manifold routing).
+
+
+
+
+* **Modules 6–7 (Pages 171–230): Deep Phase Exception Handling (`AGITATE` & `DRAIN`)**
+
+* Shows how to use `PENDING_CONFIRMS` on pulse actions, how to build the **`FAIL_MONITOR`** composite (`CND` + `BFI` $\rightarrow$ `FAIL_INDEX`) to automatically push a running phase into `HOLDING`, and how `HOLD_LOGIC` and `RESTART_LOGIC` branch using `STEP_INDEX`.
+
+
+
+
+* **Modules 8–9 (Pages 231–262): Phase-to-Phase Handshaking & Shared Header Arbitration**
+
+* Shows how `DUMP` (on a Color Tank) and `CHG_COLOR` (on a Blender) acquire a shared `COLOR_HEADER` (`40nn`/`42nn`) and handshake (`52nn`/`55nn`) via the `REQUEST` parameter.
+
+
+
+
+* **Modules 10–12 (Pages 263–370): Recipe Studio, Link Groups, Formulas, & Dynamic Referencing**
+
+* Moves up to the Batch Executive to tie your Phases into Operations (`.UOP`), Unit Procedures (`.UPC`), and Master Procedures (`.BPC`), plus `SELSTR` dynamic runtime paths.
+*(You can skim or skip Modules 13–15 on Version Control, Batch Historian, and Campaign Manager until you actually need them.)*
+
+
+
+
+
+
+
+---
+
+### Step 3: Circle Back to Course 7017 — Modules 1, 2, 3, & 9 *(PDF Pages 8–201 & 431–509)*
+
+* **File:** `729782550-7017-v143-Rev1.pdf`
+
+* **Why save this for Step 3:**
+Once you have the complete S88 project architecture, Equipment Modules, and Phase State Machines mastered, come back to the front half of **Course 7017** to master the **continuous analog loop strategies** that live *inside* your analog Control Modules:
+* **Module 1 (Pages 8–82):** `Status` words (`0–227`), `BKCAL` initialization, `BAD_MASK` / `MERROR_MASK`, and `PID` `FORM`/`STRUCTURE`.
+
+
+* **Module 2 (Pages 83–161):** Feedforward (`FF_VAL` + `L/L` + `DT`), Cascade with `Dynamic Reset Limit`, Split-Range (`SPLTR`), Override Selectors (`CTLSL`), Gain Scheduling, Ratio (`RTO`), and Bias/Gain (`BG`).
+
+
+* **Modules 3 & 9 (Pages 162–201 & 431–509):** Loop tuning with `InSight`, Fuzzy Logic (`FLC`), and Model Predictive Control (`MPC`).
+
+
+
+
+
+---
+
+### Quick Summary Bookmark List
+
+1. **Right now (After *Applying S88*):** Open **Course 7017** to **Page 202** and read **Modules 4 & 5** (pages 202–311).
+
+
+2. **Next:** Open **Course 7016** to **Page 1** and read **Modules 1 through 12** (pages 1–370).
+
+
+3. **Last:** Return to **Course 7017, Page 8** and read **Modules 1 & 2** (pages 8–161) for deep analog loop synchronization.

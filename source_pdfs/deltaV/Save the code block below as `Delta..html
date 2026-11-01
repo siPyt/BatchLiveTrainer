@@ -1,0 +1,531 @@
+Save the code block below as **`DeltaV_7016_Study_Guide.html`**, open it in any browser, and click the **"Print / Save as PDF"** button in the top-right corner (or press `Ctrl + P` $\rightarrow$ **Save as PDF**). It is styled like a clean, high-contrast DeltaV Live HMI screen with print-optimized page breaks so tables never split awkwardly across pages.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emerson DeltaV Course 7016 — Architecture & S88 Study Guide (Modules 1–5)</title>
+  <style>
+    :root {
+      --bg-page: #f1f5f9;
+      --bg-panel: #ffffff;
+      --header-bg: #0f172a;
+      --accent-blue: #0284c7;
+      --accent-amber: #d97706;
+      --accent-green: #16a34a;
+      --accent-purple: #7c3aed;
+      --border-color: #cbd5e1;
+      --text-main: #1e293b;
+      --text-muted: #475569;
+      --code-bg: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .hmi-container {
+      max-width: 1050px;
+      margin: 0 auto;
+    }
+
+    /* Top HMI Banner */
+    .hmi-banner {
+      background: var(--header-bg);
+      color: #ffffff;
+      padding: 20px 26px;
+      border-radius: 6px;
+      border-bottom: 4px solid var(--accent-blue);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .hmi-banner h1 {
+      font-size: 1.45rem;
+      letter-spacing: 0.4px;
+      font-weight: 700;
+    }
+
+    .hmi-banner .subtitle {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .btn-print {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-print:hover {
+      background: #0369a1;
+    }
+
+    /* HMI Cards / Sections */
+    .hmi-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-top: 4px solid var(--accent-blue);
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      page-break-inside: avoid;
+    }
+
+    .hmi-panel.amber { border-top-color: var(--accent-amber); }
+    .hmi-panel.green { border-top-color: var(--accent-green); }
+    .hmi-panel.purple { border-top-color: var(--accent-purple); }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+
+    .panel-title {
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--header-bg);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+      background: #e0f2fe;
+      color: #0369a1;
+      text-transform: uppercase;
+    }
+
+    .badge.amber { background: #fef3c7; color: #b45309; }
+    .badge.green { background: #dcfce7; color: #15803d; }
+    .badge.purple { background: #f3e8ff; color: #6d28d9; }
+
+    p, li {
+      font-size: 0.93rem;
+      color: var(--text-main);
+    }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      font-size: 0.88rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: #f8fafc;
+      color: var(--header-bg);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.4px;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #fcfcfd;
+    }
+
+    /* Code / Tag Styling */
+    code {
+      font-family: "Consolas", "SFMono-Regular", Menlo, monospace;
+      font-size: 0.85rem;
+      background: var(--code-bg);
+      border: 1px solid #e2e8f0;
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .callout {
+      background: #f8fafc;
+      border-left: 4px solid var(--accent-blue);
+      padding: 11px 15px;
+      margin-top: 10px;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.9rem;
+    }
+
+    .callout.amber {
+      border-left-color: var(--accent-amber);
+      background: #fffbeb;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .subcard {
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      padding: 12px 15px;
+      background: #fafaf9;
+    }
+
+    .subcard h4 {
+      font-size: 0.92rem;
+      margin-bottom: 6px;
+      color: var(--header-bg);
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .btn-print {
+        display: none;
+      }
+      .hmi-banner {
+        background: #0f172a !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .hmi-panel {
+        box-shadow: none;
+        margin-bottom: 14px;
+        page-break-inside: avoid;
+      }
+      th {
+        background-color: #f1f5f9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hmi-container">
+
+  <!-- TOP HMI BANNER -->
+  <div class="hmi-banner">
+    <div>
+      <h1>DELTAV BATCH ENGINEERING — COURSE 7016 STUDY GUIDE</h1>
+      <div class="subtitle">Modules 1–5: ISA-88 Hierarchy, Class/Instance Design, Aliases, Equipment Modules &amp; Phase Logic</div>
+    </div>
+    <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <!-- SECTION 1: ISA-88 HIERARCHY -->
+  <div class="hmi-panel">
+    <div class="panel-header">
+      <div class="panel-title">1. The Master ISA-88 Hierarchy ("The Two Ladders")</div>
+      <span class="badge">Slides 1-5 &amp; 4-4</span>
+    </div>
+    <p>Picture two ladders standing side-by-side: the <strong>Physical Model (Right Ladder)</strong> is your <em>Steel &amp; Hardware</em>, and the <strong>Procedural Model (Left Ladder)</strong> is your <em>Recipe Actions</em>. They meet at the <strong>Unit / Unit Phase</strong> boundary—where the <strong>Batch Executive (PC)</strong> hands off to the <strong>DeltaV Controller</strong>.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 10%;">Level</th>
+          <th style="width: 25%;">Physical Model (Hardware)</th>
+          <th style="width: 20%;">7016 Lab Example</th>
+          <th style="width: 25%;">Procedural Model (Recipe)</th>
+          <th style="width: 20%;">Where It Runs</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1 (Top)</strong></td>
+          <td><strong>Area</strong><br><em>Logical plant division, alarm &amp; security boundary</em></td>
+          <td><code>ED_CENTER_BATCH</code></td>
+          <td><em>(Plant / Campaign Scheduling)</em></td>
+          <td>Workstation / Server</td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td><strong>Process Cell</strong><br><em>All units/equipment required to make a batch</em></td>
+          <td><code>PAINT_PRODUCTION</code></td>
+          <td><strong>Procedure</strong> (<code>PRC_PAINT</code>)<br><em>Makes 1 full batch across units</em></td>
+          <td><strong>Batch Executive</strong><br>(Workstation Service)</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td><strong>Unit Module</strong><br><em>Major vessel/reactor that operates independently</em></td>
+          <td><code>UM_COLOR_100</code><br><code>UM_BL_500</code></td>
+          <td><strong>Unit Procedure</strong> (<code>UP_BL_500</code>)<br>&rarr; <strong>Operation</strong> (<code>OP_CHARGE_500</code>)</td>
+          <td><strong>Batch Executive</strong><br>(Workstation Service)</td>
+        </tr>
+        <tr>
+          <td><strong>4</strong></td>
+          <td><em>(Executes inside the Unit Module)</em></td>
+          <td><code>FILL</code>, <code>AGITATE</code>,<br><code>DUMP</code>, <code>CHG_COLOR</code></td>
+          <td><strong>Unit Phase</strong><br><em>SFC State Machine commanding equipment</em></td>
+          <td><strong>DeltaV Controller</strong><br><em>(Up to 10 phases/unit)</em></td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td><strong>Equipment Module (EM)</strong><br><em>Coordinates a group of CMs (manifolds, headers)</em></td>
+          <td><code>BL_500_COLOR_IN</code><br><code>BL_500_OUTLET</code></td>
+          <td><em>Driven via <code>A_COMMAND</code> from a Phase</em></td>
+          <td><strong>DeltaV Controller</strong></td>
+        </tr>
+        <tr>
+          <td><strong>6 (Base)</strong></td>
+          <td><strong>Control Module (CM)</strong><br><em>Single entity: 1 valve, 1 motor, 1 AI, 1 PID</em></td>
+          <td><code>XV-101</code>, <code>LI-104</code>,<br><code>MTR-505</code></td>
+          <td><em>Driven via <code>MODE</code> &amp; <code>CAS_SP</code> from an EM or Phase</em></td>
+          <td><strong>DeltaV Controller</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Mnemonic — Physical Ladder (Top-Down):</strong> <code>A &rarr; PC &rarr; U &rarr; EM &rarr; CM</code> (<strong>A</strong>rea &rarr; <strong>P</strong>rocess <strong>C</strong>ell &rarr; <strong>U</strong>nit &rarr; <strong>E</strong>quipment <strong>M</strong>odule &rarr; <strong>C</strong>ontrol <strong>M</strong>odule)<br>
+      <strong>Mnemonic — Procedural Ladder (Top-Down):</strong> <code>P &rarr; UP &rarr; O &rarr; P</code> (<strong>P</strong>rocedure &rarr; <strong>U</strong>nit <strong>P</strong>rocedure &rarr; <strong>O</strong>peration &rarr; <strong>P</strong>hase)
+    </div>
+  </div>
+
+  <!-- SECTION 2: CLASS VS INSTANCE -->
+  <div class="hmi-panel green">
+    <div class="panel-header">
+      <div class="panel-title">2. Class (Blueprint) vs. Instance (Real Plant Equipment)</div>
+      <span class="badge green">Slides 1-6, 1-20 &amp; 4-25</span>
+    </div>
+    <p>DeltaV Explorer splits batch engineering into two locations: you build reusable blueprints in <code>Library &rarr; Advanced Definitions</code>, and drag-and-drop them into <code>System Configuration &rarr; Control Strategies</code> to create live instances.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Library Blueprint (<code>Library &rarr; Advanced Definitions</code>)</th>
+          <th>Drag &amp; Drop Onto...</th>
+          <th>Live Plant Instance (<code>Control Strategies</code>)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Process Cell Class</strong> (<code>PRODUCTION</code>)</td>
+          <td>Plant Area (<code>ED_CENTER_BATCH</code>)</td>
+          <td><strong>Process Cell</strong> (<code>PAINT_PRODUCTION</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Unit Class</strong> (<code>COLORTANKS</code>, <code>BLENDERS</code>)</td>
+          <td>Process Cell (<code>PAINT_PRODUCTION</code>)</td>
+          <td><strong>Unit Module</strong> (<code>UM_COLOR_100</code>, <code>UM_BL_500</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Phase Class</strong> (<code>FILL</code>, <code>AGITATE</code>)</td>
+          <td>Unit Class (<code>COLORTANKS</code>, <code>BLENDERS</code>)</td>
+          <td><strong>Unit Phase</strong> (<code>UM_COLOR_100/FILL</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Equipment Module Class</strong> (<code>BLENDER_COLOR</code>)</td>
+          <td>Unit Class (<code>BLENDERS</code>)</td>
+          <td><strong>Equipment Module</strong> (<code>BL_500_COLOR_IN</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Control Module Class</strong> (<code>LEVEL_INDICATOR</code>, <code>NC_VALVE</code>)</td>
+          <td>Area, EM Class, or Unit Class</td>
+          <td><strong>Control Module</strong> (<code>LI-104</code>, <code>XV-501</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Instance Parameter Override Rule (Slides 1-20 to 1-23):</strong> Parameters in a Class are locked across all instances unless you check <code>Allow instance value to be configured</code> in the Class, and then uncheck <code>Use default value from library object</code> on the specific instance (e.g., changing <code>LI-504</code>'s <code>AI1$OUT_SCALE</code> from <code>0–500 gal</code> to <code>0–1000 gal</code>).
+    </div>
+  </div>
+
+  <!-- SECTION 3: EQUIPMENT MODULES -->
+  <div class="hmi-panel amber">
+    <div class="panel-header">
+      <div class="panel-title">3. Equipment Modules: Command-Driven vs. State-Driven</div>
+      <span class="badge amber">Module 5 (Slides 5-8 to 5-43)</span>
+    </div>
+    <p>Both EM types use the exact same interface when commanded by a Phase: write a Named Set state to <code>A_COMMAND</code>, and wait in the transition for <code>A_PV</code> to equal that state. Every EM Named Set <strong>must</strong> include <code>255 = Idle</code>.</p>
+
+    <div class="grid-2">
+      <div class="subcard">
+        <h4>Command-Driven EM (<code>BLENDER_COLOR</code>)</h4>
+        <ul>
+          <li><strong>When to Use:</strong> Multi-step sequences or timing relationships (e.g., 2-stage Bulk/Dribble valve or pump start/stop).</li>
+          <li><strong>How It Works:</strong> Generates a separate SFC sub-block (<code>COMMAND_00001</code>, <code>COMMAND_00002</code>, etc.) for each state in your Named Set (<code>EM-vlvnc-2stage</code>).</li>
+          <li><strong>Key Flag:</strong> <code>A_ABT_ON_NEW_CMD</code> (Default = <code>False</code>, finishes current command before running a new one; if <code>True</code>, aborts immediately on new command).</li>
+        </ul>
+      </div>
+      <div class="subcard">
+        <h4>State-Driven EM (<code>BLENDER_OUTLET</code>)</h4>
+        <ul>
+          <li><strong>When to Use:</strong> Simultaneous alignment of multiple valves/motors with no sequential timing (e.g., Product vs. Waste manifold).</li>
+          <li><strong>How It Works:</strong> Configured via a <strong>Truth-Table Matrix</strong>:
+            <br>&bull; <code>Items</code> tab: Maps <em>Write Path</em> to <em>Readback Path</em>.
+            <br>&bull; <code>States</code> tab: Defines target setpoints/modes per state.</li>
+          <li><strong>Critical Restriction:</strong> Only <strong>Module-level parameters</strong> (<code>MODE</code>, <code>CAS_SP</code>, <code>PV</code>) can be used in the Write/Readback paths!</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: UNIT ALIASES & OWNERSHIP -->
+  <div class="hmi-panel purple">
+    <div class="panel-header">
+      <div class="panel-title">4. Unit Aliases &amp; Module Ownership Rules</div>
+      <span class="badge purple">Slides 2-8 to 2-12, 4-12 &amp; 5-25</span>
+    </div>
+    <div class="grid-2">
+      <div class="subcard">
+        <h4>2 Ways Aliases Are Created on a Unit Class</h4>
+        <ol>
+          <li><strong>Manual Aliases (Module 4 — <code>COLORTANKS</code>):</strong> Right-click Unit Class &rarr; <code>New &rarr; Alias</code> (creates blank pointers <code>INLET_VLV</code>, <code>OUTLET_VLV</code>, <code>TANK_LEVEL</code>). You manually type the paths in each Unit Module's <code>Aliases</code> folder.</li>
+          <li><strong>Auto-Generated via Embedded Classes (Module 5 — <code>BLENDERS</code>):</strong> Add EM Classes and CM Classes directly to the Unit Class with <strong><code>Private</code></strong> ownership. Instantiating <code>UM_BL_500</code> automatically creates all child EMs/CMs <em>and</em> auto-resolves their Aliases! (<strong><code>Shared</code></strong> ownership creates an <code>&lt;unbound&gt;</code> placeholder for shared headers).</li>
+        </ol>
+      </div>
+      <div class="subcard">
+        <h4>Alias Resolution Depth Rule (Slide 2-8 vs. 2-12)</h4>
+        <ul>
+          <li><strong>Level Transmitters (<code>TANK_LEVEL</code>):</strong> Resolved all the way down to the parameter (<code>LI-104/AI1/PV.CV</code>) because the Phase only ever reads <code>PV.CV</code>.<br>
+          <em>Usage:</em> <code>'//#TANK_LEVEL#' &gt;= '^/R_FILL_LEVEL.CV'</code></li>
+          <li><strong>Valves, Motors &amp; EMs (<code>INLET_VLV</code>, <code>OUT_PUMP</code>):</strong> Resolved <strong>only to the Module Name</strong> (<code>XV-101</code>, <code>MTR-505</code>) because the Phase must touch <code>/MODE.TARGET</code>, <code>/CAS_SP.CV</code>, and <code>/PV.CV</code>.<br>
+          <em>Usage:</em> <code>'//#INLET_VLV#/PV.CV' = 'vlvnc-pv:OPEN'</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: DEVICE MODE & PARAMETER PROMOTION -->
+  <div class="hmi-panel">
+    <div class="panel-header">
+      <div class="panel-title">5. Device Control Modes (<code>CAS</code> vs. <code>AUTO</code>) &amp; Parameter Promotion</div>
+      <span class="badge">Slides 2-9 to 2-12 &amp; 4-44</span>
+    </div>
+    <ul>
+      <li><strong>Why Promote Parameters to the Module Level?</strong> On valves (<code>XV-101</code>, <code>XV-502</code>), input <code>CAS_SP</code> is wired to <code>DC1/CAS_IN_D</code>, output <code>PV</code> is wired from <code>DC1/PV_D</code>, and an unwired <strong>Internal Reference parameter <code>MODE</code></strong> points to <code>DC1/MODE</code>. This exposes <code>//XV-101/MODE.TARGET</code> at the top of the module (required for State-Driven EMs!). On motors (<code>MTR-505</code>) where <code>MODE</code> and <code>PV</code> were not promoted, paths must reach inside <code>DC1</code> (<code>//MTR-505/DC1/MODE.TARGET</code> and <code>//MTR-505/DC1/PV_D.CV</code>).</li>
+      <li><strong>PLC vs. DeltaV Mode Terminology on Discrete Devices (<code>DC1</code>):</strong>
+        <ul>
+          <li><strong><code>CAS</code> (Cascade Mode) = Batch Phase / EM Control:</strong> The <code>DC1</code> block listens to the <code>CAS_IN_D</code> (<code>CAS_SP</code>) pin. Always drive <code>MODE.TARGET := CAS</code> <strong>before</strong> (or in the same step as) writing to <code>CAS_SP.CV</code>.</li>
+          <li><strong><code>AUTO</code> (Automatic Mode) = Normal Operator HMI Control:</strong> The <code>DC1</code> block listens to the operator's faceplate buttons (<code>SP_D</code>). Always return <code>MODE.TARGET := AUTO</code> at the end of a Phase (and in <code>STOP_LOGIC</code> / <code>ABORT_LOGIC</code>) to return control to the operator.</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <!-- SECTION 6: S88 STATE MACHINE & EXPRESSION SYNTAX -->
+  <div class="hmi-panel green">
+    <div class="panel-header">
+      <div class="panel-title">6. S88 Phase State Machine &amp; Expression Syntax Cheat Sheet</div>
+      <span class="badge green">Slides 4-15 to 4-23 &amp; 4-53</span>
+    </div>
+    <p><strong>Phase Parameter Types (Slide 4-15):</strong> <strong>Batch Input Parameter</strong> (Green icon, recipe value sent down to phase, e.g., <code>R_FILL_LEVEL</code>) | <strong>Batch Report Parameter</strong> (Yellow icon, actual value reported up at end of phase, e.g., <code>RPT_FNL_LVL</code>) | <strong>Phase Algorithm Parameter</strong> (internal phase variable).</p>
+    <p style="margin-top:6px;"><strong>S88 States (Slide 4-17 &amp; 4-53):</strong> <em>Resting States (no SFC):</em> <code>Idle</code>, <code>Complete</code>, <code>Held</code>, <code>Stopped</code>, <code>Aborted</code>. <em>Active States (contain SFCs):</em> <code>Running</code> (<code>RUN_LOGIC</code>) &rarr; on Hold/Fail enters <code>Holding</code> (<code>HOLD_LOGIC</code>) &rarr; rests in <code>Held</code> &rarr; on Restart enters <code>Restarting</code> (<code>RESTART_LOGIC</code>) &rarr; returns to <code>Running</code>.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 18%;">Syntax Symbol</th>
+          <th style="width: 34%;">Meaning</th>
+          <th style="width: 30%;">Course 7016 Example</th>
+          <th style="width: 18%;">Where Used</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/</code></td>
+          <td>Internal parameter at the <strong>current</strong> block level</td>
+          <td><code>'/STEP_TIME.CV'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>^/</code></td>
+          <td>Internal parameter <strong>up one block level</strong> (from <code>RUN_LOGIC</code> up to Phase root)</td>
+          <td><code>'^/R_FILL_LEVEL.CV'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>//</code></td>
+          <td><strong>External</strong> parameter in another module</td>
+          <td><code>'//XV-101/CAS_SP.CV'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>//#ALIAS#</code></td>
+          <td>External reference using a <strong>Unit Alias</strong></td>
+          <td><code>'//#INLET_VLV#/PV.CV'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>'/alias.IGN'</code></td>
+          <td>Exception rule: checks/sets the <strong>Ignore</strong> flag of an Alias (single <code>/</code>, no <code>#</code>)</td>
+          <td><code>'/INLET_VLV.IGN'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>'set:state'</code></td>
+          <td>Key-value lookup in a global <strong>Named Set</strong></td>
+          <td><code>'vlvnc-sp:OPEN'</code></td>
+          <td>Steps / Transitions</td>
+        </tr>
+        <tr>
+          <td><code>:=</code> and <code>;</code></td>
+          <td><strong>Assignment</strong> (writes right operand into left tag; always ends with <code>;</code>)</td>
+          <td><code>'//#INLET_VLV#/MODE.TARGET' := CAS;</code></td>
+          <td><strong>SFC Step Actions Only</strong></td>
+        </tr>
+        <tr>
+          <td><code>=</code>, <code>&gt;=</code>, <code>!=</code></td>
+          <td><strong>Comparison</strong> (evaluates True/False; <strong>no</strong> colon, <strong>no</strong> semicolon)</td>
+          <td><code>'//#TANK_LEVEL#' &gt;= '^/R_FILL_LEVEL.CV'</code></td>
+          <td><strong>SFC Transitions Only</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>
+
+```

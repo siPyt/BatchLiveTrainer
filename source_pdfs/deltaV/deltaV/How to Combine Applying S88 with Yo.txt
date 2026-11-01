@@ -1,0 +1,29 @@
+How to Combine Applying S88 with Your Two DeltaV Manuals
+Since Applying S88 is only ~155 pages long, read it first before diving deep into the 616-page Course 7016 manual. The three documents fit together in a specific, logical sequence:
+
+First: Read Chapters 3, 4, and 5 of Applying S88 (The Architectural "Why")
+
+The "Collapsible Model" Trap: Parshall & Lamb explain the single biggest architectural debate in DCS design: Should your Unit Phases talk to Equipment Modules (EMs), or talk directly to Control Modules (CMs)? They show the pros and cons of both, and why packing too much recipe logic into an Equipment Module ruins your flexibility, while making Phases too granular turns your recipes into a nightmare.
+
+Exception Handling Philosophy: They break down the real-world rules of HOLD, STOP, and ABORT—specifically how to classify equipment states so a failed valve on an inlet manifold safely pauses the active phase without dumping the whole batch.
+
+Second: Cross-Reference with Course 7017 Modules 1, 2, 4, & 5 (The Equipment & Loop Foundation)
+
+Once you see how Applying S88 slices up physical equipment, open your Course 7017 PDF to see how Emerson actually implements those bottom two layers:   
+PDF
+
+Control Modules (CMs): Module 1 (Status/Modes/BKCAL), Module 2 (Cascade, Split-Range SPLTR, Override CTLSL), and Module 5 (EDC state masks, DCC interlocks/permissives, and AT analog tracking).   
+PDF
++ 4
+
+Equipment Modules (EMs): Module 4 (Pages 228–249) shows how a Command-Driven EM (BASE_400_OUT) groups a pump (MTR_403) and a flow loop (FIC_404) under a single A_COMMAND state selector (STOP_XFER, XFER_500, XFER_600).   
+PDF
++ 2
+
+Third: Open Course 7016 (The Full DeltaV S88 Execution)
+
+Take the rules from Applying S88 and look at Modules 4, 5, and 6 in your 616-page Course 7016 manual. You will immediately recognize why Emerson uses Unit Classes, Module Aliases (#ALIAS#), and Phase Logic Composites (RUN_LOGIC, HOLD_LOGIC, RESTART_LOGIC) to execute the exact philosophy Parshall & Lamb laid out.
+
+Whenever you're ready to dig in—whether you want to dissect a specific strategy from your Course 7017 PDF (like how DCC and AT blocks force bumpless tracking on a PID loop) or translate these exact BKCAL, SPLTR, and S88 Phase mechanics into your own simulator or plant work—which piece do you want to break down first?   
+PDF
++ 2
