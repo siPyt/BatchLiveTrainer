@@ -23,10 +23,21 @@ export interface UnitClass {
   modules?: Record<string, ModuleBlock>
   /** Instance counter for module block names (AGITATOR1, AGITATOR2 ...). */
   seq?: number
+  /** Unit Parameter Definitions (Chapter 12). */
+  params?: Record<string, UnitParamDef>
 }
 
-export type BatchParamType = 'Integer' | 'Real' | 'String'
+export type BatchParamType = 'Integer' | 'Real' | 'String' | 'Dynamic Reference'
 export type PhaseParamKind = 'batch' | 'algorithm' | 'message'
+/** Chapter 12 (slide 12-14): the fields of a dynamic reference parameter, read and written as '^/NAME.FIELD'. */
+export const DYNAMIC_FIELDS = ['$REF', 'ST', 'CST', 'AWST'] as const
+export const dynamicDefaults = (name: string): Record<string, number | string> => ({
+  [`${name}.$REF`]: '', [`${name}.ST`]: 1, [`${name}.CST`]: 1, [`${name}.AWST`]: 0
+})
+
+/** Chapter 12 (slides 12-7, 12-8): a Unit Parameter Definition on a unit class, one value per unit module. */
+export type UnitParamType = 'Boolean' | 'Integer' | 'Real' | 'String'
+export interface UnitParamDef { name: string; type: UnitParamType; category: string; defaultValue: boolean | number | string }
 export interface PhaseParamDef {
   name: string
   kind: PhaseParamKind
@@ -205,6 +216,7 @@ export function paramDefError(p: PhaseParamDef, existing: Record<string, PhasePa
   if (p.name !== original && (existing[p.name] || SYSTEM_PHASE_PARAMS.some(([n]) => n === p.name) || COMPOSITES.includes(p.name as CompositeName)))
     return `${p.name} already exists in this phase class`
   if (!p.group.trim()) return 'Enter a parameter category'
+  if (p.type === 'Dynamic Reference' && p.kind !== 'algorithm') return 'Only a phase algorithm parameter can be a Dynamic Reference'
   if (p.kind === 'batch' && p.type !== 'String') {
     if (!Number.isFinite(p.low) || !Number.isFinite(p.high)) return 'Limits must be numbers'
     if (p.low > p.high) return 'The low limit must not exceed the high limit'
@@ -298,7 +310,11 @@ export function commandPhase(rt: PhaseRuntime, cmd: PhaseCommand): PhaseRuntime 
   }
 }
 
-export interface PhaseEnv extends EvalEnv { failed?: (message: string) => void }
+export interface PhaseEnv extends EvalEnv {
+  failed?: (message: string) => void
+  /** True when a dynamic reference path names an existing parameter (resolution, CST = 0). */
+  resolves?: (path: string) => boolean
+}
 
 /** Advance one scan of the active composite sequence. */
 export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSfc>, env: PhaseEnv, dt: number): PhaseRuntime {
@@ -310,6 +326,8 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
     ...env,
     read: ref => {
       if (ref.startsWith('//')) return env.read(ref)
+      const dyn = dynamicPart(ref)
+      if (dyn) return dyn.field in DYN_STATUS ? next.params[`${dyn.name}.${dyn.field}`] : env.read(dynamicTarget(dyn))
       const name = ref.replace(/^(?:\/\+\/|\^\/|\/)/, '').replace(/\.CV$/i, '').toUpperCase()
       const local = name.includes('/') || name === 'CONFIRM_FAIL' || logic[scope].blocks?.[name] ? (COMPOSITES.some(c => name.startsWith(c + '/')) ? name : `${scope}/${name}`) : name
       if (name === 'FAIL_INDEX') return next.failIndex === 'OK' ? 0 : next.failIndex
@@ -320,6 +338,20 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
     },
     write: (ref, value) => {
       if (ref.startsWith('//')) { env.write(ref, value); return }
+      const dyn = dynamicPart(ref)
+      if (dyn) {
+        if (dyn.field === '$REF') {
+          Object.assign(next.params, { [`${dyn.name}.$REF`]: String(value), [`${dyn.name}.CST`]: 1, [`${dyn.name}.ST`]: 1, [`${dyn.name}.PENDING`]: 1 })
+        } else if (dyn.field in DYN_STATUS) throw new EvalError(`${dyn.name}.${dyn.field} is read-only; write ${dyn.name}.$REF to change the path`)
+        else {
+          const target = dynamicTarget(dyn)
+          try { env.write(target, value); next.params[`${dyn.name}.AWST`] = 0 } catch (e) {
+            if (!(e instanceof EvalError)) throw e
+            next.params[`${dyn.name}.AWST`] = 1
+          }
+        }
+        return
+      }
       const name = ref.replace(/^(?:\/\+\/|\^\/|\/)/, '').replace(/\.CV$/i, '').toUpperCase()
       const local = name.includes('/') || logic[scope].blocks?.[name] ? (COMPOSITES.some(c => name.startsWith(c + '/')) ? name : `${scope}/${name}`) : name
       if (name === 'FAIL_INDEX') {
@@ -330,6 +362,24 @@ export function stepPhase(rt: PhaseRuntime, logic: Record<CompositeName, PhaseSf
       else env.write(ref, value)
     }
   })
+  /** '^/NAME.FIELD' where NAME is a dynamic reference parameter of this phase. */
+  const dynamicPart = (ref: string): { name: string; field: string } | null => {
+    const m = /^(?:\/\+\/|\^\/|\/)([A-Za-z_]\w*)(?:\.([\w$]+))?$/.exec(ref.trim())
+    if (!m || !(`${m[1].toUpperCase()}.$REF` in next.params)) return null
+    return { name: m[1].toUpperCase(), field: (m[2] ?? 'CV').toUpperCase() }
+  }
+  /** The parameter a resolved dynamic reference points at, with the field (TARGET, ACTUAL ...) appended. */
+  const dynamicTarget = (d: { name: string; field: string }): string => {
+    const path = String(next.params[`${d.name}.$REF`] ?? '').trim().replace(/^\/\//, '')
+    if (!path) throw new EvalError(`${d.name} has no path yet: write '^/${d.name}.$REF' and wait for '^/${d.name}.CST' = 0`)
+    if (Number(next.params[`${d.name}.CST`]) !== 0) throw new EvalError(`${d.name} is not resolved (CST = ${String(next.params[`${d.name}.CST`])}); wait for '^/${d.name}.CST' = 0 after setting $REF`)
+    return `//${path}${d.field !== 'CV' && !path.includes('.') ? `.${d.field}` : ''}`
+  }
+  for (const k of Object.keys(next.params)) if (k.endsWith('.PENDING') && next.params[k] === 1) {
+    const name = k.slice(0, -'.PENDING'.length)
+    const good = !!env.resolves?.(String(next.params[`${name}.$REF`]).replace(/^\/\//, ''))
+    Object.assign(next.params, { [`${name}.CST`]: good ? 0 : 2, [`${name}.ST`]: good ? 0 : 2, [k]: 0 })
+  }
   for (const c of COMPOSITES) for (const [name, block] of Object.entries(logic[c].blocks ?? {})) {
     if (!(`${c}/${name}` in next.params)) next.params[`${c}/${name}`] = 1
     for (const [p, v] of Object.entries(phaseBlockDefaults(block))) {
@@ -430,3 +480,4 @@ export function activeStepName(rt: PhaseRuntime, logic: Record<CompositeName, Ph
 
 export type { CheckEnv, Value }
 export { checkExpression }
+const DYN_STATUS: Record<string, true> = { $REF: true, ST: true, CST: true, AWST: true }

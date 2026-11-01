@@ -359,7 +359,7 @@ test('Course 7016 Chapters 1-5 in course order on one database: every workshop a
     const all = liveChecks()
     for (const [id, list] of Object.entries(all)) assert.deepEqual(pending(list), [], id)
     // Chapters 6 to 9 have their own integration suites (course7016-ch6 / ch7 / ch8 / ch9.test.cjs).
-    const checked = COURSE.flatMap(m => m.workshops).filter(w => !/definitions|reading|ch2-process|ch3-licensing|ch6-|ch7-|ch8-|ch9-|ch10-|ch11-/.test(w.id) && !w.title.includes('reading'))
+    const checked = COURSE.flatMap(m => m.workshops).filter(w => !/definitions|reading|ch2-process|ch3-licensing|ch6-|ch7-|ch8-|ch9-|ch10-|ch11-|ch12-/.test(w.id) && !w.title.includes('reading'))
     for (const w of checked) assert.ok(all[w.id], `${w.id} has live checks in the whole-course run`)
   } finally {
     useStore.setState(before.store, true)

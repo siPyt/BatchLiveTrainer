@@ -248,7 +248,7 @@ export const FUNCTIONS = ['SELSTR', 'LOGEVENT', 'ABS', 'MIN', 'MAX', 'LOG2', 'LN
 export function assignmentTypeError(target: string, expr: Node): string | null {
   const last = target.split('/').filter(Boolean).pop() ?? ''
   const [name, field = 'CV'] = last.toUpperCase().split('.')
-  const modeTarget = name === 'MODE' && field === 'TARGET'
+  const modeTarget = field === 'TARGET' && (name === 'MODE' || /MODE/.test(name))
   const asModeTarget = `${target.slice(0, target.length - last.length)}MODE.TARGET`
   if (expr.k === 'ident' && MODE_WORDS.includes(expr.v.toUpperCase()) && !modeTarget) {
     return `'${last}' cannot be set to the mode ${expr.v}: modes (CAS, AUTO, MAN ...) are written to MODE.TARGET, for example '${asModeTarget}' := ${expr.v};`
@@ -400,6 +400,8 @@ export function evaluate(n: Node, env: EvalEnv): Value {
         case 'ACOS': return x < -1 || x > 1 ? 0 : Math.acos(x)
         case 'LOGEVENT': env.log(args.map(String).join(' ')); return true
         case 'SELSTR': {
+          // SELSTR(selection, string1 ... string5) picks string number `selection` (slide 12-15).
+          if (typeof args[0] === 'number') { const i = Math.trunc(args[0]); return i >= 1 && i < args.length ? String(args[i]) : '' }
           // SELSTR(default, string1, condition1, string2, condition2, ...)
           for (let i = 1; i + 1 < args.length; i += 2) if (truthy(args[i + 1])) return String(args[i])
           return String(args[0] ?? '')

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { useStore } from './store'
 import { libraryHooks } from './libraryStore'
-import { useBatch, activeKey } from './batchStore'
+import { useBatch, activeKey, unitParamValue } from './batchStore'
 import { commandPhase, COMMAND_LABEL, STATE_LABEL, type PhaseCommand } from './batchConfig'
 import { useSecurity } from './security'
 import type { BatchFunction } from './securityTargets'
@@ -33,6 +33,8 @@ export interface RecipeStep {
 }
 export interface UnitAlias { name: string; unitClass: string; resolution: 'Defer' | 'Fixed'; unit: string }
 export interface RecipeTransition { name: string; condition: string }
+/** An alternate transition after a step (slide 12-18): when TRUE the recipe goes back to an earlier step and runs it again. */
+export interface RecipeBranch { name: string; from: string; to: string; condition: string }
 export interface RecipeParam { name: string; step: string; phaseParam: string; type: 'Integer' | 'Real' | 'String'; defaultValue: number | string; low: number; high: number; units: string }
 export interface FormulaValue { useDefault: boolean; value: number | string }
 export interface Formula { name: string; operatorCanLoad: boolean; values: Record<string, FormulaValue> }
@@ -56,6 +58,8 @@ export interface Recipe {
   /** Procedures: unit aliases (File > Unit Aliases) and link groups (Edit > Link Groups; members are step paths). */
   aliases?: Record<string, UnitAlias>
   linkGroups?: Record<string, string[]>
+  /** Operations: alternate transitions that loop back to an earlier step, checked before the trunk transition. */
+  branches?: RecipeBranch[]
   revision: number
   modified: number
 }
@@ -220,7 +224,7 @@ export function stepParamDefs(r: Recipe, stepName: string): Pick<RecipeParam, 'n
   if (!st) return []
   if (r.level === 'Operation') {
     return Object.values(useBatch.getState().phaseClasses[st.phaseClass]?.params ?? {}).filter(p => p.kind === 'batch' && p.direction === 'Input')
-      .map(p => ({ name: p.name, type: p.type, defaultValue: p.defaultValue, low: p.low, high: p.high, units: p.units }))
+      .map(p => ({ name: p.name, type: p.type as RecipeParam['type'], defaultValue: p.defaultValue, low: p.low, high: p.high, units: p.units }))
   }
   return Object.values(useExecutive.getState().recipes[st.phaseClass]?.params ?? {}).map(p => ({ name: p.name, type: p.type, defaultValue: p.defaultValue, low: p.low, high: p.high, units: p.units }))
 }
@@ -280,10 +284,12 @@ export function recipeNameError(name: string): string | null {
 // ---------------------------------------------------------------------------
 // Recipe expressions: AGITATE:1/BSTATUS = $phase_state:Complete
 
-type Tok = { t: 'num' | 'str' | 'ref' | 'set' | 'op' | 'word'; v: string }
-function tokenize(src: string): Tok[] | string {
+type Tok = { t: 'num' | 'str' | 'ref' | 'uref' | 'set' | 'op' | 'word'; v: string }
+function tokenize(raw: string): Tok[] | string {
   const out: Tok[] = []
-  const re = /\s*(?:(\d+(?:\.\d+)?)|(\$[A-Za-z_]\w*:[A-Za-z_]\w*)|([A-Za-z_]\w*:\d+\/[A-Za-z_]\w*)|([A-Za-z_]\w*)|(<=|>=|<>|!=|=|<|>|\(|\)))/y
+  // The slides quote references and named-set values ('AGITATE:1/BSTATUS' = '$phase_state:Complete'); the quotes are optional here.
+  const src = raw.replace(/'/g, ' ')
+  const re = /\s*(?:(\d+(?:\.\d+)?)|(\$[A-Za-z_]\w*:[A-Za-z_]\w*)|([A-Za-z_]\w*:\d+\/[A-Za-z_]\w*)|([A-Za-z_]\w*\/[A-Za-z_]\w*)|([A-Za-z_]\w*)|(<=|>=|<>|!=|=|<|>|\(|\)))/y
   let i = 0
   while (i < src.length) {
     re.lastIndex = i
@@ -293,13 +299,15 @@ function tokenize(src: string): Tok[] | string {
     if (m[1] !== undefined) out.push({ t: 'num', v: m[1] })
     else if (m[2] !== undefined) out.push({ t: 'set', v: m[2] })
     else if (m[3] !== undefined) out.push({ t: 'ref', v: m[3] })
-    else if (m[4] !== undefined) out.push({ t: 'word', v: m[4].toUpperCase() })
-    else if (m[5] !== undefined) out.push({ t: 'op', v: m[5] })
+    else if (m[4] !== undefined) out.push({ t: 'uref', v: m[4] })
+    else if (m[5] !== undefined) out.push({ t: 'word', v: m[5].toUpperCase() })
+    else if (m[6] !== undefined) out.push({ t: 'op', v: m[6] })
   }
   return out
 }
 type V = number | string | boolean | undefined
-export function evalRecipeExpr(src: string, read: (step: string, param: string) => V): V | { error: string } {
+/** `read` answers STEP:n/PARAM references; `readUnit` answers UNITCLASS/PARAM (a Unit Parameter Definition, slide 12-18). */
+export function evalRecipeExpr(src: string, read: (step: string, param: string) => V, readUnit?: (unitClass: string, param: string) => V): V | { error: string } {
   const toks = tokenize(src)
   if (typeof toks === 'string') return { error: toks }
   let p = 0
@@ -312,6 +320,7 @@ export function evalRecipeExpr(src: string, read: (step: string, param: string) 
     if (t.t === 'num') return Number(t.v)
     if (t.t === 'set') return t.v.split(':')[1]
     if (t.t === 'ref') { const [step, param] = t.v.split('/'); return read(step, param.toUpperCase()) }
+    if (t.t === 'uref') { const [cls, param] = t.v.split('/'); return readUnit ? readUnit(cls.toUpperCase(), param.toUpperCase()) : 0 }
     if (t.t === 'word') { if (t.v === 'TRUE') return true; if (t.v === 'FALSE') return false; throw new Error(`Unknown word ${t.v}`) }
     if (t.v === '(') { const v = or(); if (toks[p++]?.v !== ')') throw new Error('Missing )'); return v }
     throw new Error(`Unexpected ${t.v}`)
@@ -344,7 +353,13 @@ export function checkRecipeExpr(src: string, steps: RecipeStep[]): string[] {
   const stepNames = new Set(steps.map(s => s.name.toUpperCase()))
   const missing = [...src.matchAll(/([A-Za-z_]\w*:\d+)\/[A-Za-z_]\w*/g)].map(m => m[1]).filter(n => !stepNames.has(n.toUpperCase()))
   if (missing.length) return [`${missing[0]} is not a step of this recipe`]
-  const r = evalRecipeExpr(src, () => 0)
+  const classes = useBatch.getState().unitClasses
+  for (const m of src.matchAll(/(?<![\w:])([A-Za-z_]\w*)\/([A-Za-z_]\w*)/g)) {
+    const [, cls, param] = m
+    if (!classes[cls.toUpperCase()]) return [`${cls} is not a unit class`]
+    if (!classes[cls.toUpperCase()].params?.[param.toUpperCase()]) return [`${param} is not a Unit Parameter Definition of ${cls.toUpperCase()}`]
+  }
+  const r = evalRecipeExpr(src, () => 0, () => 0)
   return typeof r === 'object' && r !== null && 'error' in r ? [r.error] : []
 }
 
@@ -425,6 +440,10 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
       if (param === 'BSTATUS') return STATE_LABEL[a.rt.state]
       const v = a.rt.params[param]
       return typeof v === 'boolean' ? v : (v as number | string | undefined)
+    }, (unitClass, param) => {
+      const unit = unitOf(b, r)
+      const u = useBatch.getState().units[unit]
+      return u && u.unitClass === unitClass ? unitParamValue(unit, param) : undefined
     })
     if (typeof res === 'object' && res !== null && 'error' in res) {
       patchBatch(b.id, { failure: `Transition expression error: ${res.error}`, state: 'HELD' })
@@ -866,6 +885,12 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
         for (const e of checkRecipeExpr(r.transitions[i + 1]?.condition ?? '', r.steps)) errors.push(`Transition ${r.transitions[i + 1]?.name ?? i + 1}: ${e}`)
       }
       for (const p of Object.values(r.params)) if (!r.steps.some(s => s.name === p.step)) errors.push(`Recipe parameter ${p.name} refers to the missing step ${p.step}`)
+      for (const br of r.branches ?? []) {
+        const from = r.steps.findIndex(s => s.name === br.from), to = r.steps.findIndex(s => s.name === br.to)
+        if (from < 0 || to < 0) errors.push(`Transition ${br.name}: ${from < 0 ? br.from : br.to} is not a step`)
+        else if (to > from) errors.push(`Transition ${br.name}: it connects to ${br.to}, which follows ${br.from}; a branch can only loop back`)
+        for (const e of checkRecipeExpr(br.condition, r.steps)) errors.push(`Transition ${br.name}: ${e}`)
+      }
       if (r.workInProgress) warnings.push('The recipe is marked Work in progress')
       if (!r.product.version.trim()) warnings.push('No version is set on the Product tab')
       if (!r.product.author.trim()) warnings.push('No author is set on the Product tab')
@@ -1203,6 +1228,17 @@ export const useExecutive = create<ExecutiveState>((set, get) => {
           continue
         }
         if (b.state !== 'RUNNING') continue
+        // Alternate transitions (slide 12-18) are checked first, in the order they were added.
+        const loop = (r.branches ?? []).filter(x => x.from.toUpperCase() === step.name.toUpperCase()).find(x => evalFor(b, r, x.condition))
+        if (loop) {
+          const back = r.steps.findIndex(s => s.name.toUpperCase() === loop.to.toUpperCase()) + 1
+          if (back < 1) { patchBatch(b.id, { state: 'HELD', failure: `Transition ${loop.name} connects to ${loop.to}, which is not a step of ${r.name}` }); journal('Failure', b.id, key, `Transition ${loop.name}: ${loop.to} is not a step`); continue }
+          unloadPhaseKey(key)
+          release(key)
+          journal('Event', b.id, key, `${key} complete; transition ${loop.name} returns ${b.id} to ${loop.to}`)
+          patchBatch(b.id, { pos: back, stage: 'acquire' })
+          continue
+        }
         if (evalFor(b, r, r.transitions[b.pos]?.condition || 'TRUE')) {
           unloadPhaseKey(key)
           release(key)

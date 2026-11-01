@@ -176,7 +176,7 @@ export function BatchClassTree({ cls, depth, sel, onSelect }: { cls: BatchClassK
         { label: 'Add ▸ Module Class...', onClick: () => { setOpen(o => ({ ...o, [`class:${name}`]: true })); ui.openDialog({ t: 'moduleBlock', unitClass: name, className: '' }) } },
         { label: 'Unused aliases...', onClick: () => window.alert(unusedAliases(name)) },
         sep,
-        { label: 'New ▸ Unit Parameter Definition', disabled: NOT_MODELED },
+        { label: 'New ▸ Unit Parameter Definition', onClick: () => ui.openDialog({ t: 'unitParam', unitClass: name }) },
         { label: 'New ▸ Alias', onClick: () => ui.openDialog({ t: 'newAlias', unitClass: name }) },
         ...common] : [
         { label: 'Explore', onClick: () => onSelect({ t: 'class', cls, name }) },
@@ -468,6 +468,11 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
         if (!uc) return <div className="exp-empty">Not found.</div>
         return pane(<ContentsList rows={[
           ...UNIT_CLASS_PARAMS.map(p => ({ key: p, icon: icon('param'), name: p, type: 'Unit parameter' })),
+          ...Object.values(uc.params ?? {}).map(p => ({ key: `up${p.name}`, icon: icon('param'), name: p.name, type: `Unit Parameter Definition (${p.type}, ${p.category})`, data: { 'data-unit-param': p.name },
+            onOpen: () => ui.openDialog({ t: 'unitParam', unitClass: uc.name, original: p.name }),
+            onContextMenu: (e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, label: p.name, items: [
+              { label: 'Properties', onClick: () => ui.openDialog({ t: 'unitParam', unitClass: uc.name, original: p.name }) },
+              { label: 'Delete', danger: true, onClick: () => alertResult(b.deleteUnitParam(uc.name, p.name)) }] }) })),
           ...Object.values(uc.modules ?? {}).map(m => ({ key: `m${m.name}`, icon: <ModuleIcon kind={m.kind === 'em' ? 'equipment' : 'control'} size={16} />, name: m.name,
             type: `Module block: ${m.className} (${m.ownership})`, data: { 'data-contents-block': m.name },
             onClick: () => onSelect({ t: 'ucBlock', unitClass: uc.name, name: m.name }), onOpen: () => onSelect({ t: 'ucBlock', unitClass: uc.name, name: m.name }) })),
@@ -487,7 +492,7 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
         ...COMPOSITES.map(c => ({ key: c, icon: icon('composite'), name: c, type: 'Composite (phase logic)', onOpen: () => openPhaseStudio(pc.name, c) })),
         ...SYSTEM_PHASE_PARAMS.map(([n]) => ({ key: n, icon: icon('param'), name: n, type: 'Phase parameter' })),
         ...user.map(p => ({ key: `u${p.name}`, icon: icon(p.kind === 'batch' ? (p.direction === 'Input' ? 'input' : 'report') : 'param'), name: p.name,
-          type: p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()} parameter (${p.group})` : p.kind === 'message' ? 'Phase message' : 'Phase algorithm parameter',
+          type: p.kind === 'batch' ? `Batch ${p.direction.toLowerCase()} parameter (${p.group})` : p.kind === 'message' ? 'Phase message' : p.type === 'Dynamic Reference' ? 'Phase algorithm parameter (Dynamic Reference)' : 'Phase algorithm parameter',
           data: { 'data-phase-param': p.name },
           onOpen: () => ui.openDialog({ t: 'param', phaseClass: pc.name, kind: p.kind, original: p.name }),
           onContextMenu: (e: React.MouseEvent) => setMenu({ x: e.clientX, y: e.clientY, label: p.name, items: [
@@ -523,6 +528,9 @@ export function BatchDetail({ sel, onSelect }: { sel: BatchSel; onSelect: (s: Ba
       return pane(<>
         <ContentsList rows={[
           ...UNIT_MODULE_PARAMS.map(p => ({ key: p, icon: icon('param'), name: p, type: 'Unit parameter' })),
+          ...Object.values(b.unitClasses[u.unitClass]?.params ?? {}).map(p => ({ key: `up${p.name}`, icon: icon('param'), name: p.name,
+            type: `Unit Parameter Definition (${p.type}) = ${String(b.unitParamValues[u.name]?.[p.name] ?? p.defaultValue)}`, data: { 'data-unit-param': p.name },
+            onOpen: () => ui.openDialog({ t: 'unitParam', unitClass: u.unitClass, original: p.name, unit: u.name }) })),
           ...Object.values(u.phases).map(ph => ({ key: `p${ph.name}`, icon: icon('uphase'), name: ph.name, type: `Unit Phase (${ph.phaseType})`, onOpen: () => onSelect({ t: 'uphase', unit: u.name, phase: ph.name }) })),
           { key: 'aliases', icon: icon('aliases'), name: 'Aliases', type: 'Aliases', onOpen: () => onSelect({ t: 'aliases', unit: u.name }) },
           ...Object.entries(b.contained).filter(([, x]) => x === u.name).map(([t]) => {

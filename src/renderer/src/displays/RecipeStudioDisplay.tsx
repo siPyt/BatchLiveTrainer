@@ -8,7 +8,7 @@ import { askConfirm } from '../components/AppNotices'
 import { alertResult } from '../components/LibraryExplorer'
 
 type Sel = { kind: 'step' | 'trans'; i: number } | null
-type Dlg = { t: 'step'; simul?: boolean } | { t: 'stepProps'; i: number } | { t: 'trans'; i: number } | { t: 'defer'; step: string; param: string } | { t: 'formula'; name: string | null } | { t: 'aliases' } | { t: 'links' } | null
+type Dlg = { t: 'step'; simul?: boolean } | { t: 'stepProps'; i: number } | { t: 'trans'; i: number } | { t: 'defer'; step: string; param: string } | { t: 'formula'; name: string | null } | { t: 'aliases' } | { t: 'links' } | { t: 'branches' } | null
 
 const Buttons = ({ onOk, onClose, disabled }: { onOk: () => void; onClose: () => void; disabled?: boolean }): JSX.Element =>
   <div className="dvd-buttons"><button className="tbtn sm" disabled={disabled} onClick={onOk}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
@@ -245,6 +245,42 @@ function LinkGroupsDialog({ name, onClose }: { name: string; onClose: () => void
   </SimulatorDialog>
 }
 
+/** Operation > Add Branch Transition (slide 12-18): an alternate transition after a step that loops back to an earlier step. */
+function BranchesDialog({ name, onClose }: { name: string; onClose: () => void }): JSX.Element {
+  const recipe = useExecutive(s => s.drafts[name] ?? s.recipes[name])
+  const [from, setFrom] = useState(recipe?.steps[0]?.name ?? '')
+  const [to, setTo] = useState(recipe?.steps[0]?.name ?? '')
+  const [bn, setBn] = useState('')
+  const [cond, setCond] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  if (!recipe) return <></>
+  const branches = recipe.branches ?? []
+  const add = (): void => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_]*$/.test(bn)) { setError('Transition names use letters, digits and underscores'); return }
+    if (recipe.transitions.some(t => t.name.toUpperCase() === bn.toUpperCase()) || branches.some(b => b.name.toUpperCase() === bn.toUpperCase())) { setError(`The name ${bn} is already used by another transition`); return }
+    const fi = recipe.steps.findIndex(s => s.name === from), ti = recipe.steps.findIndex(s => s.name === to)
+    if (fi < 0 || ti < 0) { setError('Choose the step the branch leaves and the step it connects to'); return }
+    if (ti > fi) { setError('A branch can only loop back to the same step or an earlier one'); return }
+    const errs = checkRecipeExpr(cond, recipe.steps)
+    if (errs.length) { setError(errs[0]); return }
+    const r = useExecutive.getState().editDraft(name, d => { d.branches = [...(d.branches ?? []), { name: bn, from, to, condition: cond }] })
+    if (r.ok) { setBn(''); setCond(''); setError(null) } else setError(r.error)
+  }
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide ps-action-dialog" label="Branch Transitions" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <ul aria-label="Branch transitions">{branches.map(b => <li key={b.name} data-branch={b.name}>{b.name}: after {b.from} &rarr; {b.to} when {b.condition}{' '}
+        <button className="tbtn sm" onClick={() => useExecutive.getState().editDraft(name, d => { d.branches = (d.branches ?? []).filter(x => x.name !== b.name) })}>Remove</button></li>)}</ul>
+      {!branches.length && <p className="exp-hint">No branch transitions. The trunk transition after a step is the one on the diagram; a branch is checked first and sends the recipe back to run an earlier step again.</p>}
+      <label>Branch after step:<select aria-label="Branch from step" value={from} onChange={e => setFrom(e.target.value)}>{recipe.steps.map(s => <option key={s.name}>{s.name}</option>)}</select></label>
+      <label>Connect to step:<select aria-label="Branch connect to" value={to} onChange={e => setTo(e.target.value)}>{recipe.steps.map(s => <option key={s.name}>{s.name}</option>)}</select></label>
+      <label>Transition name:<input aria-label="Branch transition name" value={bn} onChange={e => setBn(e.target.value.toUpperCase())} /></label>
+      <label>Expression:<textarea aria-label="Branch expression" rows={3} value={cond} onChange={e => setCond(e.target.value)} /></label>
+      <button className="tbtn sm" onClick={add}>Add Branch</button>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={onClose}>Close</button></div><Err error={error} />
+  </SimulatorDialog>
+}
+
 function FormulaDialog({ name, formula, onClose }: { name: string; formula: string | null; onClose: () => void }): JSX.Element {
   const recipe = useExecutive(s => s.drafts[name] ?? s.recipes[name])
   const params = Object.values(recipe?.params ?? {})
@@ -326,6 +362,7 @@ export function RecipeStudioDisplay(): JSX.Element {
       if (alone) d.transitions.splice(gi + 1, 1)
       else d.transitions[gi + 1].condition = d.transitions[gi + 1].condition.split(' AND ').filter(t => !t.startsWith(`${stepName}/`)).join(' AND ') || 'TRUE'
       for (const [k, p] of Object.entries(d.params)) if (p.step === stepName) delete d.params[k]
+      if (d.branches) d.branches = d.branches.filter(b => b.from !== stepName && b.to !== stepName)
     })
     setSel(null)
   }
@@ -340,6 +377,7 @@ export function RecipeStudioDisplay(): JSX.Element {
       <button className="tbtn sm" onClick={props}>Step Properties...</button>
       <button className="tbtn sm" onClick={() => useExecUi.getState().openDialog({ t: 'recipeProps', name })}>Recipe Properties...</button>
       {r.level !== 'Procedure' && <button className="tbtn sm" onClick={() => useExecUi.getState().openDialog({ t: 'recipeProps', name, tab: 'Equipment' })}>Equipment...</button>}
+      {r.level === 'Operation' && <button className="tbtn sm" onClick={() => setDlg({ t: 'branches' })}>Add Branch Transition...</button>}
       {r.level === 'Procedure' && <button className="tbtn sm" onClick={() => setDlg({ t: 'aliases' })}>Unit Aliases...</button>}
       {r.level === 'Procedure' && <button className="tbtn sm" onClick={() => setDlg({ t: 'links' })}>Link Groups...</button>}
       <button className="tbtn sm" onClick={() => setDlg({ t: 'formula', name: null })}>New Formula...</button>
@@ -355,6 +393,8 @@ export function RecipeStudioDisplay(): JSX.Element {
             {groups[i].map(n => <div key={n} className={`rs-step${sel?.kind === 'step' && sel.i === n ? ' on' : ''}`} data-rstep={r.steps[n - 1].name}
               onClick={() => setSel({ kind: 'step', i: n })} onDoubleClick={() => setDlg({ t: 'stepProps', i: n })}>{r.steps[n - 1].name}
               {r.steps[n - 1].unitAlias && <small> #{r.steps[n - 1].unitAlias}#</small>}</div>)}</div>}
+          {i < groups.length && (r.branches ?? []).filter(b => groups[i].some(n => r.steps[n - 1].name === b.from)).map(b => <div key={b.name} className="rs-trans rs-branch" data-rbranch={b.name}>
+            <span className="rs-bar" /><span className="rs-tname">&#8635; {b.name}</span><span className="rs-texpr">{b.condition} &rarr; {b.to}</span></div>)}
         </div>)}
       </div>
       <div className="rs-side">
@@ -379,5 +419,6 @@ export function RecipeStudioDisplay(): JSX.Element {
     {dlg?.t === 'formula' && <FormulaDialog name={name} formula={dlg.name} onClose={close} />}
     {dlg?.t === 'aliases' && <AliasesDialog name={name} onClose={close} />}
     {dlg?.t === 'links' && <LinkGroupsDialog name={name} onClose={close} />}
+    {dlg?.t === 'branches' && <BranchesDialog name={name} onClose={close} />}
   </div>
 }

@@ -6,7 +6,7 @@ import { useStore } from '../engine/store'
 import { useLibrary } from '../engine/libraryStore'
 import { useBatch, aliasesResolved, moduleParamNames, arbitrationState, currentOwners, type UploadRow } from '../engine/batchStore'
 import { ARB_MAX_ID, ARB_MAX_OWNERS, type ArbConfig } from '../engine/arbitration'
-import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType } from '../engine/batchConfig'
+import { newParam, type PhaseParamDef, type PhaseParamKind, type AliasResolution, type PhaseType, type UnitParamType } from '../engine/batchConfig'
 import { PHASE_IMPORT_FILES } from '../engine/course7016Imports'
 import { CM_DEVICE_CLASSES, EM_ALGORITHMS, EM_ALGORITHM_NOTE, SUPPORTED_EM_ALGORITHMS, useEm, type EmAlgorithm } from '../engine/emStore'
 import { askConfirm } from './AppNotices'
@@ -105,6 +105,48 @@ export function NewAliasDialog({ unitClass, onClose }: { unitClass: string; onCl
 }
 
 /** Resolving Aliases (p4-26): Alias dialog on a unit module. */
+/** Unit class New ▸ Unit Parameter Definition (slide 12-8); with `unit` it edits that unit module's value only. */
+export function UnitParamDialog({ unitClass, original, unit, onClose }: { unitClass: string; original?: string; unit?: string; onClose: () => void }): JSX.Element {
+  const existing = useBatch(s => (original ? s.unitClasses[unitClass]?.params?.[original] : undefined))
+  const current = useBatch(s => (unit && original ? (s.unitParamValues[unit]?.[original] ?? s.unitClasses[unitClass]?.params?.[original]?.defaultValue) : undefined))
+  const unitClasses = useBatch(s => s.unitClasses)
+  const categories = Array.from(new Set(['Operating', 'Report', ...Object.values(unitClasses).flatMap(u => Object.values(u.params ?? {}).map(p => p.category))]))
+  const [name, setName] = useState(original ?? 'PARAM1')
+  const [type, setType] = useState<UnitParamType>(existing?.type ?? 'Boolean')
+  const [category, setCategory] = useState(existing?.category ?? 'Operating')
+  const [val, setVal] = useState<string>(String(current ?? existing?.defaultValue ?? (type === 'Boolean' ? 'false' : '0')))
+  const [error, setError] = useState<string | null>(null)
+  const submit = (): void => {
+    const r = unit && original ? useBatch.getState().setUnitParamValue(unit, original, type === 'Boolean' ? val === 'true' : type === 'String' ? val : Number(val))
+      : useBatch.getState().saveUnitParam(unitClass, { name, type, category, defaultValue: type === 'Boolean' ? val === 'true' : type === 'String' ? val : val }, original)
+    if (r.ok) onClose()
+    else setError(r.error)
+  }
+  const fixed = !!unit
+  return <SimulatorDialog className="module-download-dialog dvd" label={`${original ?? name} Properties`} onClose={onClose}>
+    <div className="dvd-split">
+      <div className="lib-dlg-fields">
+        <label>Parameter name:<input aria-label="Unit parameter name" autoFocus={!fixed} value={name} disabled={fixed} onChange={e => setName(e.target.value.toUpperCase())} /></label>
+        <label>Parameter type:<select aria-label="Unit parameter type" value={type} disabled={fixed} onChange={e => { const t = e.target.value as UnitParamType; setType(t); setVal(t === 'Boolean' ? 'false' : t === 'String' ? '' : '0') }}>
+          {(['Boolean', 'Integer', 'Real', 'String'] as UnitParamType[]).map(t => <option key={t}>{t}</option>)}</select></label>
+        <label>Parameter category:<input aria-label="Unit parameter category" list="dvd-uparam-cats" value={category} disabled={fixed} onChange={e => setCategory(e.target.value)} /></label>
+        <datalist id="dvd-uparam-cats">{categories.map(c => <option key={c} value={c} />)}</datalist>
+        <fieldset className="lib-dlg-props"><legend>Value</legend>
+          {type === 'Boolean'
+            ? <div className="dvd-radio-row">
+              <label className="dvd-radio"><input type="radio" name="unit-param-bool" aria-label="False" checked={val !== 'true'} onChange={() => setVal('false')} /> False</label>
+              <label className="dvd-radio"><input type="radio" name="unit-param-bool" aria-label="True" checked={val === 'true'} onChange={() => setVal('true')} /> True</label></div>
+            : <label>{unit ? 'Value' : 'Default value'}:<input aria-label="Unit parameter value" value={val} onChange={e => setVal(e.target.value)} /></label>}
+        </fieldset>
+        <p className="exp-hint">{unit ? `The value on unit module ${unit}.` : `A parameter of every ${unitClass} unit module. Phase logic writes it as '//^/UNIT.CV/${name || 'NAME'}' (the unit in use); a recipe transition reads it as '${unitClass}/${name || 'NAME'}'.`}</p>
+      </div>
+      <div className="lib-dlg-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+    </div>
+    <Err error={error} />
+  </SimulatorDialog>
+}
+
+/** Resolving Aliases (p4-26): Alias dialog on a unit module. */
 /** Alias Browse... (p4-48): drill down module ▸ function block ▸ parameter ▸ field, as in the DeltaV browser. */
 type PathNode = { key: string; label: string; children: PathNode[]; pickable: boolean }
 export function aliasPathTree(): PathNode[] {
@@ -196,11 +238,13 @@ export function PhaseParamDialog({ phaseClass, kind, original, onClose }: { phas
   const [error, setError] = useState<string | null>(null)
   const groups = Array.from(new Set(['Operating', 'Report', ...Object.values(params).map(p => p.group)]))
   const submit = (): void => {
-    const r = useBatch.getState().savePhaseParam(phaseClass, { ...d, kind: d.kind, defaultValue: d.type === 'String' ? String(d.defaultValue) : Number(d.defaultValue) }, original)
+    const dynamic = d.type === 'Dynamic Reference'
+    const r = useBatch.getState().savePhaseParam(phaseClass, { ...d, kind: d.kind, defaultValue: dynamic || d.type === 'String' ? (dynamic ? '' : String(d.defaultValue)) : Number(d.defaultValue) }, original)
     if (r.ok) onClose()
     else setError(r.error)
   }
-  const numeric = d.type !== 'String'
+  const dynamic = d.type === 'Dynamic Reference'
+  const numeric = d.type !== 'String' && !dynamic
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label={`${original ?? d.name} Properties`} onClose={onClose}>
     <div className="dvd-split">
       <div className="lib-dlg-fields">
@@ -208,8 +252,8 @@ export function PhaseParamDialog({ phaseClass, kind, original, onClose }: { phas
         <label>Parameter category:<input aria-label="Parameter category" list="dvd-param-groups" value={d.group} onChange={e => setD({ ...d, group: e.target.value })} /></label>
         <datalist id="dvd-param-groups">{groups.map(g => <option key={g} value={g} />)}</datalist>
         <div className="dvd-inline">
-          <label>Type:<select aria-label="Parameter type" value={d.type} disabled={kind === 'message'} onChange={e => setD({ ...d, type: e.target.value as PhaseParamDef['type'], defaultValue: e.target.value === 'String' ? '' : 0 })}>
-            <option>Integer</option><option>Real</option><option>String</option></select></label>
+          <label>Type:<select aria-label="Parameter type" value={d.type} disabled={kind === 'message'} onChange={e => setD({ ...d, type: e.target.value as PhaseParamDef['type'], defaultValue: e.target.value === 'String' || e.target.value === 'Dynamic Reference' ? '' : 0 })}>
+            <option>Integer</option><option>Real</option><option>String</option>{kind === 'algorithm' && <option>Dynamic Reference</option>}</select></label>
           {kind === 'batch' && <label>Category:<select aria-label="Parameter direction" value={d.direction} onChange={e => setD({ ...d, direction: e.target.value as 'Input' | 'Report' })}>
             <option>Input</option><option>Report</option></select></label>}
           <label>ID:<input aria-label="Parameter ID" type="number" min={1} value={d.id} onChange={e => setD({ ...d, id: Number(e.target.value) })} /></label>
@@ -223,7 +267,7 @@ export function PhaseParamDialog({ phaseClass, kind, original, onClose }: { phas
               onChange={e => setD({ ...d, defaultValue: Number(e.target.value) })} /></label>
             <span>&lt;=</span>
             <label>High limit:<input aria-label="High limit" type="number" value={d.high} onChange={e => setD({ ...d, high: Number(e.target.value) })} /></label>
-          </div> : <label>Default value:<input aria-label="Default value" value={String(d.defaultValue)} onChange={e => setD({ ...d, defaultValue: e.target.value })} /></label>}
+          </div> : dynamic ? <p className="exp-hint">A Dynamic Reference has no value of its own: the phase logic sets its path at run time with '^/{d.name}.$REF', waits for '^/{d.name}.CST' = 0 (resolved) and then reads or writes '^/{d.name}.CV' (or .TARGET, .ACTUAL). ST and AWST report the last status.</p> : <label>Default value:<input aria-label="Default value" value={String(d.defaultValue)} onChange={e => setD({ ...d, defaultValue: e.target.value })} /></label>}
           {numeric && <label>Engineering units:<input aria-label="Engineering units" list="dvd-eu" value={d.units} onChange={e => setD({ ...d, units: e.target.value })} /></label>}
           <datalist id="dvd-eu">{['gal', 'GPM', '%', 'degC', 'degF', 'kg', 'lb', 'min', 'sec', 's'].map(u => <option key={u} value={u} />)}</datalist>
         </fieldset>
@@ -495,6 +539,7 @@ export function BatchDialogHost(): JSX.Element | null {
     case 'newCmClass': return <NewCmClassDialog category={d.category} onClose={close} />
     case 'blockProps': return <BlockPropsDialog unit={d.unit} block={d.block} onClose={close} />
     case 'newAlias': return <NewAliasDialog unitClass={d.unitClass} onClose={close} />
+    case 'unitParam': return <UnitParamDialog unitClass={d.unitClass} original={d.original} unit={d.unit} onClose={close} />
     case 'alias': return <AliasResolveDialog unit={d.unit} alias={d.alias} onClose={close} />
     case 'param': return <PhaseParamDialog phaseClass={d.phaseClass} kind={d.kind} original={d.original} onClose={close} />
     case 'unitProps': return <UnitModulePropsDialog unit={d.unit} initialTab={d.tab} onClose={close} />

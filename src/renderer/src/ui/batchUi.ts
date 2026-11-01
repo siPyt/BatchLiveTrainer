@@ -7,6 +7,7 @@ export type BatchDialog =
   | { t: 'importPhase' }
   | { t: 'newResource'; cell: string }
   | { t: 'newAlias'; unitClass: string }
+  | { t: 'unitParam'; unitClass: string; original?: string; unit?: string }
   | { t: 'alias'; unit: string; alias: string }
   | { t: 'param'; phaseClass: string; kind: PhaseParamKind; original?: string }
   | { t: 'unitProps'; unit: string; tab?: string }

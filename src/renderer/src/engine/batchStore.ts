@@ -10,10 +10,10 @@ import {
   type EmInstance
 } from './emStore'
 import {
-  COMPOSITES, COMMAND_LABEL, NAME_RULE, STATE_LABEL, SYSTEM_PHASE_PARAMS, commandPhase, isNameValid, newPhaseClass, newRuntime, paramDefError,
+  COMPOSITES, COMMAND_LABEL, NAME_RULE, STATE_LABEL, SYSTEM_PHASE_PARAMS, UNIT_CLASS_PARAMS, UNIT_MODULE_PARAMS, commandPhase, dynamicDefaults, isNameValid, newPhaseClass, newRuntime, paramDefError,
   stepIndex, stepPhase, phaseHasFailure, type AliasDef, type AliasResolution, type BatchCategory, type BatchClassKind, type CompositeName,
   type PhaseClass, type PhaseCommand, type PhaseParamDef, type PhaseRuntime, type PhaseSfc, type ProcessCell, type ProcessCellClass,
-  type UnitClass, type UnitModule, type UnitPhaseConfig
+  type UnitClass, type UnitModule, type UnitParamDef, type UnitPhaseConfig
 } from './batchConfig'
 import type { AnyModule } from './types'
 import { phaseBlockDefaults } from './phaseBlocks'
@@ -61,6 +61,8 @@ interface BatchState {
   arbitration: Record<string, ArbConfig>
   arbDeployed: Record<string, ArbDeployed>
   arbOwners: OwnerTable
+  /** Chapter 12: the value of each Unit Parameter Definition on each unit module (the definition's default until written). */
+  unitParamValues: Record<string, Record<string, boolean | number | string>>
 
   resetBatch: () => void
 
@@ -81,6 +83,11 @@ interface BatchState {
   deleteAlias: (unitClass: string, name: string) => Result<string>
   assignPhaseClass: (unitClass: string, phaseClass: string) => Result<string>
   removePhaseClass: (unitClass: string, phaseClass: string) => Result<string>
+  /** Unit class New ▸ Unit Parameter Definition (slide 12-8); `original` edits an existing definition. */
+  saveUnitParam: (unitClass: string, def: UnitParamDef, original?: string) => Result<string>
+  deleteUnitParam: (unitClass: string, name: string) => Result<string>
+  /** Writes one unit module's value of a Unit Parameter Definition. */
+  setUnitParamValue: (unit: string, name: string, value: boolean | number | string) => Result<string>
 
   savePhaseParam: (phaseClass: string, def: PhaseParamDef, original?: string) => Result<string>
   deletePhaseParam: (phaseClass: string, name: string) => Result<string>
@@ -156,9 +163,9 @@ function defaultCategories(): Record<string, BatchCategory> {
 }
 
 const empty = (): Pick<BatchState, 'categories' | 'pcellClasses' | 'unitClasses' | 'phaseClasses' | 'phaseDrafts' | 'processCells' | 'units' |
-  'contained' | 'cellMembers' | 'unitAssignments' | 'deployedUnits' | 'active' | 'dc' | 'arbitration' | 'arbDeployed' | 'arbOwners'> => ({
+  'contained' | 'cellMembers' | 'unitAssignments' | 'deployedUnits' | 'active' | 'dc' | 'arbitration' | 'arbDeployed' | 'arbOwners' | 'unitParamValues'> => ({
   categories: defaultCategories(), pcellClasses: {}, unitClasses: {}, phaseClasses: {}, phaseDrafts: {}, processCells: {}, units: {},
-  contained: {}, cellMembers: {}, unitAssignments: {}, deployedUnits: {}, active: {}, dc: {}, arbitration: {}, arbDeployed: {}, arbOwners: {}
+  contained: {}, cellMembers: {}, unitAssignments: {}, deployedUnits: {}, active: {}, dc: {}, arbitration: {}, arbDeployed: {}, arbOwners: {}, unitParamValues: {}
 })
 
 function classes(s: BatchState, kind: BatchClassKind): Record<string, { name: string; category: string }> {
@@ -240,6 +247,36 @@ export function moduleParamNames(m: AnyModule | undefined, simParams?: string[],
   return ['PV.CV']
 }
 
+function coerceUnitParam(def: UnitParamDef, value: Value): boolean | number | string {
+  switch (def.type) {
+    case 'Boolean': {
+      if (typeof value === 'boolean') return value
+      if (typeof value === 'string') {
+        const u = value.trim().toUpperCase()
+        if (['TRUE', '1', 'YES'].includes(u)) return true
+        if (['FALSE', '0', 'NO'].includes(u)) return false
+        throw new EvalError(`${def.name} is Boolean: use TRUE or FALSE`)
+      }
+      return value !== 0
+    }
+    case 'String': return String(value)
+    default: {
+      const n = toNum(value)
+      if (!Number.isFinite(n)) throw new EvalError(`${def.name} needs a number`)
+      if (def.type === 'Integer' && !Number.isInteger(n)) throw new EvalError(`${def.name} is an Integer`)
+      return n
+    }
+  }
+}
+
+/** Value of a Unit Parameter Definition on a unit module (the definition's default until a phase or the operator writes it). */
+export function unitParamValue(unit: string, name: string): boolean | number | string | undefined {
+  const s = useBatch.getState()
+  const u = s.units[unit]
+  const def = u && s.unitClasses[u.unitClass]?.params?.[name]
+  return def ? (s.unitParamValues[unit]?.[name] ?? def.defaultValue) : undefined
+}
+
 function readModule(path: string): Value {
   const sp = splitModulePath(path)
   if (!sp) throw new EvalError(`'//${path}' does not name a parameter (MODULE/PARAMETER)`)
@@ -264,6 +301,9 @@ function readModule(path: string): Value {
       if (v === undefined) throw new EvalError(`${sp.module} has no parameter ${sp.param}`)
       return v
     }
+    const up = unitParamValue(sp.module, sp.param)
+    if (up !== undefined) return up
+    if (useBatch.getState().units[sp.module]) throw new EvalError(`${sp.module} has no unit parameter ${sp.param}`)
     throw new EvalError(`Module ${sp.module} does not exist`)
   }
   const p = sp.param
@@ -318,6 +358,11 @@ function writeModule(path: string, value: Value): void {
       }
       if (sp.param === 'A_ABT_ON_NEW_CMD') { const r = useEm.getState().setAbortOnNew(sp.module, toNum(value) !== 0 && String(value).toUpperCase() !== 'FALSE'); if (!r.ok) throw new EvalError(r.error); return }
       throw new EvalError(`${sp.module}/${sp.param} cannot be written`)
+    }
+    if (useBatch.getState().units[sp.module]) {
+      const r = useBatch.getState().setUnitParamValue(sp.module, sp.param, value)
+      if (!r.ok) throw new EvalError(r.error)
+      return
     }
     throw new EvalError(`Module ${sp.module} does not exist`)
   }
@@ -380,9 +425,11 @@ export function systemParam(a: ActivePhase, name: string): Value | undefined {
 
 function resolveAliases(path: string, unit: UnitModule): { path: string; ignored: boolean } {
   let ignored = false
-  const out = path.replace(/#([^#]+)#/g, (_, raw: string) => {
+  // ^/UNIT.CV and #UNIT# stand for the unit module the phase runs on (slide 12-12: "based on the unit in use").
+  const out = path.replace(/\^\/UNIT(?:\.CV)?/gi, unit.name).replace(/#([^#]+)#/g, (_, raw: string) => {
     const name = raw.toUpperCase()
     const res = unit.aliases[name]
+    if (!res && name === 'UNIT') return unit.name
     if (!res) throw new EvalError(`Alias #${name}# is not defined for unit ${unit.name}`)
     if (res.ignore) { ignored = true; return 'IGNORED' }
     if (!res.path.trim()) throw new EvalError(`Alias #${name}# is not resolved on ${unit.name}`)
@@ -429,7 +476,10 @@ function phaseEnv(key: string) {
     named: (set: string, state: string): number => namedValue(set, state,
       useStore.getState().namedSets.deployed[`CONTROLLER:${s().deployedUnits[a().unit].controller}`] ?? {}),
     log: (text: string): void => log(key, `LOGEVENT: ${text}`, 'BATCH'),
-    failed: (message: string): void => log(key, `Phase failure: ${message}`, 'DIAGNOSTIC')
+    failed: (message: string): void => log(key, `Phase failure: ${message}`, 'DIAGNOSTIC'),
+    resolves: (path: string): boolean => {
+      try { const r = resolveAliases(path, unit()); if (r.ignored) return false; readModule(r.path); return true } catch { return false }
+    }
   }
 }
 
@@ -476,19 +526,25 @@ export function phaseCheckEnv(phaseClass: string, draft?: PhaseClass, composite?
       if (c.k === 'ignore') return aliasPool.some(u => u.aliases[c.alias]) ? null : `Alias ${c.alias} is not defined in a unit class`
       if (c.k === 'internal') {
         if (pc && phaseInternalNames(pc).includes(c.name)) return null
+        if (write && pc?.params[c.name]?.type === 'Dynamic Reference' && ['ST', 'CST', 'AWST'].includes(c.field)) return `${c.name}.${c.field} is read-only; write ${c.name}.$REF to change the path`
         if (pc?.params[c.name]) return null
         if (SYSTEM_PHASE_PARAMS.some(([n]) => n === c.name))
           return write && ['BSTATUS', 'STATUS', 'STATE_TIME', 'OWNER', 'UNIT', 'WDOG_STATE'].includes(c.name) ? `${c.name} is read-only` : null
         return `${c.name} is not a parameter of phase class ${phaseClass}`
       }
 
-      const aliases = [...c.path.matchAll(/#([^#]+)#/g)].map(m => m[1].toUpperCase())
+      const aliases = [...c.path.matchAll(/#([^#]+)#/g)].map(m => m[1].toUpperCase()).filter(a => a !== 'UNIT')
       if (write) { const readOnly = readOnlyWriteError(c.path); if (readOnly) return readOnly }
+      const viaUnit = /(?:\^\/UNIT(?:\.CV)?|#UNIT#)\/([^/.]+)/i.exec(c.path)
+      if (viaUnit) {
+        const pname = viaUnit[1].toUpperCase()
+        return aliasPool.some(u => u.params?.[pname]) ? null : `${pname} is not a Unit Parameter Definition of ${owners.length ? owners.map(o => o.name).join(', ') : 'any unit class'}`
+      }
       for (const al of aliases) if (!aliasPool.some(u => u.aliases[al])) return `#${al}# is not an alias of ${owners.length ? owners.map(o => o.name).join(', ') : 'any unit class'}`
       if (aliases.length) return null
       const sp = splitModulePath(c.path)
       if (!sp) return `'${ref}' does not name a parameter (//MODULE/PARAMETER)`
-      const exists = !!useStore.getState().modules[sp.module] || !!useEm.getState().instances[sp.module] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === sp.module)
+      const exists = !!useStore.getState().modules[sp.module] || !!useEm.getState().instances[sp.module] || !!s.units[sp.module] || Object.keys(useLibrary.getState().sims).some(t => t.toUpperCase() === sp.module)
       return exists ? null : `Module ${sp.module} does not exist`
     },
     checkNamed: (set, state) => {
@@ -548,12 +604,14 @@ export function unitDownloadState(s: BatchState, name: string): UnitDownloadStat
 function initialParams(dep: UnitDeployment, phase: string): Record<string, Value> {
   const defs = dep.params[phase] ?? {}
   const cfg = dep.unit.phases[phase]?.paramValues ?? {}
-  return Object.fromEntries(Object.values(defs).filter(d => d.kind !== 'message').map(d => [d.name, cfg[d.name] ?? d.defaultValue]))
+  return Object.assign({}, ...Object.values(defs).filter(d => d.kind !== 'message').map(d =>
+    d.type === 'Dynamic Reference' ? dynamicDefaults(d.name) : { [d.name]: cfg[d.name] ?? d.defaultValue }))
 }
 
 /** Writable phase parameters: batch inputs and phase algorithm parameters (report parameters are written by the phase). */
 function checkParamValue(def: PhaseParamDef | undefined, param: string, phase: string, value: number | string): Result<number | string> {
   if (!def || def.kind === 'message') return fail(`${param} is not a writable parameter of ${phase}`)
+  if (def.type === 'Dynamic Reference') return fail(`${param} is a Dynamic Reference; its path is set by the phase logic ('^/${param}.$REF')`)
   if (def.kind === 'batch' && def.direction !== 'Input') return fail(`${param} is a report parameter; it is written by the phase`)
   if (def.type === 'String') return ok(String(value))
   const v = Number(value)
@@ -774,6 +832,64 @@ export const useBatch = create<BatchState>((set, get) => ({
     log(unitClass, `Phase class ${phaseClass} removed`)
     return ok(phaseClass)
   },
+  saveUnitParam: (unitClass, def, original) => {
+    const s = get()
+    const uc = s.unitClasses[unitClass]
+    if (!uc) return fail(`Unit class ${unitClass} does not exist`)
+    const name = def.name.trim().toUpperCase()
+    if (!isNameValid(name)) return fail(NAME_RULE)
+    if (UNIT_CLASS_PARAMS.includes(name) || UNIT_MODULE_PARAMS.includes(name)) return fail(`${name} is a system parameter of a unit`)
+    if (name !== original && uc.params?.[name]) return fail(`${name} already exists in ${unitClass}`)
+    if (name !== original && uc.aliases[name]) return fail(`${name} is already an alias of ${unitClass}`)
+    if (!def.category.trim()) return fail('Enter a parameter category')
+    let value: boolean | number | string = def.defaultValue
+    if (def.type === 'Boolean') value = value === true || String(value).toLowerCase() === 'true' || value === 1
+    else if (def.type === 'String') value = String(value)
+    else {
+      const n = Number(value)
+      if (String(value).trim() === '' || !Number.isFinite(n)) return fail(`The value of ${name} must be a number`)
+      if (def.type === 'Integer' && !Number.isInteger(n)) return fail(`${name} is an Integer: enter a whole number`)
+      value = n
+    }
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure unit class ${unitClass}`)) return fail('Requires the Can Configure key')
+    const params = { ...(uc.params ?? {}) }
+    if (original && original !== name) delete params[original]
+    params[name] = { name, type: def.type, category: def.category.trim(), defaultValue: value }
+    const values = Object.fromEntries(Object.entries(s.unitParamValues).map(([unit, vals]) => {
+      const key = original ?? name
+      if (s.units[unit]?.unitClass !== unitClass || !(key in vals)) return [unit, vals]
+      const next = { ...vals }
+      const old = next[key]
+      delete next[key]
+      next[name] = typeof old === typeof value ? old : value
+      return [unit, next]
+    }))
+    set({ unitClasses: { ...s.unitClasses, [unitClass]: { ...uc, params } }, unitParamValues: values })
+    log(unitClass, `Unit Parameter Definition ${name} (${def.type}) ${original ? 'changed' : 'created'}`)
+    return ok(name)
+  },
+  deleteUnitParam: (unitClass, name) => {
+    const s = get()
+    const uc = s.unitClasses[unitClass]
+    if (!uc?.params?.[name]) return fail(`${name} is not a Unit Parameter Definition of ${unitClass}`)
+    if (!requireUnlockedLock('CAN_CONFIGURE', `Configure unit class ${unitClass}`)) return fail('Requires the Can Configure key')
+    set({
+      unitClasses: { ...s.unitClasses, [unitClass]: { ...uc, params: withoutKeys(uc.params, [name]) } },
+      unitParamValues: Object.fromEntries(Object.entries(s.unitParamValues).map(([unit, vals]) => [unit, withoutKeys(vals, [name])]))
+    })
+    log(unitClass, `Unit Parameter Definition ${name} deleted`)
+    return ok(name)
+  },
+  setUnitParamValue: (unit, name, value) => {
+    const s = get()
+    const u = s.units[unit]
+    const def = u && s.unitClasses[u.unitClass]?.params?.[name]
+    if (!u || !def) return fail(`${unit} has no unit parameter ${name}`)
+    let v: boolean | number | string
+    try { v = coerceUnitParam(def, value) } catch (e) { return fail((e as Error).message) }
+    set({ unitParamValues: { ...s.unitParamValues, [unit]: { ...(s.unitParamValues[unit] ?? {}), [name]: v } } })
+    return ok(name)
+  },
 
   // ---- Phase parameters and logic -------------------------------------------
   savePhaseParam: (phaseClass, def, original) => {
@@ -937,6 +1053,7 @@ export const useBatch = create<BatchState>((set, get) => ({
     const assign = { ...s.unitAssignments }
     if (assign[name]) { assign[to] = assign[name]; delete assign[name] }
     set({ units, unitAssignments: assign, deployedUnits: withoutKeys(s.deployedUnits, [name]),
+      unitParamValues: Object.fromEntries(Object.entries(s.unitParamValues).map(([k, v]) => [k === name ? to : k, v])),
       contained: Object.fromEntries(Object.entries(s.contained).map(([k, u]) => [k, u === name ? to : u])) })
     useEm.setState(st => ({
       instances: Object.fromEntries(Object.entries(st.instances).map(([k, i]) => [k, i.unit === name ? { ...i, unit: to } : i])),
@@ -964,6 +1081,7 @@ export const useBatch = create<BatchState>((set, get) => ({
       useLibrary.setState(l => ({ assignments: withoutKeys(l.assignments, [...gone, ...emTags]) }))
     }
     set({ units: withoutKeys(s.units, [name]), unitAssignments: withoutKeys(s.unitAssignments, [name]), deployedUnits: withoutKeys(s.deployedUnits, [name]),
+      unitParamValues: withoutKeys(s.unitParamValues, [name]),
       contained: Object.fromEntries(Object.entries(s.contained).filter(([t, x]) => x !== name && !gone.includes(t) && !emTags.includes(t))),
       dc: withoutKeys(s.dc, gone) })
     log(name, `Unit Module deleted${gone.length || emTags.length ? `; its module instances ${[...emTags, ...gone].join(', ')} were deleted` : ''}; other contained modules returned to the plant area`)
