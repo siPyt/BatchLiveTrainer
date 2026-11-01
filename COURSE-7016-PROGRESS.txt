@@ -453,6 +453,8 @@ none pre-verified).
   Verify: 100 gal at 90 gpm on blender 500 (charged 99.2, RPT_FEED_AMNT 99.2, requests 4030 then 4230), both blenders
   together (500 got the header first, clearing 600's 4030 was refused with "BASE_HEADER is owned by UM_BL_500/CHG_BASE",
   600 acquired after 500 released, 39.8 and 38.5 gal of 40). The Workshops page shows all 15 steps Verified.
+  Second full pass ("go through chapter 9 again") from a freshly seeded Chapter 5 project: identical results (valve
+  IDs 1 and 2 because Chapter 8 was not in that project, same charge amounts, all 15 steps Verified).
 - tests/course7016-ch9.test.cjs: import contents and expression checks, header workshop, shared class and bindings (and
   the variant refusal), charges on both blenders with a scripted Batch Executive, accuracy at 30-100 gpm, header contention,
   all eight failures with recovery, Hold/Restart/Stop, checkers pending -> verified.
