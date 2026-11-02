@@ -530,6 +530,8 @@ slides; chapter 10 had gaps that are now closed:
   LINK_COLOR, assign / verify / download, batches of each formula, class-based renames, PRC_MIX_COLORS with unit aliasing
   and a deferred #BLENDER# bind prompt. Two passes (fresh profiles): Workshops page 24/24 Verified both times.
 - Fix found in the UI pass: the Link Groups dialog was taller than the window (OK off screen).
+- Files: engine/executive.ts (recipes, executive, hierarchical batches), displays/RecipeStudioDisplay.tsx, displays/BoiDisplay.tsx,
+  components/ExecutiveUi.tsx, engine/course7016Ch11Checks.ts / Ch11Workshops.ts, styles.css (.rs-linkgroups scroll cap).
 - tests/course7016-ch11.test.cjs: 8 tests.
 
 
@@ -546,6 +548,11 @@ slides; chapter 10 had gaps that are now closed:
   rows in the diagram. Two UI passes on fresh profiles: Workshops page 16/16 Verified both times.
 - Simplified / best reading: message REQUEST codes 3401 Boolean, 3202 Integer, 3303 Float, acquire 4020, release 4220;
   the slide hint "use the UNIT phase parameter" was interpreted as the //^/UNIT.CV/PARAM path (not confirmed on DeltaV).
+- Files: engine/batchConfig.ts (DYNAMIC_FIELDS, dynamicDefaults, UnitParamDef, stepPhase dynamic reads / writes),
+  engine/batchStore.ts (unitParamValues, save/delete/setUnitParamValue, readModule/writeModule, resolveAliases),
+  engine/phaseExpr.ts (SELSTR index form, *MODE*.TARGET typing), engine/executive.ts (branches, unit-class parameter tokens),
+  components/BatchDialogs.tsx (UnitParamDialog), components/BatchExplorer.tsx, displays/RecipeStudioDisplay.tsx (BranchesDialog),
+  engine/course7016Ch12Checks.ts / Ch12Workshops.ts.
 - tests/course7016-ch12.test.cjs: 9 tests (helper tests/helpers/course7016-ch12-spec.cjs).
 
 
@@ -564,6 +571,10 @@ slides; chapter 10 had gaps that are now closed:
 - Simplified: VC covers modules (configuration fields), phase classes, unit classes and recipes; displays are a flag only;
   Archive / Restore / CleanUp Database are disabled; function locks VC_* are not enforced; signers can approve without
   holding the lock; the Recipe Tools tab has no "Proceed with download..." boxes (the engine supports the option).
+- Files: engine/versionControl.ts, engine/vcHooks.ts, engine/course7016Ch13Checks.ts / Ch13Workshops.ts,
+  components/VersionControlUi.tsx, displays/SystemPreferencesDisplay.tsx, displays/ControlStudioDisplay.tsx (check-out prompt,
+  ribbon group), displays/ExplorerDisplay.tsx, components/ExecutiveUi.tsx, engine/store.ts (addInputParameter, gated),
+  engine/courseSave.ts (vc store persisted).
 - tests/course7016-ch13.test.cjs: 10 tests.
 
 
@@ -584,12 +595,17 @@ slides; chapter 10 had gaps that are now closed:
   remove from the BOI list, archive, folder and AutoBackup. Two passes: Workshops page 15/15 Verified both times.
 - Simplified: no real SQL databases or reports; trends use a fixed module list; the service must be running during the
   batch or nothing is collected.
+- Files: engine/batchHistorian.ts, engine/course7016Ch14Checks.ts / Ch14Workshops.ts, components/HistorianUi.tsx (Properties
+  dialog, useHistUi), displays/HistorianDisplays.tsx, components/LibraryExplorer.tsx (Batch Historian row menu),
+  displays/BatchManagerDisplay.tsx, engine/courseSave.ts (historian persisted), ui/uiStore.ts + displayNavigation.ts + uiSession.ts.
+- Not covered by the course workshops and not simulated: Batch Historian clients (Word / Access), batch reports and the
+  report scheduler (slides 14-52 .. 14-60).
 - tests/course7016-ch14.test.cjs: 5 tests.
 
 
 5J. CHAPTER 15 - CAMPAIGN MANAGER (pp 15-1 .. 15-39)  [added 2026-11-01]
 ---------------------------------------------------------------------------
-3 workshops / 15 live checks (course7016Ch15Workshops.ts, course7016Ch15Checks.ts; ids 7016-15a/b/c/o).
+3 workshops / 17 live checks (course7016Ch15Workshops.ts, course7016Ch15Checks.ts; ids 7016-15a/b/c/o).
 - engine/campaignManager.ts (store useCampaigns): Properties (enabled, node, auto-remove rules, Action Confirmation),
   Client Configuration (sequence length, hide completed, columns, colors, enabled actions), service Start/Stop (needs the
   Campaign Manager enabled and the Batch Executive RUNNING), Purge, campaigns with a base recipe / unit bindings / formula /
@@ -601,10 +617,60 @@ slides; chapter 10 had gaps that are now closed:
 - UI verification (from a Chapter 11 profile with class-based PRC_PAINT): enable and start, create InteriorLatex (2 batches,
   max 1 active, bind UM_BL_500 / UM_COLOR_100, Sky Blue), edit batch 2 (Baby Blue), add batch 3 (Navy Blue), comment, Auto
   Release, Auto Start (batch 1 Running, 2 Ready, 3 Defined), Manual, start / remove each batch, remove the campaign,
-  Client Configuration. Two passes: Workshops page 15/15 Verified both times.
+  Client Configuration. Two passes: Workshops page 15/15 Verified both times. Optional extras (f2.mjs: SetupTest with a setup
+  and a cleanup batch in Auto Start - setup ran first, the base batch waited, cleanup ran after the base batch completed;
+  then StopTest in Auto Release and Terminate Campaign, New Batch refused afterwards): both passes 17/17 Verified.
+  Plant note: after many batches the BASE 400 tank (LI-401) runs empty and CHG_BASE waits forever (a real plant would
+  need refilling): f2.mjs refills it by setting the library process bs400 level before the run.
+- Optional items (the course text has no workshop labelled "optional" in Chapters 11-15; these are the extra features the
+  slides describe): campaign comment, Auto Release, Properties / Client Configuration review (15o-1..3), setup and cleanup
+  batches (slide 15-25: "the setup batch is started first and the cleanup batch is started after all other batches in the
+  campaign have completed"; 15o-4) and Terminate Campaign (15o-5). Both new checks read the campaign journal; the creation
+  entry now also logs "Campaign X has setup batch ID (...) and cleanup batch ID (...)".
+- Files: engine/campaignManager.ts, engine/course7016Ch15Checks.ts / Ch15Workshops.ts, components/CampaignUi.tsx
+  (Properties and Client Configuration dialogs, useCampUi + CampaignDialogHost), displays/CampaignDisplay.tsx (operator
+  interface, Create Campaign / Edit Batch / Comment dialogs, RecipePicker), displays/BatchManagerDisplay.tsx (tab),
+  components/ExecutiveUi.tsx (Campaign Manager subsystem text), components/LibraryExplorer.tsx (Campaign Manager row menu).
 - Fix found in the UI pass: the operator display did not re-render when the Batch Executive batch states changed.
 - Simplified: scale is stored only (not applied inside the recipe); no campaign reports.
 - tests/course7016-ch15.test.cjs: 5 tests.
+
+
+5K. OPTIONAL WORKSHOPS AND EXTRAS - COVERAGE CHECK  [added 2026-11-01]
+---------------------------------------------------------------------------
+Asked: "make sure all optional workshops are done too". The course text (files/7016-all.txt) was searched for every
+"Optional", "Workshop" and "Task n." marker:
+- Chapters 8-10: the "Optional Exercise" pages (text lines 3517, 4134, 4140: Confirm/Verify prompts, electronic signature
+  on XV-501 MODE, AGITATE prompt with dynamic data) are built and Verified (section 5E2, ids 7016-10c / 10e, workshops
+  7016-ch10-confirm and 7016-ch10-esign).
+- Chapters 11-15: the text has no workshop labelled optional. Every numbered workshop step was compared with the checks:
+  11 (Operations, UP_BL_500, UP_COLOR_100, PRC_PAINT link group, PRC_PAINT, Verify Functionality, Recipe Formulas,
+  Class-based Recipe, Unit Aliasing, PRC_MIX_COLORS Formulas), 12 (Dynamic Reference, Verify Dynamic Reference),
+  13 (Enable, Show History / Differences / Rollback steps 1-18, Snapshot), 14 (Batch Historian steps 1-13, Archiving
+  steps 1-7), 15 (Campaign Manager steps 1-21): all covered.
+- Extras the slides describe and the trainer added as optional steps: 14d-1 folder, 14d-2 maintenance; 15o-1 comment,
+  15o-2 Auto Release, 15o-3 properties / client configuration, 15o-4 setup + cleanup batches, 15o-5 Terminate Campaign.
+- Still not simulated on purpose: batch reports / clients (Ch14), Version Control for Displays beyond a flag (Ch13),
+  Archive / Restore / CleanUp Database (Ch13).
+
+
+5L. HOW THE UI PASSES WERE RUN (for repeating them)  [added 2026-11-01]
+---------------------------------------------------------------------------
+Scripts are NOT in the repository (session folder files/pw14, files/pw15; Playwright-core + Edge headless, bypassCSP).
+- Dev server: npx vite --config bl-preview.vite.config.mjs  (port 5199; the config is local and excluded from git).
+- pw14/lib.mjs (open(profile), app(page, code) runs code inside the app with the live stores, auto-clicks the Confirm
+  Action gate), rs.mjs (dialog / Recipe Studio helpers), seed.mjs (through-Chapter-10 state via tests/helpers), runbatch.mjs,
+  h1..h5 (Ch11), w11.mjs (Workshops page checker, env WS_RE = title regex, TAG = screenshot tag).
+- pw15: c1-c3 (Ch12), d1-d2 (Ch13), e1 (Ch14), f1 (Ch15 workshop), f2 (Ch15 setup/cleanup + terminate).
+- Every pass uses a fresh Playwright profile directory (copy profile14d for Chapter 15: it already holds the class-based
+  PRC_PAINT with formulas Sky Blue / Baby Blue / Navy Blue). Course state autosaves to localStorage every 5 s.
+- Playwright gotchas: dialog[open] is the dialog selector; getByLabel is a substring match (use exact: true); close the
+  Explorer / Studio windows before switching displays; in branched SFC charts right-click [data-edge="A>B"] [data-transition]
+  rect; the Vite server must be restarted if it dies; a JSX syntax error shows as HTTP 500 and a blank app.
+- Lessons: typecheck does not catch a bare ">" in JSX text (use &gt;); editing a file with the edit tool must repeat any
+  trailing text of old_str in new_str; the DisplayId union in ui/uiStore.ts must keep its blank line before the next export
+  (tests/applications.test.cjs reads it with a regex); every new display needs an applications.ts catalogue entry and every
+  literal requireLock action needs a securityTargets.ts pattern.
 
 
 6. TESTS AND VERIFICATION
@@ -752,6 +818,17 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        checks, tests/course7016-ch10.test.cjs. See section 5E.
 - 2026-11-01  (this commit)  Chapter 10 fixes from the UI passes (Recipe Properties button, Phase Control state kept, no
                        spurious revision bump) and a second clean UI pass: all 46 steps Verified.
+- 2026-11-01  115eea1 / 5352d25 / 6ea28d7  (committed by the user from the working tree while Chapters 11-15 were being built)
+                       Chapters 11-13 engines, UI and workshops; Chapter 14 and 15 engines, checks and tests; Version Control UI;
+                       Historian and Campaign Manager dialogs and displays (first versions).
+- 2026-11-01  9e7633f  Chapters 14-15 finished: Workshops-page checks, catalogue entries (historian-admin, batch-history-view,
+                       campaign-manager), securityTargets pattern for "Add input parameter", courseSave stores (vc, historian,
+                       campaigns), JSX and DisplayId fixes, CampaignDisplay refresh, progress notes. Two UI passes each:
+                       Ch14 15/15, Ch15 15/15. npm test 875/876 (dv09-audit only). The GitKraken push tool timed out and plain
+                       git push has no credentials in the agent shell: push from VS Code / GitKraken if origin is behind.
+- 2026-11-01  (next commit)  Optional extras: Chapter 15 setup + cleanup batches and Terminate Campaign (checks 15o-4 / 15o-5,
+                       journal line "has setup batch ... and cleanup batch ..."), coverage check of every workshop and optional
+                       item (section 5K), UI-pass method (section 5L).
 - 2026-11-01  (uncommitted until the Chapter 15 pass was done, then one commit)  Chapters 8-10 page-by-page audit incl. the optional
                        workshops (Action Confirmation, Client Configuration, electronic signatures, Procedure as Table,
                        Unacknowledged Prompts); Chapter 11 (unit procedures, procedures, link groups, aliases, class-based
@@ -1163,7 +1240,8 @@ WHERE WE LEFT OFF (2026-11-01, Chapters 8-15 - latest, DONE):
 - Everything through Chapter 15 is built, tested and was walked through the real browser UI (Playwright against the Vite
   preview, port 5199). Chapters 8-10 were re-audited page by page (optional workshops included); Chapters 11, 12, 13, 14
   and 15 were each done twice from start to finish on fresh profiles and the Workshops page showed every step Verified
-  both times (Ch11 24/24, Ch12 16/16, Ch13 12/12, Ch14 15/15, Ch15 15/15).
+  both times (Ch11 24/24, Ch12 16/16, Ch13 12/12, Ch14 15/15, Ch15 17/17 including the optional setup / cleanup and
+  terminate steps).
 - Next candidates: the open items listed in sections 5F-5J (each section ends with "Simplified / not implemented").
   Nothing is known to be broken. The course PDFs/docx stay local (copyrighted, not in git).
 - Playwright scripts used for the passes are NOT in the repository (they live in the session folder): seed.mjs seeds the

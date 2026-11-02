@@ -149,6 +149,8 @@ export const useCampaigns = create<CampaignState>((set, get) => {
       if (c.cleanup) batches.push({ ...c.cleanup, id: idFor({ name }, seq), seq: seq++, kind: 'Cleanup', released: false, removed: false })
       set(s => ({ campaigns: { ...s.campaigns, [name]: { ...base, name, nBatches: c.nBatches, maxActive: c.maxActive, mode: 'Manual', terminated: false, createdAt: now(), setup: c.setup ?? null, cleanup: c.cleanup ?? null, batches, comments: [] } } }))
       log(name, `Campaign ${name} created with ${c.nBatches} batch(es) of ${c.recipe}; maximum active batches ${c.maxActive}; base formula ${c.formula || '(none)'}; units ${Object.values(c.bindings).join(', ') || '(none)'}`)
+      const sb = batches.find(b => b.kind === 'Setup'), cb = batches.find(b => b.kind === 'Cleanup')
+      if (sb || cb) log(name, `Campaign ${name} has setup batch ${sb?.id ?? '(none)'} (${sb?.recipe ?? '-'}) and cleanup batch ${cb?.id ?? '(none)'} (${cb?.recipe ?? '-'})`)
       return ok(name)
     },
     removeCampaign: name => {

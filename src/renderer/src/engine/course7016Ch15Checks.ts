@@ -17,6 +17,14 @@ export function checkCourse7016Ch15(c: Pick<CampaignState, 'enabled' | 'service'
   const editedFormula = (seq: string): string => edits.filter(m => m[2] === seq).map(m => m[3] ?? '').pop() ?? ''
   const batchLog = (suffix: string, re: RegExp): boolean => c.journal.some(j => j.campaign === name && new RegExp(`Batch ${name}_${suffix}.*${re.source}`).test(j.text))
   const removed = c.journal.filter(j => /removed from the Batch Executive/.test(j.text)).length
+  const setupOk = c.journal.some(j => {
+    const m = /^Campaign (\w+) has setup batch (\S+) \(.*\) and cleanup batch (\S+) \(/.exec(j.text)
+    if (!m || m[2] === '(none)' || m[3] === '(none)') return false
+    const startedAt = (id: string): number => c.journal.findIndex(x => x.text === `Batch ${id} started`)
+    const others = c.journal.map((x, i) => ({ x, i })).filter(({ x }) => x.campaign === m[1] && /^Batch \S+ started$/.test(x.text) && x.text !== `Batch ${m[2]} started` && x.text !== `Batch ${m[3]} started`)
+    const s = startedAt(m[2]), cl = startedAt(m[3])
+    return s >= 0 && cl >= 0 && others.length > 0 && others.every(({ i }) => i > s && i < cl)
+  })
   return [
     check('7016-15a-1', x.enabled && x.equipmentAt !== null, 'Step 1. The Batch Executive is enabled on this node and its equipment is downloaded'),
     check('7016-15a-2', x.service === 'RUNNING' || x.journal.some(j => /service started/.test(j.text)), 'Steps 2-3. The Batch Executive was started in the Batch Application Manager and the phases verified'),
@@ -32,6 +40,8 @@ export function checkCourse7016Ch15(c: Pick<CampaignState, 'enabled' | 'service'
     check('7016-15c-5', !!name && !live && text(/Campaign \w+ removed/), 'Step 20. The campaign was removed from the list after all its batches completed'),
     check('7016-15o-1', text(/Comment: /), 'Optional. A comment was added to the campaign'),
     check('7016-15o-2', text(/Auto Release/), 'Optional. The Auto Release mode was tried (batches are released but not started)'),
-    check('7016-15o-3', c.client.sequenceLength !== 2 || c.client.hideCompleted || c.autoRemove.manual.enabled || c.autoRemove.autoStart.enabled || c.autoRemove.autoRelease.enabled || text(/Client Configuration changed|properties changed/), 'Optional. The Campaign Manager properties or Client Configuration were reviewed or changed')
+    check('7016-15o-3', c.client.sequenceLength !== 2 || c.client.hideCompleted || c.autoRemove.manual.enabled || c.autoRemove.autoStart.enabled || c.autoRemove.autoRelease.enabled || text(/Client Configuration changed|properties changed/), 'Optional. The Campaign Manager properties or Client Configuration were reviewed or changed'),
+    check('7016-15o-4', setupOk, 'Optional (slide 15-25). A campaign with a setup and a cleanup batch ran: the setup batch started first and the cleanup batch started after every other batch'),
+    check('7016-15o-5', text(/^Campaign \w+ terminated/), 'Optional. A campaign was terminated (no more batches are released)')
   ]
 }

@@ -126,7 +126,7 @@ test('Chapter 15 workshop: edit batches, add a batch, Auto Start, then Manual an
   assert.equal(C().campaigns.InteriorLatex, undefined)
   const checks = checkCourse7016Ch15(C(), X())
   const pending = checks.filter(c => c.verdict !== 'verified').map(c => c.id)
-  assert.deepEqual(pending.filter(id => !/15o-2|15o-3|15a-2/.test(id)), [])
+  assert.deepEqual(pending.filter(id => !/15o-2|15o-3|15o-4|15o-5|15a-2/.test(id)), [])
 }))
 
 test('Chapter 15: Auto Release releases without starting; terminating stops further releases', () => fixture(() => {
@@ -136,6 +136,7 @@ test('Chapter 15: Auto Release releases without starting; terminating stops furt
   tick(3)
   assert.deepEqual(['_01', '_02', '_03'].map(s => state(`InteriorLatex${s}`)), ['Active - Ready', 'Active - Ready', 'Defined'], 'maximum active 1 plus one ready')
   value(C().terminateCampaign('InteriorLatex'))
+  assert.equal(checkCourse7016Ch15(C(), X()).find(c => c.id === '7016-15o-5').verdict, 'verified')
   assert.match(C().release('InteriorLatex', 'InteriorLatex_03').error, /terminated/)
   assert.match(C().setMode('InteriorLatex', 'Auto Start').error, /terminated/)
   assert.match(C().newBatch('InteriorLatex').error, /terminated/)
@@ -156,6 +157,9 @@ test('Chapter 15: setup and cleanup batches, auto remove, client configuration a
   until(() => C().campaigns.InteriorLatex.batches.every(b => b.released), 400000)
   until(() => C().campaigns.InteriorLatex.batches.every(b => b.removed), 800000)
   assert.deepEqual(C().campaigns.InteriorLatex.batches.map(b => state(b.id)), ['Complete', 'Complete', 'Complete'])
+  const verdict = id => checkCourse7016Ch15(C(), X()).find(c => c.id === id).verdict
+  assert.equal(verdict('7016-15o-4'), 'verified', 'setup first, cleanup last')
+  assert.equal(verdict('7016-15o-5'), 'pending')
   assert.equal(C().setClientConfig({ sequenceLength: 9 }).ok, false)
   value(C().setClientConfig({ sequenceLength: 3, hideCompleted: true }))
   create2()

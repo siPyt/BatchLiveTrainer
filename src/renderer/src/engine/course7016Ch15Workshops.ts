@@ -39,7 +39,9 @@ export const CHAPTER15: WModule = {
       steps: [
         { id: '7016-15o-1', text: 'Add a comment to a campaign.', goto: 'campaigns' },
         { id: '7016-15o-2', text: 'Try the Auto Release mode.', goto: 'campaigns' },
-        { id: '7016-15o-3', text: 'Review or change the Campaign Manager Properties or Client Configuration.', goto: 'explorer' }
+        { id: '7016-15o-3', text: 'Review or change the Campaign Manager Properties or Client Configuration.', goto: 'explorer' },
+        { id: '7016-15o-4', text: 'Slide 15-25. Create a campaign with a setup batch and a cleanup batch (Create Campaign: Setup batch / Cleanup batch); in Auto Start the setup batch runs first and the cleanup batch last.', goto: 'campaigns' },
+        { id: '7016-15o-5', text: 'Terminate a campaign: no further batches are released.', goto: 'campaigns' }
       ]
     }
   ]
