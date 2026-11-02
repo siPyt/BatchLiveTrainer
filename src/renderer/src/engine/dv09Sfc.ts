@@ -103,6 +103,17 @@ export function downloadSfc(name: string): string | null {
   return null
 }
 
+/** The Expression Assistant Browser picked a path: kept with the SFC (and journaled) for the Parameter Paths workshop. */
+export function recordBrowse(name: string, path: string): void {
+  const clean = path.replace(/^'/, '').replace(/'$/, '')
+  useStore.setState(st => {
+    const lifecycle = st.sfcLifecycle[name]
+    if (!lifecycle) return {}
+    return { sfcLifecycle: { ...st.sfcLifecycle, [name]: { ...lifecycle, browsed: [...new Set([...(lifecycle.browsed ?? []), clean])] } } }
+  })
+  log(name, `Expression Assistant: browsed ${clean}`)
+}
+
 /** The Check button of the View tab. */
 export function checkSfc(name: string): { ok: boolean; text: string } {
   const error = M().checkSfc(name)

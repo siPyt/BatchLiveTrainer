@@ -94,7 +94,7 @@ export function setFill(pic: string, id: string, spec: FillSpec): string | null 
 export function addAnimDynamo(pic: string, set: DynamoSetName, x: number, y: number, tag?: string): string | null {
   if (!DYNAMO_SETS[set]) return `Dynamo set ${set} is not modeled`
   const modules = useStore.getState().modules
-  const bound = tag ?? Object.values(modules).find(m => DYNAMO_SETS[set].modules.includes(m.type))?.tag
+  const bound = tag ?? DYNAMO_SETS[set].modules.map(type => Object.values(modules).find(m => m.type === type)?.tag).find(t => !!t)
   if (set !== 'PIPES_ANIM' && !bound) return `Create a ${DYNAMO_SETS[set].modules.join(' or ')} module first`
   const id = store().addElement(pic, { type: 'dynamo', dynamoSet: set, x, y, ...(bound ? { tag: bound } : {}) })
   if (!id) return 'The dynamo was not added (see the Event Journal)'

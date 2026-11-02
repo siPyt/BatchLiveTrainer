@@ -5,6 +5,8 @@ module.exports = function dv09Ch4Setup(ctx) {
   const C = ctx.eng('dv09Cm'), A = ctx.eng('dv09Loops'), O = ctx.eng('dv09Operate'), X = ctx.eng('dv09OperateEx'), P = ctx.eng('pictureStore')
   const must = (what, err) => { if (err) throw new Error(what + ': ' + err) }
   ctx.useStore.setState({ running: true })
+  const EC = ctx.eng('eventChronicle')
+  EC.useChronicle.setState({ configured: EC.defaultChronicleConfig(), deployed: null, archive: EC.emptyArchive() })
   const ctl = Object.values(M().hardware.controllers).find(c => c.trackDownload && c.commissioned).tag
   const scan = n => { for (let i = 0; i < n; i++) M().tick(0.1) }
   const pic = () => P.usePictures.getState().pictures.TANK101
@@ -96,5 +98,11 @@ module.exports = function dv09Ch4Setup(ctx) {
   write(960); ack(); write(500)
   M().logEvent('DIAGNOSTIC', 'DeltaV Operate', 'Process History View (Event Chronicle) opened')
   ack()
+  // The Event Chronicle of the workstation: Enable Event Chronicle, Download, then the alarms are recorded.
+  const chron = EC.useChronicle.getState()
+  must('chronicle', chron.configure({ ...chron.configured, enabled: true }))
+  must('chronicle download', chron.download())
+  write(960); ack(); write(500)
+  M().logEvent('DIAGNOSTIC', 'DeltaV Operate', 'Process History View (Event Chronicle) opened')
 }
-module.exports.needs = ['dv09Cm', 'dv09Loops', 'dv09Operate', 'dv09OperateEx', 'pictureStore']
+module.exports.needs = ['dv09Cm', 'dv09Loops', 'dv09Operate', 'dv09OperateEx', 'pictureStore', 'eventChronicle']

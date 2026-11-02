@@ -181,7 +181,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     </label>}
     {target.kind === 'action' && tab === 'general' && <>
       <div className="sfc-edit-row">
-        {(!dv09 || qualifier === 'R') && <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"
+        {(!dv09 || ['R', 'S', 'SD', 'DS', 'SL'].includes(qualifier)) && <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"
           value={actionName} onChange={e => setActionName(e.target.value)} /></label>}
         <label>Type<select aria-label="Action type" value={actionType} onChange={e => {
           const type = e.target.value === 'BOOLEAN' ? 'BOOLEAN' : e.target.value === 'BLOCK' ? 'BLOCK' : 'ASSIGNMENT'

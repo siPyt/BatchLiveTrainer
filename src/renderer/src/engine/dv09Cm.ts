@@ -42,6 +42,7 @@ export const cmExtensions: {
   snapshot?: (s: ReturnType<typeof useStore.getState>, cm: Dv09Cm) => unknown
   renamed?: (oldTag: string, tag: string) => void
   downloadError?: (tag: string) => string | null
+  deployed?: (tag: string) => void
 } = {}
 
 export const DV09_FILTER_GROUPS = ['Quick Configuration', 'Common Configuration', 'All Parameters'] as const
@@ -273,6 +274,7 @@ export function downloadModule(tag: string): string | null {
 function deploy(tag: string, controller: string): void {
   const signature = cmSignature(tag)
   patchModule(tag, { downloaded: true, controllerTag: controller })
+  cmExtensions.deployed?.(tag)
   setCms(cms => ({ ...cms, [tag]: { ...cms[tag], deployed: signature } }))
 }
 

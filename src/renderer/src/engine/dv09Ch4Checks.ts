@@ -4,6 +4,7 @@ import type { EventLogEntry, AnalogIndicator, AnalogOutputModule } from './types
 import { useDv09Cm, type Dv09Cm } from './dv09Cm'
 import { usePictures, type PicElement, type Picture } from './pictureStore'
 import { savedPicture, sameName } from './dv09Operate'
+import { useChronicle } from './eventChronicle'
 
 const check = (id: string, ok: boolean, detail: string): StepCheck => ({ id, verdict: ok ? 'verified' : 'pending', detail })
 const find = (events: EventLogEntry[], tag: string | null, re: RegExp, after = -1): number =>
@@ -102,7 +103,7 @@ export function checkDv09Ch4(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-4c-14', save1 >= 0 && !!datalink(saved, 'LI-101', 'AI1/PV') && !!datalink(saved, 'LEVEL-101', 'CAS_SP')?.entry && !!sRect && !!saved?.elements.some(e => e.type === 'tank'), 'Step 14. Tank101 was saved with the datalinks, the tank and the filled rectangle'))
 
   // ---- Operating the Analog Module (p4-20) -------------------------------------------------------------------------------------
-  const run1 = save1 >= 0 ? find(events, 'DeltaV Operate', /^Operate switched to Run/, save1) : -1
+  const run1 = save1 >= 0 ? find(events, null, /^(Operate switched to Run|Picture opened in Run)/, save1) : -1
   const wrote1 = run1 >= 0 ? find(events, 'LEVEL-101', /^CAS_SP\.CV set to /, run1) : -1
   const tracks = !!ao && !!ai && !ai.pvBad && Math.abs(ai.pv - ao.pv) < 1
   out.push(check('dv09-4d-1', run1 >= 0, 'Step 1. DeltaV Operate was switched to Run after the picture was saved'))
@@ -122,7 +123,7 @@ export function checkDv09Ch4(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-4e-3', save2 >= 0 && close2 >= 0, 'Step 3. Tank101 was saved with both alarm datalinks and closed'))
 
   // ---- Operating the Analog Module (p4-39) ------------------------------------------------------------------------------------
-  const run2 = close2 >= 0 ? find(events, 'DeltaV Operate', /^Operate switched to Run/, close2) : -1
+  const run2 = close2 >= 0 ? find(events, null, /^(Operate switched to Run|Picture opened in Run)/, close2) : -1
   const hiAt = run2 >= 0 ? findCategory(events, 'ALARM', 'LI-101', /^HI alarm/, run2) : -1
   const loAt = run2 >= 0 ? findCategory(events, 'ALARM', 'LI-101', /^LO alarm/, run2) : -1
   const hiAck = hiAt >= 0 ? findCategory(events, 'ACK', 'LI-101', /^HI alarm acknowledged/, hiAt) : -1
@@ -147,11 +148,13 @@ export function checkDv09Ch4(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-4g-8', save3 >= 0 && !!alarmLink(saved)?.alarmVisibility, 'Step 8. Tank101 was saved with the alarm datalink and its Visibility Expert condition'))
 
   // ---- Operating the Analog Module (p4-54) ------------------------------------------------------------------------------------
-  const run3 = save3 >= 0 ? find(events, 'DeltaV Operate', /^Operate switched to Run/, save3) : -1
+  const run3 = save3 >= 0 ? find(events, null, /^(Operate switched to Run|Picture opened in Run)/, save3) : -1
   const alarm3 = run3 >= 0 ? findCategory(events, 'ALARM', 'LI-101', /alarm/, run3) : -1
   const history = run3 >= 0 ? find(events, null, /^Process History View \(Event Chronicle\) opened/, run3) : -1
   out.push(check('dv09-4h-1', run3 >= 0, 'Step 1. DeltaV Operate was switched to Run after Tank101 was saved'))
   out.push(check('dv09-4h-2', run3 >= 0 && alarm3 >= 0 && !!alarmLink(saved)?.alarmVisibility, `Step 2. An LI-101 alarm occurred in Run with the ALARMS[1].A_LAALM datalink on the display${alarm3 >= 0 ? '' : ' (raise one by writing the CAS_SP datalink)'}`))
-  out.push(check('dv09-4h-3', history >= 0 && alarm3 >= 0, `Step 3. The Event Chronicle (Process History View) ${history >= 0 ? 'was opened and lists the alarms and events' : 'was not opened yet'}`))
+  const chronicle = useChronicle.getState()
+  const recorded = chronicle.archive.records.filter(r => r.tag === 'LI-101' && r.category === 'ALARM').length
+  out.push(check('dv09-4h-3', history >= 0 && !!chronicle.deployed?.enabled && recorded > 0, `Step 3. The Event Chronicle (Process History View) ${history < 0 ? 'was not opened yet' : !chronicle.deployed?.enabled ? 'is not recording: enable it and download it, then raise an alarm again' : recorded > 0 ? `records the alarms (${recorded} LI-101 alarm record(s))` : 'is recording but has no LI-101 alarm yet; raise one'}`))
   return out
 }

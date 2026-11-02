@@ -289,6 +289,7 @@ export const useUi = create<UiState>((set, get) => ({
   },
 
   focusTrend: (tag) => {
+    useStore.getState().logEvent('DIAGNOSTIC', tag, 'Real-time trend opened')
     set({ trendFocusTag: tag })
     get().navigate('trend')
   },
@@ -324,6 +325,7 @@ export const useUi = create<UiState>((set, get) => ({
     const m = useStore.getState().modules[tag]
     const name = kind === 'primary' ? m?.primaryDisplay : m?.detailDisplay
     if (kind === 'detail' && m?.type === 'PID' && !name) {
+      useStore.getState().logEvent('DIAGNOSTIC', tag, 'Detail picture opened')
       set({ pidDetailTag: tag })
       return true
     }

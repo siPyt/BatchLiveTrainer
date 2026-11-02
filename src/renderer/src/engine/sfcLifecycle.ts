@@ -40,6 +40,10 @@ export interface SfcLifecycle {
   saved?: SfcConfiguration
   deployed?: SfcConfiguration
   online: boolean
+  /** Course DV-09 chapter 7: the last steps the downloaded SFC entered and the operator entries of its parameters (the Event Journal copies are limited to 2000 entries). */
+  history?: string[]
+  /** Course DV-09 chapter 7: the module paths picked in the Expression Assistant Browser. */
+  browsed?: string[]
 }
 
 export function cloneSfcConfiguration(configuration: SfcConfiguration): SfcConfiguration {

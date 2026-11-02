@@ -55,10 +55,31 @@ export function ControlStudioDisplay(): JSX.Element {
   const managed = useDv09Cm(s => !!studioTag && !!s.cms[studioTag])
   const loop = useDv09Cm(s => !!studioTag && isLoopCm(s.cms[studioTag])); const dv09 = useUi(s => s.course) === 'DV-09'
   const sfcModule = useStore(s => !!studioTag && !!s.sfcs[studioTag])
+  const openObject = useStore(s => !!studioTag && !!s.modules[studioTag])
   // Course DV-09 chapter 7: a control module SFC (SFC-T101) opens in the SFC editor of Control Studio.
   if (dv09 && sfcModule && studioTag) return <Dv09SfcStudio key={studioTag} name={studioTag} />
   if (managed && studioTag && loop) return <Dv09LoopStudio key={studioTag} tag={studioTag} />
+  if (dv09 && !managed && !openObject) return <Dv09EmptyStudio />
   return managed && studioTag ? <Dv09ControlStudio key={studioTag} tag={studioTag} /> : <StandardControlStudio />
+}
+
+/** Course DV-09: Control Studio with nothing open. File > New starts a new algorithm (chapter 7: Sequential Function Chart). */
+function Dv09EmptyStudio(): JSX.Element {
+  const [showNew, setShowNew] = useState(false)
+  const area = useStore(s => s.areas[0] ?? '')
+  return (
+    <div className="display studio" data-dv09-empty-studio>
+      <div className="ribbon">
+        <div className="studio-caption"><ModuleIcon kind="control" size={16} /><span>[UNTITLED] — Control Studio</span></div>
+        <div className="ribbon-tabs">
+          <button type="button" className="ribbon-tab file" aria-pressed>File</button>
+        </div>
+        <div className="ribbon-body rb-body"><Group label="Create"><Btn glyph="new" label="New..." onClick={() => setShowNew(true)} /></Group></div>
+      </div>
+      <div className="exp-empty">Open a module from DeltaV Explorer or a graphic, or create a new algorithm with File &gt; New.</div>
+      {showNew && <NewDialogHost area={area} onClose={() => setShowNew(false)} />}
+    </div>
+  )
 }
 
 /** File > New: course DV-09 asks for the Algorithm type first (a Sequential Function Chart is created here, other types as before). */

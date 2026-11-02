@@ -4,7 +4,7 @@ import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { moduleNameError } from '../engine/naming'
 import { nameInUse } from '../engine/dv09Cm'
-import { downloadSfc, isUntitled, newUntitledSfc, saveSfcAs } from '../engine/dv09Sfc'
+import { downloadSfc, newUntitledSfc, recordBrowse, saveSfcAs } from '../engine/dv09Sfc'
 import { sfcModulePaths } from '../engine/dv09SfcPaths'
 import type { AnyModule } from '../engine/types'
 import type { SfcParameter } from '../engine/sfcParameters'
@@ -216,7 +216,7 @@ export function Dv09ExpressionBrowser({ sfcName, modules, localParameters, onIns
   const paths = module ? sfcModulePaths(module) : []
   const submit = (): void => {
     if (!pick) return
-    useStore.getState().logEvent('CONFIGURE', sfcName, `Expression Assistant: browsed ${pick}`)
+    recordBrowse(sfcName, pick)
     onInsert(pick.startsWith("'") ? pick : `'${pick}'`, true)
   }
   return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Browser" onClose={onClose}>
@@ -243,4 +243,3 @@ export function Dv09ExpressionBrowser({ sfcName, modules, localParameters, onIns
   </SimulatorDialog>
 }
 
-export { isUntitled }

@@ -249,7 +249,7 @@ function PumpColorBy({ pic, el, onClose, onMessage }: { pic: string; el: PicElem
       <label>Data Source:<input aria-label="Data Source" value={source} onChange={e => { setSource(e.target.value); setError(null) }} placeholder="DVSYS.MODULE/DC1/PV_D.F_CV" /></label>
       <label>Color By:<select aria-label="Color By" value={by} onChange={e => setBy(e.target.value)}><option>Current Value</option><option>Alarm Priority</option><option>Quality</option></select></label>
       <label>Color Threshold:<select aria-label="Color Threshold" value={threshold} onChange={e => setThreshold(e.target.value)}><option>Range</option><option>Exact Match</option></select></label>
-      <table className="studio-param-table" aria-label="Color thresholds"><thead><tr><th>Value</th><th>Color</th></tr></thead><tbody>
+      <table className="studio-param-table" aria-label="Threshold values"><thead><tr><th>Value</th><th>Color</th></tr></thead><tbody>
         {rows.map((r, i) => <tr key={i}><td><input aria-label={`Value ${i + 1}`} value={r.value} onChange={e => setRows(x => x.map((y, j) => (j === i ? { ...y, value: e.target.value } : y)))} /></td>
           <td><select aria-label={`Color ${i + 1}`} value={r.color} onChange={e => setRows(x => x.map((y, j) => (j === i ? { ...y, color: e.target.value } : y)))}><option value="" />{PALETTE.map(p => <option key={p.name}>{p.name}</option>)}</select></td></tr>)}
       </tbody></table>

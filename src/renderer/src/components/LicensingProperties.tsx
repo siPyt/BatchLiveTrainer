@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../engine/store'
+import { useUi } from '../ui/uiStore'
+import { licensingViewed } from '../engine/dv09Loops'
 import { dstTypes, dstUsage } from '../engine/dstUsage'
 import { DST_TYPES, licenseReport, useLicensing, type LicenseReport } from '../engine/licensing'
 
@@ -10,6 +12,14 @@ export function LicensingProperties(): JSX.Element {
   const files = useLicensing(s => s.files)
   const license = useMemo(() => licenseReport({ AI: report.byType.AI.referenced, AO: report.byType.AO.referenced,
     DI: report.byType.DI.referenced, DO: report.byType.DO.referenced }, files), [report, files])
+  const dv09 = useUi(s => s.course === 'DV-09')
+  const counts = `${report.byType.AO.referenced},${report.byType.AI.referenced},${report.byType.DO.referenced},${report.byType.DI.referenced}`
+  // Course DV-09 chapter 6 workshop: the student records the DST counts shown here before and after configuring FIC-102.
+  useEffect(() => {
+    if (!dv09) return
+    const [AO, AI, DO, DI] = counts.split(',').map(Number)
+    licensingViewed({ AO, AI, DO, DI })
+  }, [dv09, counts])
   return <div className="exp-props">
     <div className="exp-props-head"><b>ProfessionalPLUS - Licensing Properties</b>
       <span>Read-only simulated system DST usage</span></div>

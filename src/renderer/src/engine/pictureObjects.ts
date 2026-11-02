@@ -160,7 +160,7 @@ export function pictureSourcePaths(module: AnyModule | undefined): { path: strin
   if (!module) return []
   const out: { path: string; description: string }[] = []
   if (module.type === 'PID') {
-    out.push({ path: 'AI1/PV', description: 'Process value' }, { path: 'PID1/SP', description: 'Setpoint (numeric entry)' },
+    out.push({ path: 'AI1/PV', description: 'Process value' }, { path: 'PID1/PV', description: 'Process value of the PID block' }, { path: 'PID1/SP', description: 'Setpoint (numeric entry)' },
       { path: 'PID1/OUT', description: 'Output (numeric/ramp entry)' }, { path: 'PID1/MODE.A_TARGET', description: 'Target mode (multiple-item select)' },
       { path: 'PID1/MODE.A_ACTUAL', description: 'Actual mode (flash when not normal)' })
   } else if (module.type === 'AI') out.push({ path: 'AI1/PV', description: 'Process value' })

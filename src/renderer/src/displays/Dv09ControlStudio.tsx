@@ -6,7 +6,8 @@ import {
   setFilters, setIoDst, setModeTarget, setPrimaryDisplay, studioBlockSelected, studioOnline, studioOpened, writeSpD, type Dv09BlockType
 } from '../engine/dv09Cm'
 import { traditionalChannels } from '../engine/traditionalIo'
-import { addLoopBlock } from '../engine/dv09Loops'
+import { addLoopBlock, uploadDifferences } from '../engine/dv09Loops'
+import { Dv09UploadDialog } from './Dv09UploadDialog'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
@@ -301,13 +302,19 @@ function PropertiesDialog({ tag, onClose, onMessage }: { tag: string; onClose: (
 export function DownloadDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
   const controller = useLibrary(s => s.assignments[tag])
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [upload, setUpload] = useState(false)
+  const [prompted, setPrompted] = useState(false)
+  const go = (): void => { const e = downloadModule(tag); setResult(e ? { ok: false, text: e } : { ok: true, text: `Download complete: ${tag} is running in ${controller}.` }) }
+  // p6-26: a download offers an Upload first when the on-line values were changed.
+  const start = (): void => { if (!prompted && uploadDifferences(tag).length) { setPrompted(true); setUpload(true) } else go() }
   return <SimulatorDialog className="module-download-dialog dvd" label={`Download ${tag}`} onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
       <p>Download control module {tag} to {controller ?? 'its node (not assigned yet)'}.</p>
       {result && <p role={result.ok ? 'status' : 'alert'} className={result.ok ? 'exp-hint' : 'lib-dlg-error'} data-download-result={result.ok ? 'ok' : 'failed'}>{result.text}</p>}
     </div>
     <div className="dvd-buttons">
-      {!result?.ok && <button className="tbtn sm" onClick={() => { const e = downloadModule(tag); setResult(e ? { ok: false, text: e } : { ok: true, text: `Download complete: ${tag} is running in ${controller}.` }) }}>Download</button>}
+      {!result?.ok && <button className="tbtn sm" onClick={start}>Download</button>}
       <button className="tbtn sm" onClick={onClose}>{result?.ok ? 'Close' : 'Cancel'}</button></div>
+    {upload && <Dv09UploadDialog tag={tag} onClose={() => { setUpload(false); go() }} />}
   </SimulatorDialog>
 }

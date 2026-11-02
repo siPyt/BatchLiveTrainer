@@ -17,7 +17,6 @@ import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
 import { DownloadDialog, FilterDialog, AssignDialog } from './Dv09ControlStudio'
 import type { AlarmType, AnalogIndicator, AnalogOutputModule, AnyModule, MotorModule, PidModule } from '../engine/types'
-import '../dv09-loops.css'
 
 // Course DV-09 chapters 4-6: Control Studio for the analog, motor and regulatory modules created in DeltaV Explorer (LEVEL-101, LI-101,
 // MTR-102, FIC-102): Hierarchy View, Diagram View with the IO and Special Items palettes, the Parameter View and the Alarm View, the Block Alarms

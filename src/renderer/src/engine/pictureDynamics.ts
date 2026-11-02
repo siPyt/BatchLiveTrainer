@@ -167,7 +167,7 @@ export function pictureSignal(el: PicElement, modules: Record<string, AnyModule>
     parameter = 'PID1/OUT'
     result = { value: m.out, unit: '%', low: 0, high: 100,
       bad: pidExecutionBad(m) || (m.io?.ao.bad ?? m.pvBad), parameter }
-  } else if (parameter === 'AI1/PV' && m.type === 'PID') {
+  } else if ((parameter === 'AI1/PV' || parameter === 'PID1/PV') && m.type === 'PID') {
     result = { value: m.io?.ai.out ?? m.pv, unit: m.unit, low: m.pvMin, high: m.pvMax,
       bad: m.io?.ai.bad ?? m.pvBad }
   } else if ((parameter === 'PV' || parameter === 'AI1/PV' && m.type !== 'AO') &&

@@ -8,7 +8,7 @@ import { materializeMotorStrategy, motorTemplateStrategy } from './motorStrategy
 import { createMtr11, MTR11 } from './dv09Mtr11'
 import { aoConfigurationError } from './standaloneAo'
 import {
-  useDv09Cm, cmExtensions, fail, log, patchModule, setCmsPatch, nameInUse, createFromTemplate as createDiscreteFromTemplate, dv09Module,
+  useDv09Cm, cmExtensions, fail, log, patchModule, setCmsPatch, nameInUse, cmSignature, createFromTemplate as createDiscreteFromTemplate, dv09Module,
   type Dv09Cm, type Dv09Block
 } from './dv09Cm'
 import type { AlarmLimit, AlarmPriority, AlarmType, AnalogIndicator, AnalogOutputModule, AnyModule, FunctionBlockModule, MotorModule, PidModule } from './types'
@@ -84,7 +84,7 @@ export function createFromTemplate(template: string, area: string): { tag: strin
     blocks = [{ name: 'AI1', type: 'AI' }]
   } else if (template === 'PID_LOOP') {
     patchModule(tag, {
-      templateId: 'PID_LOOP', downloaded: false, gain: 1, reset: 10, rate: 0, direct: true, outputAction: 'DECREASE_TO_OPEN', sp: 50, out: 50,
+      templateId: 'PID_LOOP', downloaded: false, gain: 1, reset: 10, rate: 0, direct: true, outputAction: 'DECREASE_TO_OPEN', sp: 0, out: 0, mode: 'MAN',
       alarms: templateAlarms(0, 100, { HI: false, LO: false })
     })
     blocks = [{ name: 'AI1', type: 'AI' }, { name: 'PID1', type: 'PID' }, { name: 'AO1', type: 'AO' }]
@@ -94,11 +94,13 @@ export function createFromTemplate(template: string, area: string): { tag: strin
     patchModule(tag, {
       templateId: 'MTR-11_ILOCK', downloaded: false, ownedBlocks: materializeMotorStrategy(tag, area, strategy),
       interlockSource: `${tag}/NOT1`, interlockInverted: true, permissiveSource: `${tag}/AND1`, permissiveRequired: true, permissiveOk: false,
-      ioInputBad: true, ioOutputBad: true, passiveOnTimeout: true, spTrack: true, resetRequired: false, tripEnabled: false
+      ioInputBad: true, ioOutputBad: true, passiveOnTimeout: true, spTrack: true, resetRequired: false, tripEnabled: false,
+      alarms: []
     })
     blocks = [{ name: 'DC1', type: 'DC' }, ...['CND1', 'CND2', 'BFI1', 'OR1', 'NOT1', 'AND1'].map(name => ({ name, type: name.replace(/\d+$/, '') as Dv09Block['type'] }))]
   }
-  const loop: Dv09Cm['loop'] = template === 'MTR-11_ILOCK' ? { passiveWhenConfirmed: false, interlockOption: true, detailDefault: 'ILOCK16_DETAIL' } : undefined
+  const loop: Dv09Cm['loop'] = template === 'MTR-11_ILOCK' ? { passiveWhenConfirmed: false, interlockOption: true, detailDefault: 'ILOCK16_DETAIL' } :
+    template === 'PID_LOOP' ? { cfgGain: 1, cfgReset: 10, cfgRate: 0 } : undefined
   useDv09Cm.setState(st => ({ cms: { ...st.cms, [tag]: { tag, description, area, template, blocks, filters: inheritedFilters(), ...(loop ? { loop } : {}) } } }))
   if (template === 'MTR-11_ILOCK') patchModule(tag, { detailDisplay: 'ILOCK16_DETAIL' })
   log(tag, `Module created from template ${template}`)
@@ -220,9 +222,51 @@ export function setTuningParameter(tag: string, name: 'GAIN' | 'RESET' | 'RATE',
   if (!Number.isFinite(value) || value < 0) return reject(tag, `${name} must be a number of 0 or more`)
   if (!configure(`Configure ${tag}`)) return 'Requires the Can Configure key'
   patchModule(tag, { [name.toLowerCase()]: value })
+  // The configured value (database); an on-line change in DeltaV Operate only changes the running module until it is uploaded.
+  const cm = cmOf(tag)!
+  setCmsPatch(tag, { loop: { ...cm.loop, [`cfg${name[0]}${name.slice(1).toLowerCase()}`]: value } })
   log(tag, `PID1/${name} set to ${value}`)
   return null
 }
+
+const TUNING = ['GAIN', 'RESET', 'RATE'] as const
+const tuningKey = (name: string): string => `cfg${name[0]}${name.slice(1).toLowerCase()}`
+const liveTuning = (m: PidModule): Record<typeof TUNING[number], number> => ({ GAIN: m.gain, RESET: m.reset, RATE: m.rate })
+const configuredTuning = (m: PidModule, cm: Dv09Cm | undefined): Record<typeof TUNING[number], number> => ({
+  GAIN: Number(cm?.loop?.cfgGain ?? m.gain), RESET: Number(cm?.loop?.cfgReset ?? m.reset), RATE: Number(cm?.loop?.cfgRate ?? m.rate) })
+
+/** The parameters the Upload dialog offers: tuning values that were changed on-line (DeltaV Operate, faceplate or detail picture). */
+export function uploadDifferences(tag: string): { name: string; online: number; database: number }[] {
+  const m = state().modules[tag]
+  if (m?.type !== 'PID' || !m.downloaded) return []
+  const live = liveTuning(m), cfg = configuredTuning(m, cmOf(tag))
+  return TUNING.filter(n => live[n] !== cfg[n]).map(n => ({ name: n, online: live[n], database: cfg[n] }))
+}
+
+export const uploadOpened = (tag: string): void => log(tag, 'Upload dialog opened', 'DIAGNOSTIC')
+
+/** Upload: write the selected on-line values to the configuration database (the Save signature follows). Selecting none uploads nothing. */
+export function uploadParameters(tag: string, names: string[]): string | null {
+  const m = state().modules[tag]
+  const cm = cmOf(tag)
+  if (m?.type !== 'PID' || !cm) return reject(tag, `${tag} has no on-line values to upload`)
+  if (!m.downloaded) return reject(tag, `${tag} is not downloaded; there is nothing on-line to upload`)
+  if (!configure(`Upload ${tag}`)) return 'Requires the Can Configure key'
+  const diff = uploadDifferences(tag).filter(d => names.includes(d.name))
+  if (diff.length) {
+    const before = cmSignature(tag)
+    setCmsPatch(tag, { loop: { ...cm.loop, ...Object.fromEntries(diff.map(d => [tuningKey(d.name), d.online])) } })
+    const after = cmSignature(tag)
+    const fresh = cmOf(tag)!
+    setCmsPatch(tag, { ...(fresh.saved === before ? { saved: after } : {}), ...(fresh.deployed === before ? { deployed: after } : {}) })
+  }
+  log(tag, diff.length ? `Upload complete: ${diff.map(d => `${d.name} ${d.online}`).join(', ')} written to the configuration database` : 'Upload complete: no parameters selected (nothing written to the configuration database)')
+  return null
+}
+
+/** Licensing > Licensing Properties on the ProfessionalPLUS: the DSTs referenced per type (the numbers of the p6-15 / p6-18 tables). */
+export const licensingViewed = (counts: { AO: number; AI: number; DO: number; DI: number }): void =>
+  log('PROPLUS', `Licensing Properties viewed: AO ${counts.AO}, AI ${counts.AI}, DO ${counts.DO}, DI ${counts.DI}`, 'DIAGNOSTIC')
 
 export const IO_OPTS = ['Increase to Close', 'Increase to Open'] as const
 export const CONTROL_OPTS = ['Direct Acting', 'Reverse Acting'] as const
@@ -289,7 +333,7 @@ export interface ConditionPatch { description?: string; delaySec?: number; expr?
 export function setCondition(tag: string, block: 'CND1' | 'CND2', patch: ConditionPatch): string | null {
   const cm = cmOf(tag)
   const m = state().modules[tag]
-  const owned = m?.type === 'MOTOR' ? m.ownedBlocks?.[block] : undefined
+  const owned = m?.type === 'MOTOR' && /^CND[12]$/.test(block) ? m.ownedBlocks?.[block] : undefined
   if (!cm || m?.type !== 'MOTOR' || !owned) return reject(tag, `${tag} has no ${block} condition block`)
   if (patch.description !== undefined && patch.description.length > 24) return reject(tag, 'DESC is at most 24 characters')
   if (patch.delaySec !== undefined && (!Number.isFinite(patch.delaySec) || patch.delaySec < 0)) return reject(tag, 'Time_Duration must be 0 or more seconds')
@@ -342,7 +386,7 @@ cmExtensions.snapshot = (s, cm) => {
   if (m.type === 'AO') return { ...common, io: hw.analogBindings?.[cm.tag]?.output ?? '', scale: [m.pvMin, m.pvMax, m.unit], limits: [m.spLow, m.spHigh], mode: m.mode, cas: m.casParameter ?? '' }
   if (m.type === 'AI') return { ...common, io: hw.analogBindings?.[cm.tag]?.input ?? '', scale: [m.pvMin, m.pvMax, m.unit], alarms: m.alarms }
   if (m.type === 'PID') return { ...common, io: [hw.analogBindings?.[cm.tag]?.input ?? '', hw.analogBindings?.[cm.tag]?.output ?? ''], scale: [m.pvMin, m.pvMax, m.unit],
-    tuning: [m.gain, m.reset, m.rate], direct: m.direct, action: m.outputAction ?? '', alarms: m.alarms, detail: m.detailDisplay ?? '' }
+    tuning: [Number(cm.loop?.cfgGain ?? m.gain), Number(cm.loop?.cfgReset ?? m.reset), Number(cm.loop?.cfgRate ?? m.rate)], direct: m.direct, action: m.outputAction ?? '', alarms: m.alarms, detail: m.detailDisplay ?? '' }
   return { ...common, io: [hw.deviceBindings?.[cm.tag]?.input ?? '', hw.deviceBindings?.[cm.tag]?.output ?? ''],
     options: [m.passiveOnTimeout ?? false, m.tripEnabled ?? false, m.resetRequired, m.permissiveRequired, m.spTrack ?? false, !!m.interlockSource],
     conditions: Object.entries(m.ownedBlocks ?? {}).filter(([n]) => n.startsWith('CND')).map(([n, b]) => [n, b.description, b.delaySec, b.expr]), detail: m.detailDisplay ?? '' }
@@ -366,6 +410,14 @@ cmExtensions.downloadError = tag => {
   return null
 }
 
+/** The FAIL alarm of a motor starts to scan with its first download. */
+cmExtensions.deployed = tag => {
+  const m = state().modules[tag]
+  // A download writes the configured values over any on-line tuning change.
+  if (m?.type === 'PID') { const c = configuredTuning(m, cmOf(tag)); patchModule(tag, { gain: c.GAIN, reset: c.RESET, rate: c.RATE }) }
+  if (m?.type === 'MOTOR' && !m.alarms.some(a => a.type === 'FAIL')) patchModule(tag, { alarms: [...m.alarms, { type: 'FAIL', label: 'FAIL', priority: 'WARNING', enabled: true }] })
+}
+
 /** Renaming a motor module renames its owned CND / BFI / OR / NOT / AND blocks and the wires between them. */
 cmExtensions.renamed = (oldTag, tag) => {
   const m = state().modules[tag]
@@ -375,3 +427,39 @@ cmExtensions.renamed = (oldTag, tag) => {
   const ownedBlocks = Object.fromEntries(Object.entries(m.ownedBlocks).map(([name, b]) => [name, { ...b, tag: `${tag}/${name}`, in1: fix(b.in1), in2: fix(b.in2) }]))
   patchModule(tag, { ownedBlocks, interlockSource: swap(m.interlockSource), permissiveSource: swap(m.permissiveSource), commandSource: swap(m.commandSource) })
 }
+
+// Evidence for the operating workshops (chapter 5): the first scan in which the confirmed state of a downloaded motor changes and every
+// trip of its INTERLOCK_D, with the condition block that caused it (the first-out of BFI1).
+const motorRunning = new Map<string, boolean>()
+const motorInterlock = new Map<string, boolean>()
+useStore.subscribe(s => {
+  for (const cm of Object.values(useDv09Cm.getState().cms)) {
+    const m = s.modules[cm.tag]
+    if (m?.type !== 'MOTOR' || !m.downloaded || !cm.blocks.some(b => b.type === 'DC')) { motorRunning.delete(cm.tag); motorInterlock.delete(cm.tag); continue }
+    const before = motorRunning.get(cm.tag)
+    motorRunning.set(cm.tag, m.running)
+    if (before !== undefined && before !== m.running) log(cm.tag, `${cm.tag}/DC1/PV_D changed to ${m.running ? 'RUNNING' : 'STOPPED'} (${s.hardware.deviceBindings?.[cm.tag]?.input ?? 'IO_IN_1'})`, 'DIAGNOSTIC')
+    const tripped = m.interlock
+    const was = motorInterlock.get(cm.tag)
+    motorInterlock.set(cm.tag, tripped)
+    if (was === false && tripped) {
+      const cause = Object.entries(m.ownedBlocks ?? {}).filter(([n, b]) => n.startsWith('CND') && b.out)
+      log(cm.tag, `${cm.tag}/DC1/INTERLOCK_D tripped${cause.length ? ` (first out ${cause.map(([n, b]) => `${n}: ${b.description || b.expr}`).join(', ')})` : ''}`, 'DIAGNOSTIC')
+    }
+  }
+})
+
+// Evidence for the operating workshop (chapter 6): after a new setpoint the first scan in which the PV of an AUTO loop is within 2 % of its span.
+const pidSetpoint = new Map<string, number>()
+const pidSettleArmed = new Set<string>()
+useStore.subscribe(s => {
+  for (const cm of Object.values(useDv09Cm.getState().cms)) {
+    const m = s.modules[cm.tag]
+    if (m?.type !== 'PID' || !m.downloaded || !cm.blocks.some(b => b.type === 'PID')) { pidSetpoint.delete(cm.tag); pidSettleArmed.delete(cm.tag); continue }
+    if (pidSetpoint.get(cm.tag) !== m.sp) { if (pidSetpoint.has(cm.tag)) pidSettleArmed.add(cm.tag); pidSetpoint.set(cm.tag, m.sp) }
+    if (pidSettleArmed.has(cm.tag) && m.actualMode === 'AUTO' && !m.pvBad && Math.abs(m.pv - m.sp) <= 0.02 * (m.pvMax - m.pvMin)) {
+      pidSettleArmed.delete(cm.tag)
+      log(cm.tag, `${cm.tag}/PID1/PV reached the setpoint (PV ${m.pv.toFixed(1)} ${m.unit}, SP ${m.sp.toFixed(1)} ${m.unit}, OUT ${m.out.toFixed(1)} %)`, 'DIAGNOSTIC')
+    }
+  }
+})

@@ -132,9 +132,10 @@ export function checkDv09Ch3(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-3f-1', findAny(events, /^Dynamo set Valves2 opened/) >= 0, 'Step 1. The dynamo set Valves2 (Valves2.fds) was opened from Dynamo Sets in the System Tree'))
   out.push(check('dv09-3f-2', valve(now), 'Step 2. The dynamo Valve17 is on the picture'))
   out.push(check('dv09-3f-3', valve(saved), 'Step 3. The picture was saved with the dynamo'))
-  const savedAt = (() => { let last = -1; events.forEach((e, i) => { if (e.tag === 'TANK101' && /^Picture saved/.test(e.description)) last = i }); return last })()
-  const closedAt = find(events, 'TANK101', /^Picture closed \(File > Close\)/)
-  out.push(check('dv09-3f-4', closedAt >= 0 && savedAt >= 0 && closedAt > savedAt && valve(saved), 'Step 4. Tank101 was closed with File > Close after saving'))
+  // Later chapters re-save Tank101, so accept any close that follows some save.
+  const closedAfterSave = events.some((e, i) => e.tag === 'TANK101' && /^Picture closed \(File > Close\)/.test(e.description)
+    && events.slice(0, i).some(p => p.tag === 'TANK101' && /^Picture saved/.test(p.description)))
+  out.push(check('dv09-3f-4', closedAfterSave && valve(saved), 'Step 4. Tank101 was closed with File > Close after saving'))
   const ovw = pictures[OVW_REF]
   out.push(check('dv09-3f-5', !!ovw && sameName(ovw.nextPicture, 'Tank101'), `Step 5. Ovw_ref Next Picture is ${ovw?.nextPicture || '(none)'}`))
   const ovwSaved = savedPicture(ovw)

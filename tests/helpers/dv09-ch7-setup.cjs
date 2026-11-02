@@ -71,8 +71,8 @@ module.exports = function dv09Ch7Setup(ctx) {
   must('download', D.downloadSfc('SFC-T101'))
   must('check', D.checkSfc('SFC-T101').ok ? '' : D.checkSfc('SFC-T101').text)
 
-  // The Parameter Paths workshop: the Expression Assistant Browser lists the paths (the pick is journaled)
-  for (const path of ['//FIC-102/PID1/MODE.ACTUAL', '//FIC-102/PID1/PV.CV']) M().logEvent('CONFIGURE', 'SFC-T101', 'Expression Assistant: browsed ' + path)
+  // The Parameter Paths workshop: the Expression Assistant Browser lists the paths (the pick is kept with the SFC)
+  for (const path of ['//FIC-102/PID1/MODE.ACTUAL', '//FIC-102/PID1/PV.CV']) D.recordBrowse('SFC-T101', path)
 
   // Step 9: MESSAGE on Tank101 with data entry, and Changed Setup Data to the workstation
   must('workstation setup data', M().downloadChangedNamedSets({ kind: 'workstation' }) ? '' : 'rejected')

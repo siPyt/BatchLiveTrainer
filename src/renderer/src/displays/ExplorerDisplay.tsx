@@ -40,6 +40,7 @@ import { useDv09Cm, renameModule as renameDv09Module, assignToNode, type Dv09Cm 
 import { createFromTemplate } from '../engine/dv09Loops'
 import { Dv09NewModuleDialog, Dv09OperateButtons } from '../components/Dv09ModuleUi'
 import { DownloadDialog as Dv09DownloadDialog } from './Dv09ControlStudio'
+import { Dv09UploadDialog } from './Dv09UploadDialog'
 import { openOperate } from '../ui/dv09Operate'
 import { RecipesTree, openExecutiveApp } from '../components/ExecutiveUi'
 import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, useBatchEnabled } from '../components/BatchExplorer'
@@ -168,6 +169,7 @@ export function ExplorerDisplay(): JSX.Element {
   const dv09 = useUi(s => s.course) === 'DV-09'
   const dv09Cms = useDv09Cm(s => s.cms)
   const [dv09Download, setDv09Download] = useState<string | null>(null)
+  const [dv09Upload, setDv09Upload] = useState<string | null>(null)
   const batchContained = useBatch(s => s.contained)
   const batchCellMembers = useBatch(s => s.cellMembers)
   const emCms = useEm(s => s.cmInstances)
@@ -647,6 +649,7 @@ export function ExplorerDisplay(): JSX.Element {
         }) }} />}
       {moduleDownload && <ControllerDownloadDialog controller={moduleDownload.controller} tag={moduleDownload.tag} onClose={() => setModuleDownload(null)} />}
       {dv09Download && <Dv09DownloadDialog tag={dv09Download} onClose={() => setDv09Download(null)} />}
+      {dv09Upload && <Dv09UploadDialog tag={dv09Upload} onClose={() => setDv09Upload(null)} />}
 
       {menu && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
@@ -758,6 +761,7 @@ export function ExplorerDisplay(): JSX.Element {
               <div className="ctx-parent">Download ▸</div>
               <button className="ctx-item ctx-sub" disabled={!libraryAssignments[menu.target]} title={libraryAssignments[menu.target] ? undefined : 'Assign the module to a controller first'}
                 onClick={() => { setDv09Download(menu.target); setMenu(null) }}>Control Module...</button>
+              {modules[menu.target]?.type === 'PID' && <button className="ctx-item" onClick={() => { setDv09Upload(menu.target); setMenu(null) }}>Upload...</button>}
             </>
           ) : (
             <>

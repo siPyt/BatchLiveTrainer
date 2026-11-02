@@ -489,6 +489,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}
           onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: 'PROPLUS', items: [
             { label: 'Explore', onClick: onWorkstation },
+            ...(useUi.getState().course === 'DV-09' ? [{ label: 'Licensing ▸ Licensing Properties', onClick: onWorkstation }] : []),
             ...(useUi.getState().course === 'DV-09' ? [{ label: 'Download ▸ Workstation...', onClick: () => useSecUi.getState().open({ t: 'workstation' }) },
               ...(batchOn ? [{ label: 'Download ▸ Batch Equipment...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }) }] : [])] :
               [{ label: 'Download ▸ Workstation...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }), disabled: batchOn ? undefined : 'Enable Batch in System Preferences first' }]),

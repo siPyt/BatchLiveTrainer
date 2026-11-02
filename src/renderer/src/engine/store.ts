@@ -670,14 +670,16 @@ export const useStore = create<StoreState>((set, get) => ({
     const setsBySfc = Object.fromEntries(Object.keys(runnable).map(name => [name, sfcExpressionContext(s, name, true).sets]))
     const { modules: sfcModules, sfcs: executedSfcs } = advanceSfcs({ ...s, sfcs: runnable }, cmdModules, dt * s.speed, setsBySfc)
     // A downloaded (managed) SFC journals each step it enters and its completion, so the execution can be reviewed afterwards.
+    const stepHistory: Record<string, string[]> = {}
+    const journal = (name: string, entry: EventLogEntry): void => { sfcDiagnostics.push(entry); (stepHistory[name] ??= []).push(entry.description) }
     for (const [name, after] of Object.entries(executedSfcs)) {
       const before = runnable[name]
       if (!before || !s.sfcLifecycle[name] || after === before) continue
       if (after.status === 'RUNNING' && before.status === 'RUNNING' && after.active !== before.active && after.steps[after.active]) {
-        sfcDiagnostics.push({ id: `${name}-step-${s.time}-${after.active}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM',
+        journal(name, { id: `${name}-step-${s.time}-${after.active}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM',
           description: `SFC step ${after.steps[after.active].name} active` })
       } else if (after.status === 'COMPLETE' && before.status === 'RUNNING') {
-        sfcDiagnostics.push({ id: `${name}-complete-${s.time}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM', description: 'SFC complete' })
+        journal(name, { id: `${name}-complete-${s.time}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM', description: 'SFC complete' })
       }
     }
     const sfcs = { ...s.sfcs, ...executedSfcs, ...paused }
@@ -810,6 +812,8 @@ export const useStore = create<StoreState>((set, get) => ({
       trend: newTrend,
       batch,
       sfcs,
+      ...(Object.keys(stepHistory).length ? { sfcLifecycle: Object.fromEntries(Object.entries(s.sfcLifecycle).map(([name, lifecycle]) =>
+        [name, stepHistory[name] ? { ...lifecycle, history: [...(lifecycle.history ?? []), ...stepHistory[name]].slice(-400) } : lifecycle])) } : {}),
       conditionDelayAlarmRuntime,
       rev: s.rev + 1,
       hornSilenced: hasNewAlarm ? false : s.hornSilenced,
@@ -3949,9 +3953,12 @@ export const useStore = create<StoreState>((set, get) => ({
       !selected.visible || !selected.userSelectable || !target.visible || !target.userSelectable) {
       return rejectSfc(get, name, 'Value is not a visible/selectable matching state in workstation and controller setup; transfer Changed Setup Data')
     }
+    const entry = `${parameter} := ${binding.namedSet}:${selected.name} (${value})`
     set(s => ({ sfcs: { ...s.sfcs, [name]: { ...runtime,
-      parameters: { ...runtime.parameters, [parameter]: { ...binding, value } } } }, rev: s.rev + 1 }))
-    get().logEvent('OPERATOR', name, `${parameter} := ${binding.namedSet}:${selected.name} (${value})`)
+      parameters: { ...runtime.parameters, [parameter]: { ...binding, value } } } },
+      sfcLifecycle: s.sfcLifecycle[name] ? { ...s.sfcLifecycle, [name]: { ...s.sfcLifecycle[name], history: [...(s.sfcLifecycle[name].history ?? []), entry].slice(-400) } } : s.sfcLifecycle,
+      rev: s.rev + 1 }))
+    get().logEvent('OPERATOR', name, entry)
     return true
   },
 

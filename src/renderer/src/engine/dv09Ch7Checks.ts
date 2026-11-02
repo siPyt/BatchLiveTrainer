@@ -1,6 +1,5 @@
 import type { Dv09Ctx } from './dv09Registry'
 import type { StepCheck } from './workshopChecks'
-import type { EventLogEntry } from './types'
 import type { SfcAction, SfcCondition, SfcStep } from './sfc'
 import { sfcStepsError } from './sfc'
 import { sfcBlockConfigurationError } from './sfcBlocks'
@@ -22,9 +21,14 @@ const up = (text: string | undefined): string => (text ?? '').toUpperCase()
 const same = (a: string | undefined, b: string): boolean => up(a) === b
 
 const isNamed = (c: SfcCondition, entry: string): boolean => c.kind === 'namedSet' && c.parameter === 'MESSAGE' && c.namedSet === NAMED_SET && c.entry === entry
-const isDiscrete = (c: SfcCondition, tag: string, state: boolean): boolean => c.kind === 'discrete' && same(c.tag, tag) && c.state === state
+/** A condition combined with others (AND ...) is kept as expression text: it still counts when it contains the expected comparison. */
+const contains = (c: SfcCondition, re: RegExp): boolean => c.kind === 'expression' && re.test(c.text)
+const path = (tag: string, rest: string): string => `'(?:\\^/|//|/)?${tag}/${rest}'`
+const isDiscrete = (c: SfcCondition, tag: string, state: boolean): boolean => c.kind === 'discrete' && same(c.tag, tag) && c.state === state ||
+  contains(c, new RegExp(`${path(tag, 'DI1/PV_D\\.CV')}\\s*=\\s*${state ? '(1|TRUE)' : '(0|FALSE)'}(?![0-9.])`, 'i'))
 const isRunning = (c: SfcCondition, running: boolean): boolean => c.kind === 'motorRunning' && same(c.tag, 'MTR-102') && c.running === running
-const isOut = (c: SfcCondition, ops: string[], value: number): boolean => c.kind === 'out' && same(c.tag, 'FIC-102') && ops.includes(c.op) && c.value === value
+const isOut = (c: SfcCondition, ops: string[], value: number): boolean => c.kind === 'out' && same(c.tag, 'FIC-102') && ops.includes(c.op) && c.value === value ||
+  contains(c, new RegExp(`${path('FIC-102', 'PID1/OUT\\.CV')}\\s*(${ops.join('|')})\\s*${value}(?![0-9.])`, 'i'))
 const isAlways = (c: SfcCondition): boolean => c.kind === 'always'
 
 const doAction = (a: SfcAction, on: boolean): boolean => a.kind === 'do' && same(a.tag, 'XV-101') && a.on === on
@@ -89,7 +93,6 @@ export const PARAMETER_PATHS: { id: string; text: string; paths: string[] }[] = 
 export function checkDv09Ch7(ctx: Dv09Ctx): StepCheck[] {
   const { main } = ctx
   const out: StepCheck[] = []
-  const events: EventLogEntry[] = main.eventLog
   const life = main.sfcLifecycle[SFC]
   const draft = life?.draft
   const runtime = main.sfcs[SFC]
@@ -172,14 +175,20 @@ export function checkDv09Ch7(ctx: Dv09Ctx): StepCheck[] {
   const savedTank = savedPicture(tank)
   out.push(check('dv09-7c-9', link(savedTank), `Step 9. The picture Tank101 ${link(tank) ? link(savedTank) ? 'has the MESSAGE datalink (DVSYS.SFC-T101/MESSAGE.F_CV) with Named Set data entry' : 'has the datalink but is not saved (File > Save)' : tank ? 'has no MESSAGE datalink with data entry yet' : 'does not exist'}`))
   const stationSets = main.namedSets.deployed[namedSetTargetKey({ kind: 'workstation' })] ?? {}
-  const ctlChanged = ctl ? changedNamedSets(main.namedSets, { kind: 'controller', tag: assigned || ctl }) : []
-  const wsChanged = changedNamedSets(main.namedSets, { kind: 'workstation' })
-  out.push(check('dv09-7c-9n', !!set && Object.hasOwn(stationSets, NAMED_SET) && !wsChanged.includes(NAMED_SET) && !ctlChanged.includes(NAMED_SET),
-    `Changed Setup Data: ${NAMED_SET} ${!set ? 'does not exist' : wsChanged.includes(NAMED_SET) || !Object.hasOwn(stationSets, NAMED_SET) ? 'is not downloaded to the workstation' : ctlChanged.includes(NAMED_SET) ? 'is not downloaded to the controller' : 'is downloaded to the workstation and the controller'}`))
+  const controllerTag = assigned || ctl
+  const controllerSets = main.namedSets.deployed[namedSetTargetKey({ kind: 'controller', tag: controllerTag })] ?? {}
+  const wsChanged = changedNamedSets(main.namedSets, { kind: 'workstation' }).includes(NAMED_SET)
+  const ctlChanged = !!controllerTag && changedNamedSets(main.namedSets, { kind: 'controller', tag: controllerTag }).includes(NAMED_SET)
+  const hasStates = (d: typeof set): boolean => !!d && d.entries.some(en => en.name === 'STARTUP' && en.value === 1 && en.userSelectable) &&
+    d.entries.some(en => en.name === 'SELECT SEQUENCE' && en.value === 255 && !en.userSelectable)
+  const downloadedSets = hasStates(stationSets[NAMED_SET]) && hasStates(controllerSets[NAMED_SET])
+  out.push(check('dv09-7c-9n', !!set && downloadedSets,
+    `Changed Setup Data: ${NAMED_SET} ${!set ? 'does not exist' : !hasStates(stationSets[NAMED_SET]) ? 'is not downloaded to the workstation' : !hasStates(controllerSets[NAMED_SET]) ? 'is not downloaded to the controller' : `is downloaded to the workstation and the controller${wsChanged || ctlChanged ? ' (changed since: download Changed Setup Data again)' : ''}`}`))
 
-  const journal = events.filter(e => e.tag === SFC)
-  /** Index of the first journal entry after `after` matching `re`; -1 when none. */
-  const at = (re: RegExp, after = -1): number => journal.findIndex((e, i) => i > after && re.test(e.description))
+  // The SFC keeps its own run history (the Event Journal copies are limited to the last 2000 entries of the whole system).
+  const journal = life?.history ?? []
+  /** Index of the first history entry after `after` matching `re`; -1 when none. */
+  const at = (re: RegExp, after = -1): number => journal.findIndex((d, i) => i > after && re.test(d))
   const runOf = (command: string, names: string[], lastNames: string[]): number => {
     let i = at(new RegExp(`^MESSAGE := ${NAMED_SET}:${command} `))
     for (const name of names) { if (i < 0) return -1; i = at(new RegExp(`^SFC step ${name} active$`), i) }
@@ -207,7 +216,7 @@ export function checkDv09Ch7(ctx: Dv09Ctx): StepCheck[] {
   e.push(check('dv09-7e-12', !!closeFlow?.actions.some(a => a.kind === 'mode' && same(a.tag, 'FIC-102') && a.mode === 'MAN') && !!closeFlow.actions.some(a => a.kind === 'out' && same(a.tag, 'FIC-102') && a.value === 0 && a.expression === undefined),
     'CLOSE_FLOW_VLV sets the mode of FIC-102 to MAN and OUT of FIC-102 to 0 %'))
   e.push(check('dv09-7e-13', leads(closeFlow, c => isOut(c, ['<', '<='], 2), 'END_SEQUENCE'), 'Wait for flow valve to be < 2 % open (leads to END_SEQUENCE)'))
-  e.push(check('dv09-7e-14', !!end && end.actions.length === 0 && isAlways(end.transition) && reachesHold(end), 'END_SEQUENCE has no action and the transition True leads back to HOLD_SFC'))
+  e.push(check('dv09-7e-14', !!end && end.actions.every(a => a.qualifier === 'R') && isAlways(end.transition) && reachesHold(end), 'END_SEQUENCE has no action (apart from the R reset of the optional exercise) and the transition True leads back to HOLD_SFC'))
   out.push(...e)
   const figureDone = e.every(c => c.verdict === 'verified')
 
@@ -228,9 +237,8 @@ export function checkDv09Ch7(ctx: Dv09Ctx): StepCheck[] {
   // ---- Workshop - Parameter Paths --------------------------------------------------------------------------------------
   const used = new Set<string>()
   for (const configuration of [draft, life?.saved, life?.deployed]) if (configuration) for (const p of sfcPathsUsed(configuration.steps)) used.add(p)
-  for (const entry of events) {
-    const m = entry.description.match(/^Expression Assistant: browsed (.+)$/)
-    if (m) used.add(up(m[1].replace(/^'?(\^\/|\/\/|\/)?/, '').replace(/'$/, '').replace(/\.CV$/i, '')))
+  for (const lifecycle of Object.values(main.sfcLifecycle)) {
+    for (const picked of lifecycle.browsed ?? []) used.add(up(picked.replace(/^(\^\/|\/\/|\/)/, '').replace(/\.CV$/i, '')))
   }
   const pathChecks = PARAMETER_PATHS.map(p => {
     const hit = p.paths.find(path => used.has(path))

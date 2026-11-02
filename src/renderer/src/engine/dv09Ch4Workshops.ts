@@ -114,7 +114,7 @@ export const DV09_CHAPTER4: WModule = {
       id: 'dv09-ch4-operate2',
       title: 'Workshop – Operating the Analog Module (p 4-54)',
       objective: 'Operate LEVEL-101 and monitor LI-101 with the ALARMS[1] datalink and the Event Chronicle.',
-      note: 'Run, write the CAS_SP datalink of LEVEL-101 to raise and clear an LI-101 alarm and watch the ALARMS[1] datalink appear and disappear. The Process History View button of the DeltaV Operate Run toolbar opens the Event Chronicle.',
+      note: 'Run, write the CAS_SP datalink of LEVEL-101 to raise and clear an LI-101 alarm and watch the ALARMS[1] datalink appear and disappear. The Process History View button of the DeltaV Operate Run toolbar opens the Event Chronicle (the Event Journal display). The workstation\'s Event Chronicle (Explorer: Physical Network > Control Network > Workstation > Alarms And Events > Properties: Enable Event Chronicle, Name, SOE) is configured in the panel at the top of that display: check Enable Event Chronicle, click Download Event Chronicle, then raise an LI-101 alarm again: the records appear in the archive.',
       steps: [
         { id: 'dv09-4h-1', text: 'Step 1. Run the DeltaV Operate application.', goto: 'builder' },
         { id: 'dv09-4h-2', text: 'Step 2. Verify that LI-101/ALARMS[1].A_LAALM functions properly.', goto: 'builder' },

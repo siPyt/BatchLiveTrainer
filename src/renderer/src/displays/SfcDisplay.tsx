@@ -406,7 +406,7 @@ export function SfcChart({ sfc, selected, onSelect, onContext, onProperties, end
                 <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
                 {step.actions.map((a, ai) => {
                   const [rawParam, value] = splitAction(a, modules[a.tag])
-                  const param = endTransition ? rawParam.replace(/^\^\//, '//') : rawParam
+                  const param = endTransition ? rawParam.replace(/^\^\//, '//').replace('/DC1/OUT_D.CV', '/DC1/SP_D.CV') : rawParam
                   const runtime = sfc.actionStates?.[sfcActionStateKey(step, a, parallel)]
                   const actionActive = a.qualifier === 'R' ?
                     isActive && elapsed === 0 && runtime?.resetStep === step.id :

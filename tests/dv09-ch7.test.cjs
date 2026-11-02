@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict')
+const assert = require('node:assert/strict')
 const test = require('node:test')
 const { fixture } = require('./helpers/dv09-fixture.cjs')
 const setup = require('./helpers/dv09-ch7-setup.cjs')
@@ -12,7 +12,7 @@ const verdicts = ctx => Object.fromEntries(DV09_CH7.check({ main: ctx.M(), secur
 const details = ctx => Object.fromEntries(DV09_CH7.check({ main: ctx.M(), security: {}, system: {}, library: ctx.L() }).map(c => [c.id, c.detail]))
 const alerts = []
 const quiet = fn => { const before = global.window.alert; global.window.alert = m => alerts.push(m); try { return fn() } finally { global.window.alert = before } }
-const withCh7 = fn => fixture(3, ctx => { setup.ensurePrereqs(ctx); ctx.useStore.setState({ running: true }); return quiet(() => fn(ctx, eng(ctx))) })
+const withCh7 = fn => fixture(6, ctx => { setup.ensurePrereqs(ctx); ctx.useStore.setState({ running: true }); return quiet(() => fn(ctx, eng(ctx))) })
 const scan = (ctx, n = 5) => { for (let i = 0; i < n; i++) ctx.M().tick(0.1) }
 const ids = ws => ws.steps.map(s => s.id)
 
@@ -42,6 +42,16 @@ const namedSet = (ctx, name, list) => {
     entries: list.map(([n, value, visible, userSelectable]) => ({ name: n, value, visible, userSelectable })) }), true)
 }
 const NS = [['STARTUP', 1, true, true], ['SELECT SEQUENCE', 255, true, false]]
+
+test('the run evidence survives a full Event Journal: the SFC keeps its own history and Browser picks', () => withCh7((ctx) => {
+  setup(ctx)
+  for (let i = 0; i < 2100; i++) ctx.M().logEvent('ALARM', 'NOISE', 'alarm ' + i)
+  assert.equal(ctx.M().eventLog.some(e => /^SFC step OPEN_BLK_VLV active/.test(e.description)), false, 'the journal no longer holds the run')
+  const v = verdicts(ctx)
+  for (const id of ['dv09-7c-10', 'dv09-7d-5', 'dv09-7b-8', 'dv09-7b-9', 'dv09-7a-1']) assert.equal(v[id], 'verified', id)
+  assert.ok(ctx.M().sfcLifecycle['SFC-T101'].history.length > 10)
+  assert.ok(ctx.M().sfcLifecycle['SFC-T101'].history.length <= 400)
+}))
 
 test('Chapter 7 workshop definitions: reading, the five workshops and three optional exercises with unique step ids', () => {
   const ws = DV09_CHAPTER7.workshops
@@ -145,10 +155,11 @@ test('Download: needs Save, a node and the Named Set; sends the Named Set to the
   assert.equal(s.sfcs['SFC-T101'].active, 0)
   assert.equal(s.sfcLifecycle['SFC-T101'].online, true)
   // the SFC waits at HOLD_SFC: nothing moves until the operator enters STARTUP
+  const pumpBefore = ctx.M().modules['MTR-102'].running
   scan(ctx, 30)
   assert.equal(ctx.M().sfcs['SFC-T101'].active, 0)
   assert.equal(ctx.M().sfcs['SFC-T101'].status, 'RUNNING')
-  assert.equal(ctx.M().modules['MTR-102'].running, false, 'no pump start before the operator enters STARTUP')
+  assert.equal(ctx.M().modules['MTR-102'].running, pumpBefore, 'the pump is not touched before the operator enters STARTUP')
   E.D.goEdit('SFC-T101')
   assert.equal(ctx.M().sfcLifecycle['SFC-T101'].online, false)
   assert.equal(ctx.M().sfcs['SFC-T101'].status, 'READY')
@@ -307,6 +318,8 @@ test('Modifying SFC-T101 and Startup & Shutdown: the divergent chart, Download a
   const n2 = ctx.M().namedSets.configured['NS-T101']
   ctx.M().applyNamedSetProperties(n2, { ...n2, entries: n2.entries.map(e => (e.name === 'SHUTDOWN' ? { ...e, userSelectable: true } : e)) })
   assert.equal(v()['dv09-7d-1'], 'verified')
+  assert.equal(v()['dv09-7c-9n'], 'verified', 'the earlier Changed Setup Data download still counts')
+  assert.match(details(ctx)['dv09-7c-9n'], /changed since: download Changed Setup Data again/)
   // the chart is edited: the running SFC has to be stopped first (Edit)
   assert.equal(ctx.M().setSfcSteps('SFC-T101', chart(ctx, E, 'SFC-T101', true)), undefined)
   assert.equal(ctx.M().sfcLifecycle['SFC-T101'].draft.steps.length, 4, 'a running SFC cannot be edited')
@@ -355,23 +368,24 @@ test('Modifying SFC-T101 and Startup & Shutdown: the divergent chart, Download a
 
 test('Parameter Paths: each line is verified by the path used in an SFC expression or picked in the Browser', () => withCh7((ctx, E) => {
   const v = () => verdicts(ctx)
+  ctx.M().createSfc('SFC-X', 'PLANT_AREA_A', { managed: true })
   const ids9 = Array.from({ length: 9 }, (_, i) => `dv09-7b-${i + 1}`)
   assert.ok(ids9.every(id => v()[id] === 'pending'))
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //XV-101/DO1/SP_D.CV')
+  E.D.recordBrowse('SFC-X', '//XV-101/DO1/SP_D.CV')
   assert.equal(v()['dv09-7b-1'], 'verified')
   assert.equal(v()['dv09-7b-2'], 'pending')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //XVSTAT-101/DI1/PV_D.CV')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //MTR-102/DC1/SP_D.CV')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //MTR-102/DC1/PV_D.CV')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/MODE.TARGET')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/SP.CV')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/OUT.CV')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/MODE.ACTUAL')
+  E.D.recordBrowse('SFC-X', '//XVSTAT-101/DI1/PV_D.CV')
+  E.D.recordBrowse('SFC-X', '//MTR-102/DC1/SP_D.CV')
+  E.D.recordBrowse('SFC-X', '//MTR-102/DC1/PV_D.CV')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/MODE.TARGET')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/SP.CV')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/OUT.CV')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/MODE.ACTUAL')
   assert.equal(v()['dv09-7a-1'], 'pending')
   assert.equal(v()['dv09-7b-9'], 'pending')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/MODE.CV')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/MODE.CV')
   assert.equal(v()['dv09-7b-9'], 'pending', 'a different parameter does not count')
-  ctx.M().logEvent('CONFIGURE', 'SFC-X', 'Expression Assistant: browsed //FIC-102/PID1/PV.CV')
+  E.D.recordBrowse('SFC-X', '//FIC-102/PID1/PV.CV')
   assert.ok(ids9.every(id => v()[id] === 'verified'))
   assert.equal(v()['dv09-7a-1'], 'verified')
   // an SFC expression counts without the Browser
@@ -419,6 +433,7 @@ test('Optional exercises: messages, level and lock, execution time alarm', () =>
   assert.equal(v()['dv09-7g-1'], 'pending')
   ctx.M().setSfcSteps('SFC-T101', steps.map(s => (s.id === 'flow' ? { ...s, transition: { kind: 'expression', text: "'//FIC-102/PID1/OUT.CV' > 30 AND '//LI-101/AI1/PV.CV' > 50" } } : s)))
   assert.equal(v()['dv09-7g-1'], 'verified')
+  assert.equal(v()['dv09-7e-5'], 'verified', 'the OUT > 30 transition combined with the level condition still counts for the figure')
   // 3. alarm: type, alarm, block, Non-Boolean action
   const draft = () => ctx.M().sfcLifecycle['SFC-T101'].draft
   assert.equal(ctx.M().configureSfcBlocks('SFC-T101', { alarmTypes: { SEQ_TIME: { description: 'Sequence time exceeded', priority: 'WARNING' } } }, draft()), true)
