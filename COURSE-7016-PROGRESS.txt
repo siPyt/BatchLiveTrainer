@@ -745,6 +745,13 @@ PyMuPDF into the session folder (files\dv09-om.txt; pypdf cannot read it: AES). 
   real device; one block per module in the Ch3 module editor; Operate has only the main picture template and the Valve17 dynamo;
   pictures are kept in browser storage; Ch6 optional exercises not built.
 - tests: tests/dv09-ch3 .. dv09-ch13 .cjs. npm test: 985 of 986 pass (only dv09-audit, which needs the copyrighted pdf_om.txt).
+- Page 5-12 process diagram (placeholder) [added 2026-11-02]: DeltaV Operate in class DV-09 has View > "Process Diagram (p 5-12,
+  placeholder)" and a toolbar button "Process Diagram" (both Run and Configure) that open a floating panel with a static drawing
+  of the Chapter 5 workshop diagram: tank with level circle, pump with XI-2 above and ZX-2 below, block valve, union and control
+  valve, plus the CTLR / MTR-102 label and the DI / DO card row. File: displays/Dv09ProcessDiagram.tsx (wired in OperateDv09.tsx,
+  styles .dv09-pdiag in styles.css). No live values and no checks yet - it is only a place to hang the real picture later.
+  UI verified twice (fresh profiles p40a, p40b; script pw16\pd.mjs): menu and toolbar both open and close it, in Run and
+  Configure; screenshot compared with manual page 5-12. Typecheck clean; npm test unchanged (985/986, only dv09-audit).
 
 
 6. TESTS AND VERIFICATION

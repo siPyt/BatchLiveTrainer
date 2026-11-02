@@ -5187,6 +5187,10 @@ button {
 .dv09-fds { position: absolute; left: 20px; top: 20px; width: 430px; background: #fff; border: 2px outset #fff; z-index: 7; color: #000; }
 .dv09-fds-title { background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 4px; }
 .dv09-fds-body { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 6px; }
+.dv09-pdiag { position: absolute; left: 30px; top: 20px; width: 640px; background: #fff; border: 2px outset #fff; z-index: 8; color: #000; }
+.dv09-pdiag .dv09-fds-title { display: flex; justify-content: space-between; align-items: center; }
+.dv09-pdiag-svg { display: block; width: 100%; height: auto; background: #fff; }
+.dv09-pdiag-note { font-size: 11px; padding: 3px 6px; background: #ece9d8; border-top: 1px solid #808080; }
 .dv09-fds-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; opacity: 0.55; }
 .dv09-fds-item.modeled { opacity: 1; cursor: grab; outline: 1px dotted #0078d7; }
 .dv09-swatches { display: grid; grid-template-columns: repeat(9, 24px); gap: 3px; }

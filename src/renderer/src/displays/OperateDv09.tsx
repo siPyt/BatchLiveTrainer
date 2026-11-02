@@ -16,6 +16,7 @@ import { Canvas } from './DisplayBuilder'
 import { UserSettingsHost, useUsUi } from '../components/Dv09UserSettingsUi'
 import { ExtDialogs, ExtButtons, expertOpened, type ExtDialog } from './OperateDv09Ext'
 import { addRectangle, addTank, addAnimDynamo, lastElement } from '../engine/dv09OperateEx'
+import { Dv09ProcessDiagram } from './Dv09ProcessDiagram'
 import { FRS_ITEMS, FrsDynamoDialog, askFrsProperties } from './OperateDv09Frs'
 
 // Course DV-09 chapter 3: DeltaV Operate (Configure / Run) as the manual shows it (pp 3-20 .. 3-50): title bar, menu bar, button bar,
@@ -61,6 +62,7 @@ export function OperateDv09(): JSX.Element {
   const [menu, setMenu] = useState<string | null>(null)
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
   const [message, setMessage] = useState('')
+  const [diagram, setDiagram] = useState(false)
   const [ext, setExt] = useState<ExtDialog | null>(null)
   const configure = mode === 'configure'
   const pic = active ? pictures[active] : undefined
@@ -174,7 +176,8 @@ export function OperateDv09(): JSX.Element {
       { label: 'Switch to Configure', onClick: () => switchMode('configure'), disabled: configure }] },
     { label: 'View', items: [
       { label: 'Color Selections...', onClick: () => setDialog('colors'), disabled: !configure || !selEl },
-      { label: 'Property Window', onClick: () => setShowProps(v => !v), disabled: !configure }] },
+      { label: 'Property Window', onClick: () => setShowProps(v => !v), disabled: !configure },
+      { label: 'Process Diagram (p 5-12, placeholder)', onClick: () => setDiagram(v => !v) }] },
     { label: 'Format', items: [{ label: 'Font...', onClick: () => setDialog('font'), disabled: !configure || selected?.type !== 'text' }] },
     { label: 'Window', items: [{ label: 'Close All', onClick: closeAll }] },
     { label: 'Help', items: [{ label: 'DeltaV Operate Help', onClick: () => setMessage('Help: see Course DV-09 Chapter 3, pages 3-20 to 3-50.') }] }
@@ -203,6 +206,8 @@ export function OperateDv09(): JSX.Element {
         <button className="dv09-op-btn" aria-label="Process History View" title="Process History View (Event Chronicle)" disabled={configure}
           onClick={() => { useStore.getState().logEvent('DIAGNOSTIC', 'DeltaV Operate', 'Process History View (Event Chronicle) opened'); useUi.getState().navigate('journal') }}>🕘</button>
         <span className="dvx-tsep" />
+        <button className="dv09-op-btn" aria-label="Process Diagram" title="Process Diagram (page 5-12, placeholder)" onClick={() => setDiagram(v => !v)}>⛭</button>
+        <span className="dvx-tsep" />
         <span className="dv09-op-status" role="status">{message}</span>
         <span className="dv09-op-mode" data-mode-badge>{configure ? 'Configure' : 'Run'}</span>
       </div>
@@ -218,6 +223,7 @@ export function OperateDv09(): JSX.Element {
               <button className="dv09-op-tabx" aria-label="Close Valves2.fds" onClick={() => setDynamoWindow(false)}>×</button></span>}
           </div>
           <div className="dv09-op-stage">
+            {diagram && <Dv09ProcessDiagram onClose={() => setDiagram(false)} />}
             {dynamoWindow && configure && <div className="dv09-fds" aria-label="Valves2.fds">
               <div className="dv09-fds-title">Valves2.fds</div>
               <div className="dv09-fds-body">{VALVES2.map(v => <div key={v} className={'dv09-fds-item' + (v === 'Valve17' ? ' modeled' : '')}
