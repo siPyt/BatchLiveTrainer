@@ -257,7 +257,7 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
  * standard steps, transition cross-bars with live boolean evaluation, and
  * attached [qualifier | parameter | value] action blocks — a 2D vector
  * flowchart instead of stacked HTML form cards. */
-function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
+export function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
   sfc: SfcDef; selected: number | null; onSelect: (i: number) => void
   onContext: (target: SfcPropertiesTarget, x: number, y: number) => void
   onProperties: (target: SfcPropertiesTarget) => void

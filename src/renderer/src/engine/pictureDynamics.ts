@@ -63,7 +63,7 @@ function numericDatalink(el: PicElement, context?: PictureNamedContext): boolean
   if (el.type !== 'datalink' || el.entry?.method === 'NAMED_SET' || context?.sfcLifecycle[el.tag ?? ''] ||
     pictureDiscretePath(el.path)) return false
   if (el.path === undefined) return ['PV', 'SP', 'OUT'].includes(el.param ?? 'PV')
-  return !pictureModePath(el.path) && !pictureAlarmPath(el.path)
+  return !pictureModePath(el.path) && !pictureAlarmPath(el.path) && !ALARM_CV_PATH.test(el.path.trim())
 }
 
 function datalinkOptionsError(el: PicElement, context?: PictureNamedContext): string | null {
@@ -95,6 +95,19 @@ function datalinkOptionsError(el: PicElement, context?: PictureNamedContext): st
 
 function pictureAlarmPath(path: string): boolean {
   return /^ALARMS\[1\]\.A_LAALM$/i.test(path.trim())
+}
+
+/** LI-101/HI_ALM.A_CV style datalinks (course DV-09 p4-38): the latched state of one named alarm, OK or the alarm word. */
+export const ALARM_CV_PATH = /^(HI_HI|HI|LO|LO_LO)_ALM$/i
+const ALARM_CV_WORD: Record<string, string> = { HI_HI: 'HIHI', HI: 'HIGH', LO: 'LOW', LO_LO: 'LOLO' }
+export function pictureAlarmCvSignal(el: Pick<PicElement, 'tag' | 'path'>, modules: Record<string, AnyModule>, alarms: ActiveAlarm[]): { text: string } | { error: string } {
+  const tag = el.tag ?? ''
+  const module = modules[tag]
+  const match = ALARM_CV_PATH.exec((el.path ?? '').trim())
+  if (!module || !match) return { error: `Unsupported alarm source ${tag || '(unassigned)'}/${el.path ?? ''}` }
+  const type = match[1].toUpperCase()
+  if (!module.alarms.some(alarm => alarm.type === type)) return { error: `${tag} has no ${type}_ALM alarm` }
+  return { text: alarms.some(alarm => alarm.moduleTag === tag && alarm.type === type) ? ALARM_CV_WORD[type] : 'OK' }
 }
 
 export function pictureAlarmSignal(el: Pick<PicElement, 'tag' | 'path'>,
@@ -245,6 +258,11 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
       return 'OUT ramp rate must be greater than 0 and at most 100 percent per second'
     }
     return null
+  }
+  if (el.path !== undefined && ALARM_CV_PATH.test(el.path.trim())) {
+    if (el.entry || el.fill) return 'Alarm datalinks are read-only'
+    const source = pictureAlarmCvSignal(el, modules, [])
+    return 'error' in source ? source.error : null
   }
   if (el.path !== undefined && pictureAlarmPath(el.path)) {
     const source = pictureAlarmSignal(el, modules, [])

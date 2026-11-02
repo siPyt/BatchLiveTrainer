@@ -30,6 +30,19 @@ function namedExpression(text: string, operator: ':=' | '=', context?: SfcExpres
   return error ? { error } : { value: { parameter, namedSet: match[2], entry: match[3] } }
 }
 
+/** A discrete literal: 0/1, or a Named Set state ('mtr2-sp:START') whose configured value is 0 or 1. */
+function discreteValue(value: string, context?: SfcExpressionContext): { value: '0' | '1'; error?: never } | { error: string; value?: never } {
+  if (value === '0' || value === '1') return { value }
+  const named = value.match(/^([^':\s]+):(.+)$/)
+  if (!named) return { error: 'Discrete assignment requires 0 or 1' }
+  const set = context && Object.hasOwn(context.sets, named[1]) ? context.sets[named[1]] : undefined
+  if (!set) return { error: `Named Set ${named[1]} is unavailable; configure/transfer setup data` }
+  const entry = set.entries.find(item => item.name === named[2])
+  if (!entry) return { error: `Case-sensitive state ${named[1]}:${named[2]} does not exist` }
+  return entry.value === 0 || entry.value === 1 ? { value: String(entry.value) as '0' | '1' } :
+    { error: `${value} has value ${entry.value}; a discrete device command needs a state with value 0 or 1` }
+}
+
 export function parseSfcAssignment(text: string, modules: Record<string, AnyModule>, context?: SfcExpressionContext): ExpressionResult<SfcAction> {
   const named = namedExpression(text, ':=', context)
   if (named) {
@@ -64,13 +77,15 @@ export function parseSfcAssignment(text: string, modules: Record<string, AnyModu
     }
     return { value: { kind, tag, value: numeric } }
   }
-  if (value !== '0' && value !== '1') return { error: 'Discrete assignment requires 0 or 1' }
-  const on = value === '1'
+  const discrete = discreteValue(value, context)
+  if (discrete.error !== undefined) return { error: discrete.error }
+  const on = discrete.value === '1'
   if ((module.type === 'MOTOR' || module.type === 'VALVE') && parameter === 'DC1/RESET_D.CV') {
     return { value: { kind: 'deviceReset', tag, reset: on } }
   }
-  if (module.type === 'MOTOR' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'motor', tag, run: on } }
-  if (module.type === 'VALVE' && parameter === 'DC1/OUT_D.CV') return { value: { kind: 'valve', tag, open: on } }
+  // The device command is DC1/SP_D (a Named Set state such as 'mtr2-sp:START' or 0/1); OUT_D stays accepted.
+  if (module.type === 'MOTOR' && (parameter === 'DC1/OUT_D.CV' || parameter === 'DC1/SP_D.CV')) return { value: { kind: 'motor', tag, run: on } }
+  if (module.type === 'VALVE' && (parameter === 'DC1/OUT_D.CV' || parameter === 'DC1/SP_D.CV')) return { value: { kind: 'valve', tag, open: on } }
   if (module.type === 'DO' && parameter === 'DO1/SP_D.CV') return { value: { kind: 'do', tag, on } }
   return { error: `Unsupported assignment path ${tag}/${parameter}; use a supported module path or configured Named Set expression` }
 }
@@ -121,9 +136,15 @@ function parseSimpleCondition(text: string, modules: Record<string, AnyModule>, 
   if (match[2] === '=' && module.type === 'DI' && parameter === 'DI1/PV_D.CV' && ['0', '1'].includes(value)) {
     return { value: { kind: 'discrete', tag, state: value === '1' } }
   }
-  if (match[2] === '=' && ['0', '1'].includes(value) && parameter === 'DC1/PV_D.CV') {
-    if (module.type === 'MOTOR') return { value: { kind: 'motorRunning', tag, running: value === '1' } }
-    if (module.type === 'VALVE') return { value: { kind: 'valveOpen', tag, open: value === '1' } }
+  if (match[2] === '=' && parameter === 'DC1/PV_D.CV' && (module.type === 'MOTOR' || module.type === 'VALVE')) {
+    // 'mtr2-pv:RUNNING' compares the device state with a Named Set state whose value is 0/1.
+    const state = /^[01]$/.test(value) || !/^[^':\s]+:.+$/.test(value) ? undefined : discreteValue(value, context)
+    if (state?.error !== undefined) return { error: state.error }
+    const bit = state ? state.value : value
+    if (bit === '0' || bit === '1') {
+      if (module.type === 'MOTOR') return { value: { kind: 'motorRunning', tag, running: bit === '1' } }
+      return { value: { kind: 'valveOpen', tag, open: bit === '1' } }
+    }
   }
   const numeric = numericLiteral(value)
   if (!Number.isFinite(numeric) || !['>', '<', '>=', '<='].includes(match[2])) return { error: 'Unsupported comparison or nonfinite value' }

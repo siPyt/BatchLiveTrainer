@@ -261,7 +261,7 @@ function pathKind(module: AnyModule, parameter: string): Pick<Compiled, 'kind' |
       return null
     case 'MOTOR':
     case 'VALVE':
-      return parameter === 'DC1/PV_D.CV' || parameter === 'DC1/OUT_D.CV' ? { kind: 'boolean' } : null
+      return parameter === 'DC1/PV_D.CV' || parameter === 'DC1/OUT_D.CV' || parameter === 'DC1/SP_D.CV' ? { kind: 'boolean' } : null
     case 'DI':
       return parameter === 'DI1/PV_D.CV' ? { kind: 'boolean' } : null
     case 'DO':
@@ -288,9 +288,9 @@ function readPath(state: PlantState, tag: string, parameter: string): Value {
       if (parameter === 'AO1/OUT.CV') { const out = readAnalogSignal({ tag, parameter: 'OUT' }, state.modules); return finite(out.value, out.bad) }
       return parameter === 'AO1/MODE.ACTUAL' ? module.actualMode : module.mode
     case 'MOTOR':
-      return parameter === 'DC1/OUT_D.CV' ? module.commanded : module.ioInputBad || module.ioOutputBad ? null : module.running
+      return parameter === 'DC1/OUT_D.CV' || parameter === 'DC1/SP_D.CV' ? module.commanded : module.ioInputBad || module.ioOutputBad ? null : module.running
     case 'VALVE':
-      return parameter === 'DC1/OUT_D.CV' ? module.commandedOpen : module.ioInputBad || module.ioOutputBad ? null : module.open
+      return parameter === 'DC1/OUT_D.CV' || parameter === 'DC1/SP_D.CV' ? module.commandedOpen : module.ioInputBad || module.ioOutputBad ? null : module.open
     case 'DI':
       return module.ioBad || module.mode === 'OOS' ? null : module.state
     case 'DO':
@@ -469,8 +469,14 @@ function compileComparison(op: BinaryOp, a: Compiled, b: Compiled, context: SfcE
   }
   if (!equality) throw new LogicError(`'${op}' compares numbers only; use = or <> for true/false, mode and Named Set values`)
   // Discrete values compare with TRUE/FALSE or the literals 0/1, as DeltaV discrete parameters do.
+  const namedBit = (c: Compiled): Compiled | null => {
+    const named = c.kind === 'text' && typeof c.literal === 'string' ? c.literal.match(/^([^':\s]+):(.+)$/) : null
+    const set = named && context && Object.hasOwn(context.sets, named[1]) ? context.sets[named[1]] : undefined
+    const entry = set?.entries.find(item => item.name === named?.[2])
+    return entry && (entry.value === 0 || entry.value === 1) ? { kind: 'boolean', eval: () => entry.value === 1 } : null
+  }
   const asBoolean = (c: Compiled): Compiled | null => c.kind === 'boolean' ? c :
-    c.kind === 'number' && (c.literal === 0 || c.literal === 1) ? { ...c, kind: 'boolean', eval: () => c.literal === 1 } : null
+    c.kind === 'number' && (c.literal === 0 || c.literal === 1) ? { ...c, kind: 'boolean', eval: () => c.literal === 1 } : namedBit(c)
   if (a.kind === 'boolean' || b.kind === 'boolean') {
     const x = asBoolean(a)
     const y = asBoolean(b)

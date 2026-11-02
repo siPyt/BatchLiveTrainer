@@ -9,6 +9,9 @@ import type { Picture } from './pictureStore'
 
 const check = (id: string, ok: boolean, detail: string): StepCheck => ({ id, verdict: ok ? 'verified' : 'pending', detail })
 
+/** How the Explorer / Control Studio authoring store (chapters 3 to 6) sees a module: its node and whether it is saved and downloaded. */
+export type CmInfo = (tag: string) => { node: string | undefined; saved: boolean; downloaded: boolean } | undefined
+
 /** The slice of the main store the chapter 9 checks read. */
 export interface Dv09Ch9State {
   hardware: HardwareState
@@ -58,7 +61,7 @@ const pictureSaved = (events: EventLogEntry[], pictures: Record<string, Picture>
 }
 
 /** Course DV-09 Chapter 9 (pp 9-31 .. 9-45): Workshop 1, Modbus Tie-Back, port 1 master to port 2 slave with a serial card in slot 5. */
-export function checkDv09Ch9(s: Dv09Ch9State, pictures: Record<string, Picture>): StepCheck[] {
+export function checkDv09Ch9(s: Dv09Ch9State, pictures: Record<string, Picture>, cm: CmInfo = () => undefined): StepCheck[] {
   const hw = s.hardware
   const ctl = Object.values(hw.controllers).find(x => x.trackDownload && x.commissioned)
   const card: SerialCard | undefined = ctl ? Object.values(hw.serialCards ?? {}).find(c => c.controllerTag === ctl.tag && c.slot === 5) : undefined
@@ -100,15 +103,15 @@ export function checkDv09Ch9(s: Dv09Ch9State, pictures: Record<string, Picture>)
     check('dv09-9w-10', downloaded, downloaded ? 'Serial card downloaded; FLOW-OUT/R40001, MTR-OUT/R2, FLOW-IN/R40001 and MTR-IN/R2 are published' : 'Download the serial card after configuring it (the downloaded configuration must equal the configured one)'),
     check('dv09-9m-1', !!mtr && mtr.type === 'MOTOR' && mtr.area === 'PLANT_AREA_A', mtr ? `${mtr.tag} is a motor module in ${mtr.area}` : 'MTR-MODBUS does not exist in PLANT_AREA_A yet'),
     check('dv09-9m-3', mtrIo, mtrIo ? 'IO_IN_1 = MTR-IN/R2 and IO_OUT_1 = MTR-OUT/R2' : 'IO_IN_1 / IO_OUT_1 of MTR-MODBUS are not bound to MTR-IN/R2 and MTR-OUT/R2 yet'),
-    check('dv09-9m-4', !!mtrRec && (mtrRec.deployed?.controllerTag ?? mtrRec.draft.controllerTag) === ctl?.tag && !!ctl, 'MTR-MODBUS is assigned to the controller'),
-    check('dv09-9m-5', !!mtrRec?.saved && !!mtrRec.deployed && mtrIo, mtrRec?.deployed ? 'MTR-MODBUS saved and downloaded' : 'Save and download MTR-MODBUS'),
+    check('dv09-9m-4', !!ctl && ((mtrRec?.deployed?.controllerTag ?? mtrRec?.draft.controllerTag) === ctl.tag || cm('MTR-MODBUS')?.node === ctl.tag), 'MTR-MODBUS is assigned to the controller'),
+    check('dv09-9m-5', mtrIo && ((!!mtrRec?.saved && !!mtrRec.deployed) || (!!cm('MTR-MODBUS')?.saved && !!cm('MTR-MODBUS')?.downloaded)), mtrIo && (mtrRec?.deployed || cm('MTR-MODBUS')?.downloaded) ?     'MTR-MODBUS saved and downloaded' : 'Save and download MTR-MODBUS'),
     check('dv09-9m-6', !!pictureHas(pictures, 'MTR-MODBUS'), pictureHas(pictures, 'MTR-MODBUS') ? `Display ${pictureHas(pictures, 'MTR-MODBUS')} holds a pump dynamo for MTR-MODBUS` : 'No display holds a dynamo bound to MTR-MODBUS yet'),
     check('dv09-9m-7', pictureSaved(s.eventLog, pictures, 'MTR-MODBUS'), 'The display with the MTR-MODBUS dynamo was saved'),
     check('dv09-9m-8', start >= 0 && stop >= 0, start >= 0 && stop >= 0 ? 'MTR-MODBUS was started and stopped after its download' : 'Start and stop MTR-MODBUS from the display after it is downloaded'),
     check('dv09-9f-1', !!fic && fic.type === 'PID' && fic.area === 'PLANT_AREA_A', fic ? `${fic.tag} is a PID loop in ${fic.area}` : 'FIC-MODBUS does not exist in PLANT_AREA_A yet'),
     check('dv09-9f-3', ficIo, ficIo ? 'IO_IN = FLOW-IN/R40001 and IO_OUT = FLOW-OUT/R40001' : 'IO_IN / IO_OUT of FIC-MODBUS are not bound to FLOW-IN/R40001 and FLOW-OUT/R40001 yet'),
-    check('dv09-9f-4', !!ficRec && (ficRec.deployed?.controllerTag ?? ficRec.draft.controllerTag) === ctl?.tag && !!ctl, 'FIC-MODBUS is assigned to the controller'),
-    check('dv09-9f-5', !!ficRec?.saved && !!ficRec.deployed && ficIo, ficRec?.deployed ? 'FIC-MODBUS saved and downloaded' : 'Save and download FIC-MODBUS'),
+    check('dv09-9f-4', !!ctl && ((ficRec?.deployed?.controllerTag ?? ficRec?.draft.controllerTag) === ctl.tag || cm('FIC-MODBUS')?.node === ctl.tag), 'FIC-MODBUS is assigned to the controller'),
+    check('dv09-9f-5', ficIo && ((!!ficRec?.saved && !!ficRec.deployed) || (!!cm('FIC-MODBUS')?.saved && !!cm('FIC-MODBUS')?.downloaded)), ficIo && (ficRec?.deployed || cm('FIC-MODBUS')?.downloaded) ? 'FIC-MODBUS saved and downloaded' : 'Save and download FIC-MODBUS'),
     check('dv09-9f-6', !!pictureHas(pictures, 'FIC-MODBUS'), pictureHas(pictures, 'FIC-MODBUS') ? `Display ${pictureHas(pictures, 'FIC-MODBUS')} holds a loop dynamo for FIC-MODBUS` : 'No display holds a dynamo bound to FIC-MODBUS yet'),
     check('dv09-9f-7', pictureSaved(s.eventLog, pictures, 'FIC-MODBUS'), 'The display with the FIC-MODBUS dynamo was saved'),
     check('dv09-9f-8', ficLoop, ficLoop ? `FIC-MODBUS is online, an operator write was made and the PV (register ${reg}) follows the holding register 40001 written through the tie-back` : 'Operate FIC-MODBUS (mode, SP or OUT) so that its output travels through holding register 40001 and returns as the PV')

@@ -304,6 +304,9 @@ export interface AnalogIndicator extends ModuleDisplayProperties {
   classInstance?: string
   /** Runtime status text reported by the executing block (class-based modules). */
   statusText?: string
+  /** Course DV-09 modules created in DeltaV Explorer are undownloaded: the AI block does not scan or alarm until the module is downloaded. */
+  downloaded?: boolean
+  controllerTag?: string
 }
 
 export interface FloatingInputParameter {

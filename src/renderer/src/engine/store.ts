@@ -669,6 +669,17 @@ export const useStore = create<StoreState>((set, get) => ({
     }))
     const setsBySfc = Object.fromEntries(Object.keys(runnable).map(name => [name, sfcExpressionContext(s, name, true).sets]))
     const { modules: sfcModules, sfcs: executedSfcs } = advanceSfcs({ ...s, sfcs: runnable }, cmdModules, dt * s.speed, setsBySfc)
+    // A downloaded (managed) SFC journals each step it enters and its completion, so the execution can be reviewed afterwards.
+    for (const [name, after] of Object.entries(executedSfcs)) {
+      const before = runnable[name]
+      if (!before || !s.sfcLifecycle[name] || after === before) continue
+      if (after.status === 'RUNNING' && before.status === 'RUNNING' && after.active !== before.active && after.steps[after.active]) {
+        sfcDiagnostics.push({ id: `${name}-step-${s.time}-${after.active}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM',
+          description: `SFC step ${after.steps[after.active].name} active` })
+      } else if (after.status === 'COMPLETE' && before.status === 'RUNNING') {
+        sfcDiagnostics.push({ id: `${name}-complete-${s.time}`, time: s.time, category: 'BATCH', tag: name, user: 'SYSTEM', description: 'SFC complete' })
+      }
+    }
     const sfcs = { ...s.sfcs, ...executedSfcs, ...paused }
     let photoPlant = s.photoPlant
     if (photoPlant) {

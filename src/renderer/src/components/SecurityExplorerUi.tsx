@@ -82,8 +82,8 @@ function SignatureDialog({ tag, onClose }: { tag: string; onClose: () => void })
     <div className="lib-dlg-fields dvd-panel">
       <p>Select the signature policy that applies to <b>{tag}</b>.</p>
       <ul className="dvd-list" aria-label="Signature policies" style={{ listStyle: 'none', margin: 0, padding: 2 }}>
-        <li><label><input type="radio" name="policy" checked={policy === ''} onChange={() => setPick('')} /> (none)</label></li>
-        {names.map(n => <li key={n}><label><input type="radio" name="policy" aria-label={n} checked={policy === n} onChange={() => setPick(n)} /> {n}</label></li>)}
+        <li><label className="lib-dlg-check"><input type="radio" name="policy" checked={policy === ''} onChange={() => setPick('')} /> (none)</label></li>
+        {names.map(n => <li key={n}><label className="lib-dlg-check"><input type="radio" name="policy" aria-label={n} checked={policy === n} onChange={() => setPick(n)} /> {n}</label></li>)}
       </ul>
       {names.length === 0 && <p className="exp-hint">No signature policy exists yet: create one under Setup &gt; Electronic Signatures.</p>}
       {error && <p role="alert" className="lib-dlg-error">{error}</p>}

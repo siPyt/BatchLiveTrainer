@@ -71,7 +71,7 @@ export function SfcLifecycleControls({ name }: { name: string }): JSX.Element {
   </div>
 }
 
-function SfcModuleProperties({ configuration, onClose }: {
+export function SfcModuleProperties({ configuration, onClose }: {
   configuration: SfcConfiguration; onClose: () => void
 }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)

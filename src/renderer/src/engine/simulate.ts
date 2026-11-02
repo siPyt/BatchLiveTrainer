@@ -1098,7 +1098,7 @@ export function stepPlant(
     if (module.type !== 'PID') continue
     const io = pidIo(module)
     if (!boundInput(module.tag)) samplePidInput(module, io.ai.raw, badPvTags.has(module.tag))
-    io.ao.bad = analogOutputBad(module.tag) || !!io.ao.fault ||
+    io.ao.bad = analogOutputBad(module.tag) || !!io.ao.fault || module.downloaded === false ||
       (io.ao.mode === 'CAS' && !io.aoConnected)
     if (io.ao2) io.ao2.bad = analogOutputBad(module.tag, true) || !!io.ao2.fault ||
       (io.ao2.mode === 'CAS' && !io.ao2Connected)
@@ -1313,7 +1313,7 @@ export function stepPlant(
       const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
       if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, m.pvBad, m.pv, m.unit, now)
     } else if (m.type === 'AI') {
-      evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
+      if (m.downloaded !== false) evalAnalogAlarms(m.tag, m.description, m.pv, m.unit, m.alarms, alarms, now)
       const pvbad = m.alarms.find((a) => a.type === 'PVBAD')
       if (pvbad) reconcile(alarms, m.tag, m.description, pvbad, m.pvBad, m.pv, m.unit, now)
     } else if (m.type === 'MOTOR') {

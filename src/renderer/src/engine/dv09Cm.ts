@@ -13,8 +13,8 @@ import type { AnyModule, DiscreteInput, DiscreteOutput } from './types'
 // module template), is configured, assigned to a node, saved and downloaded. The running module lives in useStore.modules
 // (type DO / DI) so alarms, faceplates, pictures and the I/O simulation work unchanged; this store holds the authoring state.
 
-export type Dv09BlockType = 'DO' | 'DI'
-export interface Dv09Block { name: string; type: Dv09BlockType }
+export type Dv09BlockType = 'DO' | 'DI' | 'AO' | 'AI' | 'DC' | 'PID'
+export interface Dv09Block { name: string; type: Dv09BlockType | 'CND' | 'BFI' | 'OR' | 'NOT' | 'AND' }
 export interface Dv09Cm {
   tag: string
   description: string
@@ -27,7 +27,22 @@ export interface Dv09Cm {
   /** Configuration signature at the last Save and at the last Download to the controller. */
   saved?: string
   deployed?: string
+  /** Chapters 4-6 (analog, motor and regulatory modules): Special Items input parameters and the wires of the diagram. */
+  params?: { name: string; type: 'Floating Point' }[]
+  wires?: { from: string; to: string }[]
+  /** Module Properties > General / Displays (chapter 4 pp 4-12, 4-13; chapter 5 p5-15 Detail). */
+  restoreAfterRestart?: boolean
+  downloadBehavior?: string
+  /** Authoring settings of the blocks that have no field on the running module (for example the DC block DEVICE_OPTS bits). */
+  loop?: Record<string, string | number | boolean>
 }
+
+/** Hooks the chapter 4-6 authoring (dv09Loops.ts) registers: what the Save / Download signature additionally contains and the rename of owned blocks. */
+export const cmExtensions: {
+  snapshot?: (s: ReturnType<typeof useStore.getState>, cm: Dv09Cm) => unknown
+  renamed?: (oldTag: string, tag: string) => void
+  downloadError?: (tag: string) => string | null
+} = {}
 
 export const DV09_FILTER_GROUPS = ['Quick Configuration', 'Common Configuration', 'All Parameters'] as const
 export const DV09_DISCRETE_TEMPLATE = 'DISCRETE'
@@ -42,20 +57,20 @@ const setCms = (fn: (cms: Record<string, Dv09Cm>) => Record<string, Dv09Cm>): vo
   useDv09Cm.setState(st => ({ cms: fn(st.cms) }))
   useStore.setState(s => ({ rev: s.rev + 1 }))
 }
-const log = (tag: string, description: string, category: 'CONFIGURE' | 'OPERATOR' | 'DIAGNOSTIC' = 'CONFIGURE'): void =>
+export const log = (tag: string, description: string, category: 'CONFIGURE' | 'OPERATOR' | 'DIAGNOSTIC' = 'CONFIGURE'): void =>
   useStore.getState().logEvent(category, tag, description)
-const fail = (tag: string, message: string): string => {
+export const fail = (tag: string, message: string): string => {
   log(tag, message, 'DIAGNOSTIC')
   if (typeof window !== 'undefined') window.alert(message)
   return message
 }
 
-const patchModule = (tag: string, patch: Partial<DiscreteOutput> | Partial<DiscreteInput>): void =>
+export const patchModule = (tag: string, patch: Record<string, unknown>): void =>
   useStore.setState(s => s.modules[tag] ? { modules: { ...s.modules, [tag]: { ...s.modules[tag], ...patch } as AnyModule }, rev: s.rev + 1 } : {})
 
-export const dv09Module = (tag: string): DiscreteOutput | DiscreteInput | undefined => {
+export const dv09Module = (tag: string): AnyModule | undefined => {
   const m = useStore.getState().modules[tag]
-  return m?.type === 'DO' || m?.type === 'DI' ? m : undefined
+  return m && useDv09Cm.getState().cms[tag] ? m : undefined
 }
 
 /** True when the object name is free in this database. */
@@ -77,12 +92,15 @@ export function createBlankModule(name: string, area: string, description = ''):
   return null
 }
 
+export const setCmsPatch = (tag: string, patch: Partial<Dv09Cm>): void => setCms(cms => cms[tag] ? { ...cms, [tag]: { ...cms[tag], ...patch } } : cms)
+
 const blockName = (type: Dv09BlockType): string => `${type}1`
 
 /** Drag and drop Discrete Output / Discrete Input from the IO palette onto an empty module. */
 export function addBlock(tag: string, type: Dv09BlockType): string | null {
   const cm = useDv09Cm.getState().cms[tag]
   if (!cm) return fail(tag, `${tag} is not a module created in DeltaV Explorer`)
+  if (type !== 'DO' && type !== 'DI') return fail(tag, `${type} blocks are added with the analog palette of Control Studio`)
   if (cm.blocks.length) return fail(tag, `${tag} already contains the ${cm.blocks[0].name} block`)
   if (!requireUnlockedKey('CAN_CONFIGURE', `Configure ${tag}`)) return 'Requires the Can Configure key'
   if (!useStore.getState().createModule({ tag, type, description: cm.description || tag, area: cm.area })) return 'The module could not be created (see the Event Journal)'
@@ -149,6 +167,7 @@ export function renameModule(oldTag: string, next: string): string | null {
     delete out[oldTag]
     return out
   })
+  cmExtensions.renamed?.(oldTag, tag)
   log(tag, `Module renamed from ${oldTag}`)
   return null
 }
@@ -165,7 +184,8 @@ export function signatureFor(s: ReturnType<typeof useStore.getState>, assignment
     ioDst: s.hardware.discreteBindings?.[cm.tag] ?? '', modeTarget: doModule?.modeTarget ?? null,
     alarmOn: diModule ? diModule.alarmOnValue ?? true : null, alarmEnabled: alarm ? alarm.enabled : null,
     primary: m && 'primaryDisplay' in m ? m.primaryDisplay ?? '' : '', detail: m && 'detailDisplay' in m ? m.detailDisplay ?? '' : '',
-    controller: assignments[cm.tag] ?? ''
+    controller: assignments[cm.tag] ?? '',
+    ext: cmExtensions.snapshot?.(s, cm) ?? null
   })
 }
 
@@ -242,6 +262,8 @@ export function downloadModule(tag: string): string | null {
   const c = useStore.getState().hardware.controllers[controller]
   if (!c || !c.commissioned || controllerIsDown(c)) return fail(tag, `Controller ${controller} is not available`)
   if (cmDirty(cm)) return fail(tag, `Save ${tag} before downloading it`)
+  const blocked = cmExtensions.downloadError?.(tag)
+  if (blocked) return fail(tag, blocked)
   if (!requireUnlockedKey('CAN_DOWNLOAD', `Download module ${tag}`)) return 'Requires the Can Download key'
   deploy(tag, controller)
   log(tag, `Module downloaded to ${controller}`)

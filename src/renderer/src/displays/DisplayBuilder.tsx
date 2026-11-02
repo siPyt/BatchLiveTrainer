@@ -7,7 +7,7 @@ import { fmt } from '../utils/format'
 import type { AnyModule } from '../engine/types'
 import { ClassicTank, ClassicPump, ClassicControlValve, ClassicSanitaryValve,
   PALE_BORDER, PALE_TEXT, PALE_PIPE, PALE_EQUIP } from '../components/ClassicGraphics'
-import { highestRankedAlarmState, pictureAlarmSignal, pictureAlarmStateText, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
+import { ALARM_CV_PATH, highestRankedAlarmState, pictureAlarmCvSignal, pictureAlarmSignal, pictureAlarmStateText, pictureFill, pictureLimits, pictureModeSignal, pictureSignal } from '../engine/pictureDynamics'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { pictureNamedSignal } from '../engine/pictureNamedSets'
 import { appliedPidOutput } from '../engine/analogStrategy'
@@ -465,14 +465,16 @@ export function Canvas({
         const alarmState = isAlarmPath && el.alarmVisibility ? highestRankedAlarmState(el.tag ?? '', alarms) : null
         const alarmHidden = alarmState !== null ? alarmState === 'NORMAL' : !!(alarm && !('error' in alarm) && !alarm.active)
         if (!edit && (hideNormalMode || alarmHidden)) return null
-        const discrete = !named && !mode && !alarm && (pictureDiscretePath(el.path) || el.entry?.method === 'DISCRETE') ?
+        const almCv = !named && !mode && !alarm && el.path && ALARM_CV_PATH.test(el.path.trim()) ? pictureAlarmCvSignal(el, modules, alarms) : null
+        const discrete = !named && !mode && !alarm && !almCv && (pictureDiscretePath(el.path) || el.entry?.method === 'DISCRETE') ?
           pictureDiscreteSignal(el, modules) : null
-        const signal = !named && !mode && !alarm && !discrete && (el.path || el.entry || el.layout || el.historySeconds !== undefined) ?
+        const signal = !named && !mode && !alarm && !almCv && !discrete && (el.path || el.entry || el.layout || el.historySeconds !== undefined) ?
           pictureSignal(el, modules) : null
         const failed = (text: string): string => el.errorText?.error ?? text
         let value: string
         if (named) value = 'error' in named ? failed(named.error) : `${named.text}${named.bad ? ' (Bad)' : ''}`
         else if (mode) value = 'error' in mode ? failed(mode.error) : mode.current
+        else if (almCv) value = 'error' in almCv ? failed(almCv.error) : almCv.text
         else if (alarm) value = 'error' in alarm ? failed(alarm.error) : alarmState !== null ? pictureAlarmStateText(alarmState) : alarm.text
         else if (discrete) value = 'error' in discrete ? failed(discrete.error) : discrete.bad ? el.errorText?.bad ?? `${discrete.text} (Bad)` : discrete.text
         else if (signal) {

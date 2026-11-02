@@ -29,6 +29,8 @@ import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulat
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import { NewControlModuleDialog } from './ExplorerDisplay'
 import { Dv09ControlStudio } from './Dv09ControlStudio'
+import { Dv09SfcStudio } from './Dv09SfcStudio'
+import { Dv09StudioNewDialog } from '../components/Dv09SfcUi'
 import { useDv09Cm } from '../engine/dv09Cm'
 import { DeviceLogicView, LogicExplanationView } from './ModuleLogicView'
 import type {
@@ -49,7 +51,19 @@ let vcPrompting: string | null = null
 export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
   const managed = useDv09Cm(s => !!studioTag && !!s.cms[studioTag])
+  const dv09 = useUi(s => s.course) === 'DV-09'
+  const sfcModule = useStore(s => !!studioTag && !!s.sfcs[studioTag])
+  // Course DV-09 chapter 7: a control module SFC (SFC-T101) opens in the SFC editor of Control Studio.
+  if (dv09 && sfcModule && studioTag) return <Dv09SfcStudio key={studioTag} name={studioTag} />
   return managed && studioTag ? <Dv09ControlStudio key={studioTag} tag={studioTag} /> : <StandardControlStudio />
+}
+
+/** File > New: course DV-09 asks for the Algorithm type first (a Sequential Function Chart is created here, other types as before). */
+function NewDialogHost({ area, onClose }: { area: string; onClose: () => void }): JSX.Element {
+  const dv09 = useUi(s => s.course) === 'DV-09'
+  const [generic, setGeneric] = useState(false)
+  if (dv09 && !generic) return <Dv09StudioNewDialog onClose={onClose} onOtherAlgorithm={() => setGeneric(true)} />
+  return <NewControlModuleDialog initialArea={area} onClose={onClose} />
 }
 
 function StandardControlStudio(): JSX.Element {
@@ -98,7 +112,7 @@ function StandardControlStudio(): JSX.Element {
         <div className="exp-empty">Open a module from DeltaV Explorer or a graphic, or create a new algorithm.
           {' '}<button className="tbtn" onClick={() => setShowNew(true)}>New...</button>
         </div>
-        {showNew && <NewControlModuleDialog initialArea={areas[0] ?? ''} onClose={() => setShowNew(false)} />}
+        {showNew && <NewDialogHost area={areas[0] ?? ''} onClose={() => setShowNew(false)} />}
       </div>
     )
   }
@@ -124,7 +138,7 @@ function StandardControlStudio(): JSX.Element {
           else setShowPalette((value) => !value)
         }}
       />
-      {showNew && <NewControlModuleDialog initialArea={m.area} onClose={() => setShowNew(false)} />}
+      {showNew && <NewDialogHost area={m.area} onClose={() => setShowNew(false)} />}
       <div className="studio-main">
         {showHierarchy && <HierarchyView module={m} selectedBlock={selectedBlock} width={hierWidth}
           onSelect={(block) => setBlockSelection({ tag: m.tag, block })} />}

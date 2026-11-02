@@ -173,6 +173,9 @@ export function pictureSourcePaths(module: AnyModule | undefined): { path: strin
     out.push({ path: 'DO1/SP_D', description: 'Command (writable with discrete entry)' }, { path: 'DO1/PV_D', description: 'Feedback (read-only)' })
   } else if (module.type === 'DI') out.push({ path: 'DI1/PV_D', description: 'Feedback (read-only)' })
   out.push({ path: 'ALARMS[1].A_LAALM', description: 'Highest-ranked alarm (alarm visibility)' })
+  if (module.type === 'AI' || module.type === 'PID') {
+    for (const name of ['HI_HI', 'HI', 'LO', 'LO_LO']) out.push({ path: `${name}_ALM`, description: `${name}_ALM latched alarm (OK / alarm word)` })
+  }
   return out
 }
 
@@ -181,7 +184,7 @@ export function pictureSourcePaths(module: AnyModule | undefined): { path: strin
 export interface DiscretePath { block: 'DC1' | 'DI1' | 'DO1'; role: 'command' | 'feedback' }
 
 export function pictureDiscretePath(path: string | undefined): DiscretePath | null {
-  const match = (path ?? '').trim().toUpperCase().match(/^(DC1|DI1|DO1)\/(SP_D|PV_D)(?:\.(?:F_)?CV)?$/)
+  const match = (path ?? '').trim().toUpperCase().match(/^(DC1|DI1|DO1)\/(SP_D|PV_D)(?:\.(?:A_|F_)?CV)?$/)
   return match ? { block: match[1] as DiscretePath['block'], role: match[2] === 'SP_D' ? 'command' : 'feedback' } : null
 }
 

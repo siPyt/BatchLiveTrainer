@@ -85,10 +85,10 @@ const uid = (): string => `D${Date.now().toString(36)}${seq++}`
 
 export interface DatalinkSource { tag: string; path: string }
 
-/** DVSYS.XV-101/DO1/SP_D.F_CV (or without DVSYS.) -> module and block path. Returns an error text for anything else. */
+/** DVSYS.XV-101/DO1/SP_D.F_CV (or without DVSYS.; .A_CV for the text form) -> module and block path. Returns an error text for anything else. */
 export function parseDatalinkSource(source: string): DatalinkSource | { error: string } {
   const text = source.trim().replace(/^DVSYS\./i, '')
-  const m = text.match(/^([A-Za-z0-9_$-]+)\/(.+?)(?:\.(?:F_)?CV)?$/i)
+  const m = text.match(/^([A-Za-z0-9_$-]+)\/(.+?)(?:\.(?:F_|A_)?CV)?$/i)
   if (!m) return { error: `${source.trim() || '(empty)'} is not a parameter path; use DVSYS.MODULE/BLOCK/PARAMETER.TYPE_FIELD` }
   const tag = m[1].toUpperCase()
   const module = useStore.getState().modules[tag]

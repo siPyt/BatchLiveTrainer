@@ -7,6 +7,9 @@ import { logicError } from '../engine/sfcLogic'
 import { TIMED_QUALIFIERS, sfcJoinPredecessors, sfcParallelJoin, type ActionQualifier, type SfcAction, type SfcStep } from '../engine/sfc'
 import { assignmentExpression, conditionExpression, parseSfcAssignment, parseSfcBlockAction, parseSfcBooleanAction, parseSfcCondition } from '../engine/sfcExpressions'
 import type { AnyModule } from '../engine/types'
+import { useUi } from '../ui/uiStore'
+import { dv09ExpressionText } from '../engine/dv09Sfc'
+import { Dv09ExpressionBrowser } from './Dv09SfcUi'
 
 export type SfcPropertiesTarget = { step: SfcStep; kind: 'transition' } |
   { step: SfcStep; kind: 'action'; index: number | null }
@@ -15,6 +18,12 @@ const QUALIFIERS: ActionQualifier[] = ['N', 'R', 'L', 'D', 'P', 'S', 'SD', 'DS',
 const QUALIFIER_NAMES: Record<ActionQualifier, string> = {
   N: 'non-stored', R: 'reset', L: 'time limited', D: 'delayed', P: 'pulse', S: 'stored',
   SD: 'stored and delayed', DS: 'delayed and stored', SL: 'stored and time limited'
+}
+
+/** Course DV-09 slide 7-13 lists the qualifiers as "P Pulse". */
+const DV09_QUALIFIER_LABELS: Record<ActionQualifier, string> = {
+  N: 'N Non-Stored', R: 'R Reset', L: 'L Time Limited', D: 'D Delayed', P: 'P Pulse', S: 'S Set (Stored)',
+  SD: 'SD Stored and Delayed', DS: 'DS Delayed and Stored', SL: 'SL Stored and Time Limited'
 }
 
 function defaultAction(modules: Record<string, AnyModule>): SfcAction {
@@ -26,6 +35,8 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   name: string; target: SfcPropertiesTarget; onClose: () => void
 }): JSX.Element {
   const modules = useStore(s => s.modules)
+  const dv09 = useUi(s => s.course) === 'DV-09'
+  const present = (text: string): string => dv09 ? dv09ExpressionText(text, modules, useStore.getState().namedSets.configured) : text
   const context = { ...sfcExpressionContext(useStore.getState(), name), stepId: target.step.id }
   const initial = target.kind === 'action' && target.index !== null ? target.step.actions[target.index] : defaultAction(modules)
   const [description, setDescription] = useState(target.kind === 'transition' ?
@@ -38,9 +49,9 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [delayExpression, setDelayExpression] = useState(initial.timingCondition ?
     conditionExpression(initial.timingCondition, 'tag' in initial.timingCondition ? modules[initial.timingCondition.tag] : undefined) : 'TRUE')
   const [useExpression, setUseExpression] = useState(!!initial.timingCondition)
-  const [expression, setExpression] = useState(target.kind === 'transition' ?
+  const [expression, setExpression] = useState(dv09 && target.kind === 'action' && target.index === null ? '' : present(target.kind === 'transition' ?
     conditionExpression(target.step.transition, 'tag' in target.step.transition ? modules[target.step.transition.tag] : undefined) :
-    assignmentExpression(initial, modules[initial.tag]))
+    assignmentExpression(initial, modules[initial.tag])))
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'general' | 'confirm'>('general')
   const confirmInitial = initial.confirm
@@ -54,7 +65,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [route, setRoute] = useState(target.step.nextStep === undefined ? 'sequential' :
     target.step.nextStep === null ? 'complete' : `step:${target.step.nextStep}`)
   const [alternatives, setAlternatives] = useState((target.step.alternatives ?? []).map(item => ({
-    expression: conditionExpression(item.condition, 'tag' in item.condition ? modules[item.condition.tag] : undefined),
+    expression: present(conditionExpression(item.condition, 'tag' in item.condition ? modules[item.condition.tag] : undefined)),
     nextStep: item.nextStep, description: item.description ?? ''
   })))
   const runtime = useStore(s => s.sfcs[name])
@@ -64,8 +75,10 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [parallel, setParallel] = useState(!!target.step.parallelNextSteps?.length)
   const [parallelTargets, setParallelTargets] = useState(target.step.parallelNextSteps ?? [])
   const [parallelJoin, setParallelJoin] = useState(oldJoin?.id ?? '')
-  const title = target.kind === 'transition' ? 'Transition Properties' :
-    target.index === null ? 'Add Action' : 'Action Properties'
+  const stepNumber = steps.findIndex(step => step.id === target.step.id) + 1
+  const title = dv09 ? (target.kind === 'transition' ? `T${stepNumber} Properties` :
+    `A${(target.index ?? target.step.actions.length) + 1} Properties`) :
+    target.kind === 'transition' ? 'Transition Properties' : target.index === null ? 'Add Action' : 'Action Properties'
   const fail = (message: string): void => {
     setError(message)
     useStore.getState().logEvent('DIAGNOSTIC', name, `${title} rejected: ${message}`)
@@ -171,7 +184,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
           <option value="BLOCK">Non-Boolean function block</option></select></label>
         <label>Qualifier<select aria-label="Action qualifier" value={qualifier}
           onChange={e => setQualifier(e.target.value as ActionQualifier)}>
-          {QUALIFIERS.map(item => <option key={item}>{item}</option>)}
+          {QUALIFIERS.map(item => <option key={item} value={item}>{dv09 ? DV09_QUALIFIER_LABELS[item] : item}</option>)}
         </select></label>
       </div>
       {TIMED_QUALIFIERS.includes(qualifier) && <fieldset><legend>{qualifier === 'L' || qualifier === 'SL' ? 'Duration' : 'Delay'}</legend>
@@ -258,7 +271,16 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       <button className="tbtn sm" onClick={apply}>OK</button>
       <button className="tbtn sm" onClick={onClose}>Cancel</button>
     </div>
-    {browser && <SfcExpressionBrowser modules={modules} context={context} assignment={browser === 'action'}
+    {browser && dv09 && !(browser === 'action' && actionType !== 'ASSIGNMENT') && <Dv09ExpressionBrowser sfcName={name} modules={modules}
+      localParameters={context.parameters} onClose={() => setBrowser(null)} onInsert={(text, append) => {
+        const join = (current: string): string => append && current.trim() ? `${current.trim()} ${text}` : text
+        if (browser === 'delay') setDelayExpression(join)
+        else if (browser === 'confirm') setConfirmExpression(join)
+        else if (browser === 'confirmTimeout') setConfirmTimeoutExpression(join)
+        else setExpression(join)
+        setBrowser(null)
+      }} />}
+    {browser && !(dv09 && !(browser === 'action' && actionType !== 'ASSIGNMENT')) && <SfcExpressionBrowser modules={modules} context={context} assignment={browser === 'action'}
       booleanAction={browser === 'action' && actionType === 'BOOLEAN'}
       blockAction={browser === 'action' && actionType === 'BLOCK'}
       onClose={() => setBrowser(null)} onInsert={(text, append) => {

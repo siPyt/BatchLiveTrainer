@@ -1,0 +1,21 @@
+/* Course DV-09 chapter 7: Control Studio for a control module SFC. */
+.dv09-sfc-studio .studio-main { min-height: 0; }
+.dv09-sfc-left { width: 250px; min-width: 250px; flex: 0 0 250px; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--dv-border); }
+.dv09-sfc-hier { flex: 0 0 38%; overflow: auto; position: relative; padding-bottom: 18px; }
+.dv09-sfc-params { flex: 1; overflow: auto; position: relative; padding-bottom: 18px; border-top: 1px solid var(--dv-border); }
+.dv09-sfc-params .studio-param-table tr.sel td, .dv09-sfc-actions .studio-param-table tr.sel td { background: #cfe2f7; }
+.dv09-sfc-diagram { overflow: auto; flex: 1; min-height: 160px; background: #fff; }
+.dv09-sfc-diagram.over { outline: 2px dashed #0078d7; outline-offset: -4px; }
+.dv09-sfc-actions { overflow: auto; position: relative; padding-bottom: 18px; }
+.dv09-sfc-palette .studio-pal-item { cursor: grab; }
+.dv09-sfc-palette .studio-pal-item[aria-disabled="true"] { color: var(--dv-text-mute); cursor: default; }
+.dv09-sfc-glyph { display: inline-block; width: 18px; height: 16px; border: 2px solid #34338c; background: #6f6fc4; border-radius: 3px; flex: none; }
+.dv09-sfc-glyph.step { background: #e7e0b8; border-color: #5f6670; border-radius: 1px; }
+.dv09-sfc-glyph.transition { background: #fff; border: 0; position: relative; }
+.dv09-sfc-glyph.transition::before { content: ''; position: absolute; left: 2px; right: 2px; top: 7px; height: 2px; background: #333; }
+.dv09-sfc-glyph.transition::after { content: ''; position: absolute; top: 1px; bottom: 1px; left: 8px; width: 2px; background: #333; }
+.dv09-sfc-glyph.termination { background: #fff; border: 0; position: relative; }
+.dv09-sfc-glyph.termination::before { content: ''; position: absolute; left: 1px; right: 1px; top: 7px; height: 3px; background: #333; }
+.dv09-sfc-windows { display: flex; flex-direction: column; gap: 1px; font-size: 11px; }
+.dv09-sfc-windows label { display: flex; align-items: center; gap: 4px; }
+.dv09-sfc-studio .ctx-item:disabled { color: var(--dv-text-mute); }
