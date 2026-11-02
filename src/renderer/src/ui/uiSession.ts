@@ -9,7 +9,7 @@ import { isCourseId } from './courses'
 const KEY = 'batchlive-ui-session'
 const UI_FIELDS = ['course', 'display', 'history', 'histIndex', 'pictureHistory', 'builderPicture', 'builderRun', 'selectedTag', 'studioTag',
   'studioClass', 'studioInstance', 'studioPhase', 'studioComposite', 'studioEm', 'sfcName', 'studioLayout'] as const
-const DISPLAYS: DisplayId[] = ['alarms', 'trend', 'journal', 'explorer', 'studio', 'sfc', 'builder', 'workshops', 'users', 'system', 'applications', 'hardware', 'process', 'batchhelp', 'recipestudio', 'boi', 'batchmgr', 'batchlist', 'unackprompts', 'histadmin', 'histview', 'campaigns']
+const DISPLAYS: DisplayId[] = ['alarms', 'trend', 'journal', 'explorer', 'studio', 'sfc', 'builder', 'workshops', 'users', 'system', 'applications', 'hardware', 'process', 'batchhelp', 'recipestudio', 'boi', 'batchmgr', 'batchlist', 'unackprompts', 'histadmin', 'histview', 'campaigns', 'dv09process']
 
 interface SavedWindow { open: boolean; minimized: boolean; maximized: boolean; rect: WindowRect | null; z: number }
 interface Saved { ui: Record<string, unknown>; base: DisplayId; wins: Record<WindowId, SavedWindow> }

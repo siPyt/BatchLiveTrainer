@@ -16,7 +16,7 @@ const store = require('../src/renderer/src/engine/store.ts')
 const ui = require('../src/renderer/src/ui/uiStore.ts')
 const useStore = store.useStore
 const useUi = ui.useUi
-const { DISPLAY_NAVIGATION } = require('../src/renderer/src/ui/displayNavigation.ts')
+const { DISPLAY_NAVIGATION, navigationFor, homeDisplayFor } = require('../src/renderer/src/ui/displayNavigation.ts')
 const { TopBar } = require('../src/renderer/src/components/TopBar.tsx')
 const { NavSidebar } = require('../src/renderer/src/components/NavSidebar.tsx')
 const { App } = require('../src/renderer/src/App.tsx')
@@ -43,8 +43,9 @@ test('three ribbon bands expose every display and preserve the excluded branding
     'Back', 'Forward', 'Up to Process', 'Home display', 'Search displays and modules']) {
     assert.ok(html.includes(`aria-label="${label}"`), label)
   }
-  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 22)
-  for (const display of DISPLAY_NAVIGATION) assert.ok(html.includes(`value="${display.id}"`), display.id)
+  assert.equal(new Set(DISPLAY_NAVIGATION.map(display => display.id)).size, 23)
+  for (const display of navigationFor('7016')) assert.ok(html.includes(`value="${display.id}"`), display.id)
+  assert.ok(!html.includes('value="dv09process"'), 'the DV-09 home display is not listed in class 7016')
   assert.match(html, /class="brand-name">BatchLiveTrainer<\/span>/)
   assert.match(html, /class="brand-credit">Charles R\. Freeman, software engineer<\/span>/)
 })
@@ -52,7 +53,10 @@ test('three ribbon bands expose every display and preserve the excluded branding
 test('BatchLiveTrainer shows only the Course 7016 displays: no BatchLive site areas, pictures or presets', () => {
   const ids = DISPLAY_NAVIGATION.map(display => display.id)
   for (const id of SITE_DISPLAYS) assert.ok(!ids.includes(id), id)
-  assert.deepEqual(DISPLAY_NAVIGATION.filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'unackprompts', 'boi'])
+  assert.deepEqual(DISPLAY_NAVIGATION.filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'unackprompts', 'boi', 'dv09process'])
+  assert.deepEqual(navigationFor('7016').filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'unackprompts', 'boi'])
+  assert.equal(homeDisplayFor('DV-09'), 'dv09process', 'the DV-09 home display is the page 5-12 process diagram')
+  assert.ok(navigationFor('DV-09').some(display => display.id === 'dv09process'))
   const top = render(TopBar).replace(/<select[^>]*aria-label="Current class".*?<\/select>/, '')
   for (const text of ['Plant Overview', 'GMP Pharma', 'New Blank Project', 'DV-09']) assert.ok(!top.includes(text), text)
   assert.ok(top.includes('Course 7016 Workshops'))

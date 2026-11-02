@@ -27,6 +27,7 @@ export type DisplayId =
   | 'histadmin'
   | 'histview'
   | 'campaigns'
+  | 'dv09process'
 
 export interface OpenFaceplate {
   tag: string

@@ -752,6 +752,14 @@ PyMuPDF into the session folder (files\dv09-om.txt; pypdf cannot read it: AES). 
   styles .dv09-pdiag in styles.css). No live values and no checks yet - it is only a place to hang the real picture later.
   UI verified twice (fresh profiles p40a, p40b; script pw16\pd.mjs): menu and toolbar both open and close it, in Run and
   Configure; screenshot compared with manual page 5-12. Typecheck clean; npm test unchanged (985/986, only dv09-audit).
+- DV-09 HOME DISPLAY [added 2026-11-02, user: "it should be the home display"]: the same drawing is now class DV-09's home
+  display, a full-page display 'dv09process' labelled "Process Diagram (DV-09, p 5-12)" (Dv09ProcessHome in
+  displays/Dv09ProcessDiagram.tsx). It is first in the DV-09 display drop-down, opens when DV-09 is selected, and the Home /
+  Up buttons return to it (homeDisplayFor in ui/displayNavigation.ts; Workshops stays in the list). It is hidden in 7016, whose
+  home is still Process. A saved DV-09 project with no saved screen position now also boots onto it (main.tsx). Operator-
+  ribbons test updated (23 navigation entries, 22 shown in 7016). UI verified twice on fresh profiles (pw16\home.mjs): class
+  switch lands on the diagram, Home button returns to it from Workshops, it survives a reload, 7016 home unchanged. The full
+  DV-09 workshop check (338 live steps, 325 Verified, same 13 as before) is unaffected.
 
 
 6. TESTS AND VERIFICATION

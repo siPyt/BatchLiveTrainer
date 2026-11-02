@@ -23,8 +23,12 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'users', label: 'User Manager', operator: false },
   { id: 'system', label: 'System Preferences', operator: false },
   { id: 'applications', label: 'DeltaV Applications', operator: false },
-  { id: 'hardware', label: 'Physical Network', operator: false }
+  { id: 'hardware', label: 'Physical Network', operator: false },
+  { id: 'dv09process', label: 'Process Diagram (DV-09, p 5-12)', operator: true }
 ]
+
+/** Displays that only exist in class DV-09. */
+const DV09_ONLY: DisplayId[] = ['dv09process']
 
 /** Displays that only make sense with the 7016 Batch plant; class DV-09 hides them. */
 const BATCH_ONLY: DisplayId[] = ['process', 'batchhelp', 'batchlist', 'unackprompts', 'histadmin', 'histview', 'campaigns', 'boi', 'recipestudio', 'batchmgr']
@@ -32,8 +36,9 @@ const BATCH_ONLY: DisplayId[] = ['process', 'batchhelp', 'batchlist', 'unackprom
 export function navigationFor(course: CourseId): { id: DisplayId; label: string; operator: boolean }[] {
   return DISPLAY_NAVIGATION
     .filter(n => course !== 'DV-09' || !BATCH_ONLY.includes(n.id))
+    .filter(n => course === 'DV-09' || !DV09_ONLY.includes(n.id))
     .map(n => (n.id === 'workshops' ? { ...n, label: `Course ${course} Workshops` } : n))
 }
 
 /** The display a class opens to and returns to with Home / Up. */
-export const homeDisplayFor = (course: CourseId): DisplayId => (course === 'DV-09' ? 'workshops' : 'process')
+export const homeDisplayFor = (course: CourseId): DisplayId => (course === 'DV-09' ? 'dv09process' : 'process')

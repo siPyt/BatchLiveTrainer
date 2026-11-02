@@ -9,6 +9,8 @@ import { startKeepAwake } from './engine/keepAwake'
 import { startHealthMonitor } from './engine/health'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { restoreUiSession, startUiSessionSave } from './ui/uiSession'
+import { useUi } from './ui/uiStore'
+import { homeDisplayFor } from './ui/displayNavigation'
 import { useNotices } from './components/AppNotices'
 
 // Messages appear inside the app (some hosts, such as automated/embedded browsers, suppress native alert popups).
@@ -23,7 +25,11 @@ const bootedProject = savedProject()
 if (bootProject()) useStore.getState().logEvent('CONFIGURE', bootedProject === 'DV-09' ? 'DV-09' : 'DV_School', `Saved Course ${bootedProject} database restored`)
 startCourseAutosave()
 // Stay on the same screen across reloads and keep the display awake (an idle tab that sleeps reloads to Process).
-restoreUiSession()
+// A saved DV-09 project with no saved screen position opens on the DV-09 home display, not the hidden Batch Process picture.
+if (!restoreUiSession() && bootedProject === 'DV-09') {
+  useUi.getState().setCourse('DV-09')
+  useUi.getState().navigate(homeDisplayFor('DV-09'))
+}
 startUiSessionSave()
 startKeepAwake()
 startHealthMonitor()

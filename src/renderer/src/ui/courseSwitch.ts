@@ -3,6 +3,7 @@ import { useSecurity } from '../engine/security'
 import { getActiveProject, restoreCourseDatabase, saveCourseDatabase, setActiveProject, type ProjectCourse } from '../engine/courseSave'
 import { COURSES, type CourseId } from './courses'
 import { useUi } from './uiStore'
+import { homeDisplayFor } from './displayNavigation'
 
 // Each built class has its own project (7016: DV_School; DV-09: the DV-09 training plant) and its own autosaved database.
 // Choosing a class that is not built yet only changes the selected class; the loaded project stays as it was.
@@ -47,7 +48,7 @@ export function openCourse(next: CourseId): boolean {
     restoreCourseDatabase()
     rememberProject(next)
     useUi.getState().resetToOverview()
-    useUi.getState().navigate(next === 'DV-09' ? 'workshops' : 'process')
+    useUi.getState().navigate(homeDisplayFor(next))
   }
   useUi.getState().setCourse(next)
   return true

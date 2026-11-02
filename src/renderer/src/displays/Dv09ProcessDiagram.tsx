@@ -4,11 +4,32 @@
  * control valve. It is a static drawing only - no live values - until the real picture is built.
  */
 export function Dv09ProcessDiagram({ onClose }: { onClose: () => void }): JSX.Element {
-  const ink = '#1a2a6c'
   return (
     <div className="dv09-pdiag" role="dialog" aria-label="Process diagram (placeholder)">
       <div className="dv09-fds-title">Process diagram - page 5-12 (placeholder)
         <button className="dv09-op-tabx" aria-label="Close process diagram" onClick={onClose}>×</button></div>
+      <Dv09ProcessDrawing />
+      <div className="dv09-pdiag-note">Placeholder - static drawing of the diagram on page 5-12. It has no live values yet.</div>
+    </div>
+  )
+}
+
+/** Class DV-09 home display: the Chapter 5 workshop diagram (page 5-12) as a placeholder until the real picture is built. */
+export function Dv09ProcessHome(): JSX.Element {
+  return (
+    <div className="display dv09-home" aria-label="Process diagram (DV-09 home display)">
+      <div className="dv09-home-title">Process Diagram - Course DV-09, page 5-12 <span className="dv09-home-tag">placeholder</span></div>
+      <div className="dv09-home-body"><Dv09ProcessDrawing /></div>
+      <div className="dv09-pdiag-note">Placeholder - static drawing of the diagram on page 5-12 (Workshop - Creating a Motor Control Module). It has no live values yet.</div>
+    </div>
+  )
+}
+
+/** The drawing itself, shared by the home display and the Operate panel. */
+export function Dv09ProcessDrawing(): JSX.Element {
+  const ink = '#1a2a6c'
+  return (
+    <>
       <svg viewBox="0 0 620 420" className="dv09-pdiag-svg" role="img" aria-label="Tank, pump XI-2 ZX-2, valves and the MTR-102 controller I/O cards">
         <g stroke="#000" fill="none" strokeWidth="1.5">
           <rect x="40" y="70" width="110" height="180" fill="#fff" />
@@ -45,7 +66,6 @@ export function Dv09ProcessDiagram({ onClose }: { onClose: () => void }): JSX.El
           <text x="140" y="412">ZX-2</text>
         </g>
       </svg>
-      <div className="dv09-pdiag-note">Placeholder - static drawing of the diagram on page 5-12. It has no live values yet.</div>
-    </div>
+    </>
   )
 }

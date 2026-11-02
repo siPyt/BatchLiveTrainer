@@ -34,6 +34,7 @@ import { ProcessDisplay } from './displays/ProcessDisplay'
 import { SfcDisplay } from './displays/SfcDisplay'
 import { DisplayBuilder } from './displays/DisplayBuilder'
 import { WorkshopsDisplay } from './displays/WorkshopsDisplay'
+import { Dv09ProcessHome } from './displays/Dv09ProcessDiagram'
 import { UserManagerDisplay } from './displays/UserManagerDisplay'
 import { SystemPreferencesDisplay } from './displays/SystemPreferencesDisplay'
 import { ApplicationsDisplay } from './displays/ApplicationsDisplay'
@@ -111,6 +112,7 @@ export function App(): JSX.Element {
           {display === 'sfc' && <SfcDisplay />}
           {display === 'builder' && <DisplayBuilder />}
           {display === 'workshops' && <WorkshopsDisplay />}
+          {display === 'dv09process' && <Dv09ProcessHome />}
           {display === 'users' && <UserManagerDisplay />}
           {display === 'system' && <SystemPreferencesDisplay />}
           {display === 'applications' && <ApplicationsDisplay />}
