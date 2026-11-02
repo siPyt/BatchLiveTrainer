@@ -124,7 +124,7 @@ export function ClassicPump({
   const stateColor = animationColor ?? (running ? PALE_GREEN : DEVICE_OFF)
   const outline = animationColor ? PALE_BORDER : running ? '#24551b' : DEVICE_OFF
   return (
-    <g data-equipment-tag={tag} data-state={running ? 'running' : 'stopped'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+    <g data-equipment-tag={tag} data-state={running ? 'running' : 'stopped'} style={{ cursor: tag ? 'pointer' : 'default' }} onClick={tag ? () => openFp(tag) : undefined}>
       <title>{`${label} (${tag}): ${running ? 'Running' : 'Stopped'}`}</title>
       <g transform={`translate(${x} ${y})`} fill={stateColor} stroke={outline} strokeWidth={1.2}>
         <path d="M-6,7 H6 L10,13 H-10 Z" />
@@ -153,7 +153,7 @@ export function ClassicControlValve({ x, y, position, tag, label = tag, labelPos
   const pct = Math.max(0, Math.min(100, position))
   const color = animationColor ?? (pct > 0 ? PALE_GREEN : DEVICE_OFF)
   return (
-    <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: 'pointer' }} onClick={() => openFp(tag)}>
+    <g data-equipment-tag={tag} data-state={pct > 0 ? 'open' : 'closed'} style={{ cursor: tag ? 'pointer' : 'default' }} onClick={tag ? () => openFp(tag) : undefined}>
       <title>{`${label} (${tag}): ${stateLabel ?? `${pct.toFixed(1)}% output`}`}</title>
       <g transform={`translate(${x} ${y})`}>
         <ValveBody color={color} actuatorColor={actuatorAnimationColor} actuator="pneumatic" />

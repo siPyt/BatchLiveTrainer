@@ -5189,13 +5189,10 @@ button {
 .dv09-fds-body { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 6px; }
 .dv09-pdiag { position: absolute; left: 30px; top: 20px; width: 640px; background: #fff; border: 2px outset #fff; z-index: 8; color: #000; }
 .dv09-pdiag .dv09-fds-title { display: flex; justify-content: space-between; align-items: center; }
-.dv09-pdiag-svg { display: block; width: 100%; height: auto; background: #fff; }
+.dv09-pdiag-svg { display: block; width: 100%; height: auto; }
 .dv09-pdiag-note { font-size: 11px; padding: 3px 6px; background: #ece9d8; border-top: 1px solid #808080; }
-.dv09-home { display: flex; flex-direction: column; background: #fff; color: #000; height: 100%; }
-.dv09-home-title { background: #ece9d8; border-bottom: 1px solid #808080; font-size: 14px; font-weight: 700; padding: 6px 10px; }
-.dv09-home-tag { font-weight: 400; font-size: 11px; color: #a00; margin-left: 8px; }
-.dv09-home-body { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 10px; }
-.dv09-home-body .dv09-pdiag-svg { max-height: 100%; max-width: 900px; }
+.dv09-home { display: flex; }
+.dv09-home .dv09-pdiag-svg { width: 100%; height: 100%; flex: 1; min-height: 0; }
 .dv09-fds-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; opacity: 0.55; }
 .dv09-fds-item.modeled { opacity: 1; cursor: grab; outline: 1px dotted #0078d7; }
 .dv09-swatches { display: grid; grid-template-columns: repeat(9, 24px); gap: 3px; }

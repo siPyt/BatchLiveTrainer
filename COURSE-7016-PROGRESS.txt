@@ -760,6 +760,16 @@ PyMuPDF into the session folder (files\dv09-om.txt; pypdf cannot read it: AES). 
   ribbons test updated (23 navigation entries, 22 shown in 7016). UI verified twice on fresh profiles (pw16\home.mjs): class
   switch lands on the diagram, Home button returns to it from Workshops, it survives a reload, 7016 home unchanged. The full
   DV-09 workshop check (338 live steps, 325 Verified, same 13 as before) is unaffected.
+- AUTHENTIC DELTAV LOOK [added 2026-11-02, user: "the image should look exactly like the pdf, but like it was authentically created
+  in deltaV, like the batch processing does in 7016"]: the first version was a plain black-line copy of the slide. It is now drawn
+  with the same classic DeltaV Operate primitives as the 7016 Process picture (components/ClassicGraphics.tsx): pale blue-grey
+  canvas, shaded steel tank dynamo with level column and legs, pump dynamo, boxed valve dynamo (navy border), pneumatic control
+  valve dynamo, slate pipes, plain label text, grey I/O cards; positions and proportions traced from manual page 5-12 (same
+  layout: tank + level instrument, pipe to the pump with XI-2 above and ZX-2 below, block valve, union, control valve, CTLR /
+  MTR-102 and the DI / DO card row). The title and placeholder note sit inside the picture. The home display widens its canvas
+  to the window like the 7016 Process picture. ClassicPump / ClassicControlValve are now clickable only when given a tag (no
+  change for 7016). Compared side by side with the 7016 Process screenshot and the manual page; UI verified twice more on fresh
+  profiles (home.mjs p44f/p45a, pd.mjs p45b) in the home display and in the Operate panel (Run and Configure).
 
 
 6. TESTS AND VERIFICATION
