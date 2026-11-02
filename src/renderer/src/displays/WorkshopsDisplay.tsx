@@ -3,8 +3,8 @@ import { useUi, type DisplayId } from '../ui/uiStore'
 import { useProgress } from '../engine/progressStore'
 import { COURSE, type Workshop } from '../engine/workshops'
 import { DV09_COURSE } from '../engine/dv09Course'
-import { checkDv09Ch1 } from '../engine/dv09Ch1Checks'
-import { checkDv09Ch2 } from '../engine/dv09Ch2Checks'
+import { dv09ChapterFor } from '../engine/dv09Registry'
+import { useSecurity } from '../engine/security'
 import { useStore } from '../engine/store'
 import type { StepCheck } from '../engine/workshopChecks'
 import { checkCourse7016Ch1 } from '../engine/course7016Checks'
@@ -119,8 +119,6 @@ function WorkshopPanel({
   const toggle = useProgress((s) => s.toggle)
   const reset = useProgress((s) => s.reset)
   const eventLog = useStore((s) => s.eventLog)
-  const hardware = useStore((s) => s.hardware)
-  const areas = useStore((s) => s.areas)
   const modules = useStore((s) => s.modules)
   const signature = useStore((s) => s.signature)
   const namedSets = useStore((s) => s.namedSets)
@@ -137,9 +135,11 @@ function WorkshopPanel({
     batchCategories: batch.categories, unitClasses: batch.unitClasses, units: batch.units, contained: batch.contained,
     assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims, runSince: blendersDownloadedAt(em.deployed)
   }
+  const chapter = dv09ChapterFor(w.id)
+  const main = useStore()
+  const security = useSecurity()
   const checks: StepCheck[] | null =
-    w.id.startsWith('dv09-ch1-') ? checkDv09Ch1(hardware, eventLog) :
-    w.id.startsWith('dv09-ch2-') ? checkDv09Ch2(areas, hardware, eventLog) :
+    chapter ? chapter.check({ main, security, system, library }) :
     w.id === '7016-ch7-drain' ? checkCourse7016Ch7(batch, eventLog, namedSets) :
     w.id.startsWith('7016-ch8-') ? checkCourse7016Ch8(batch, eventLog) :
     w.id.startsWith('7016-ch10-') ? checkCourse7016Ch10({ ...batch, ...exec }, eventLog, signature, tag => modules[tag]?.area) :
