@@ -2,6 +2,7 @@ import { bannerThresholdError, loadBannerThresholds, saveBannerThresholds, type 
 import { create } from 'zustand'
 import { useStore } from '../engine/store'
 import { resolvePictureTarget, usePictures } from '../engine/pictureStore'
+import { DEFAULT_COURSE, type CourseId } from './courses'
 
 export type DisplayId =
   | 'alarms'
@@ -36,6 +37,9 @@ export interface OpenFaceplate {
 }
 
 interface UiState {
+  /** The class being taken (7016, 7017 or DV-09); only 7016 is built out so far. */
+  course: CourseId
+  setCourse: (c: CourseId) => void
   navigationOpen: boolean
   toggleNavigation: () => void
   processViewRevision: number
@@ -114,6 +118,8 @@ let faceTop = 0
 export const windowHooks = { onStudioClosed: (): void => {} }
 
 export const useUi = create<UiState>((set, get) => ({
+  course: DEFAULT_COURSE,
+  setCourse: course => set({ course }),
   navigationOpen: false,
   toggleNavigation: () => set(s => ({ navigationOpen: !s.navigationOpen })),
   processViewRevision: 0,

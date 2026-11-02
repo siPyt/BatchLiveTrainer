@@ -53,7 +53,7 @@ test('BatchLiveTrainer shows only the Course 7016 displays: no BatchLive site ar
   const ids = DISPLAY_NAVIGATION.map(display => display.id)
   for (const id of SITE_DISPLAYS) assert.ok(!ids.includes(id), id)
   assert.deepEqual(DISPLAY_NAVIGATION.filter(display => display.operator).map(display => display.id), ['process', 'batchhelp', 'batchlist', 'unackprompts', 'boi'])
-  const top = render(TopBar)
+  const top = render(TopBar).replace(/<select[^>]*aria-label="Current class".*?<\/select>/, '')
   for (const text of ['Plant Overview', 'GMP Pharma', 'New Blank Project', 'DV-09']) assert.ok(!top.includes(text), text)
   assert.ok(top.includes('Course 7016 Workshops'))
   const nav = render(NavSidebar)
@@ -61,6 +61,18 @@ test('BatchLiveTrainer shows only the Course 7016 displays: no BatchLive site ar
     assert.ok(!nav.includes(text), text)
   assert.ok(nav.includes('Process (ED_CENTER_BATCH)') && nav.includes('BatchHelp'))
   assert.equal(useUi.getState().display, 'process', 'the Process picture is the home display')
+})
+
+test('the class selector sits next to the display selector: 7016 is built, 7017 and DV-09 are listed as not built yet', () => {
+  const html = render(TopBar)
+  const display = html.indexOf('aria-label="Current display"')
+  const cls = html.indexOf('aria-label="Current class"')
+  assert.ok(display >= 0 && cls > display, 'the class selector follows the display selector')
+  assert.ok(html.indexOf('ribbon-picture-name') > cls, 'and comes before the picture name')
+  assert.match(html, /<option value="7016" selected="">Class 7016<\/option>/)
+  assert.match(html, /<option value="7017">Class 7017 \(not built yet\)<\/option>/)
+  assert.match(html, /<option value="DV-09">Class DV-09 \(not built yet\)<\/option>/)
+  assert.equal(useUi.getState().course, '7016', 'class 7016 is the default')
 })
 
 test('operator layout places the alarm banner below the working area with an optional sidebar', () => {

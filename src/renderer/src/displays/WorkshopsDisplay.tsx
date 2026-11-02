@@ -34,6 +34,7 @@ function stepIds(w: Workshop): string[] {
 export function WorkshopsDisplay(): JSX.Element {
   const done = useProgress((s) => s.done)
   const navigate = useUi((s) => s.navigate)
+  const course = useUi((s) => s.course)
   const all = COURSE.flatMap((m) => m.workshops)
   const [selId, setSelId] = useState<string>(all[0]?.id ?? '')
   const sel = all.find((w) => w.id === selId)
@@ -48,6 +49,15 @@ export function WorkshopsDisplay(): JSX.Element {
   const doneSteps = all.reduce((a, w) => a + stepIds(w).filter((i) => done[i]).length, 0)
   const overall = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 0
 
+  if (course !== '7016') {
+    return (
+      <div className="display workshops" data-course-placeholder={course}>
+        <div className="ws-detail">
+          <div className="exp-empty">Class {course} is not built out yet. Choose Class 7016 in the class selector (top bar, next to the display selector) for the workshops.</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="display workshops">
       <div className="ws-list">

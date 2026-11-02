@@ -8,6 +8,7 @@ import { courseSnapshot, restoreCourseDatabase, saveCourseDatabase } from '../en
 import { ConfirmDialog } from './AppNotices'
 import { clockString, dateString } from '../utils/format'
 import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
+import { COURSES } from '../ui/courses'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
 
 function RibbonButton({ icon, label, onClick, disabled, pressed }: {
@@ -74,6 +75,8 @@ export function TopBar(): JSX.Element {
   const setRunning = useStore((s) => s.setRunning)
   const setSpeed = useStore((s) => s.setSpeed)
   const display = useUi((s) => s.display)
+  const course = useUi((s) => s.course)
+  const setCourse = useUi((s) => s.setCourse)
   const navigate = useUi((s) => s.navigate)
   const back = useUi((s) => s.back)
   const forward = useUi((s) => s.forward)
@@ -257,6 +260,15 @@ export function TopBar(): JSX.Element {
         <optgroup label="Tools and engineering">{DISPLAY_NAVIGATION.filter(n => !n.operator).map(n =>
           <option key={n.id} value={n.id}>{n.label}</option>
         )}</optgroup>
+      </select>
+      <select className="picture-selector class-selector" aria-label="Current class" title="Class being taken" value={course}
+        onChange={event => {
+          const next = COURSES.find(c => c.id === event.target.value)
+          if (!next) return
+          setCourse(next.id)
+          if (!next.built) window.alert(`Class ${next.id} is not built out yet. Only class 7016 has workshops and checks so far.`)
+        }}>
+        {COURSES.map(c => <option key={c.id} value={c.id}>{`Class ${c.id}${c.built ? '' : ' (not built yet)'}`}</option>)}
       </select>
         <span className="ribbon-picture-name">{current?.label}</span>
       </div>

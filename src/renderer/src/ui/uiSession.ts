@@ -1,12 +1,13 @@
 import { useUi, type DisplayId } from './uiStore'
 import { useWindows, WINDOW_IDS, isWindowId, type WindowId, type WindowRect } from './windowStore'
+import { isCourseId } from './courses'
 
 // Remembers which display and Explorer / Control Studio windows are open, so a page reload (a browser waking a
 // sleeping tab, a refresh, restarting the app) returns to the same screen instead of Process. Only the position is
 // stored; the course database has its own autosave (courseSave.ts).
 
 const KEY = 'batchlive-ui-session'
-const UI_FIELDS = ['display', 'history', 'histIndex', 'pictureHistory', 'builderPicture', 'builderRun', 'selectedTag', 'studioTag',
+const UI_FIELDS = ['course', 'display', 'history', 'histIndex', 'pictureHistory', 'builderPicture', 'builderRun', 'selectedTag', 'studioTag',
   'studioClass', 'studioInstance', 'studioPhase', 'studioComposite', 'studioEm', 'sfcName', 'studioLayout'] as const
 const DISPLAYS: DisplayId[] = ['alarms', 'trend', 'journal', 'explorer', 'studio', 'sfc', 'builder', 'workshops', 'users', 'system', 'applications', 'hardware', 'process', 'batchhelp', 'recipestudio', 'boi', 'batchmgr', 'batchlist', 'unackprompts', 'histadmin', 'histview', 'campaigns']
 
@@ -32,7 +33,7 @@ export function restoreUiSession(): boolean {
     const display = saved.ui?.display as DisplayId
     const base = saved.base
     if (!DISPLAYS.includes(display) || !DISPLAYS.includes(base) || !Array.isArray(saved.ui.history) || !(saved.ui.history as unknown[]).every(d => DISPLAYS.includes(d as DisplayId))) return false
-    useUi.setState(Object.fromEntries(UI_FIELDS.filter(f => saved.ui[f] !== undefined).map(f => [f, saved.ui[f]])))
+    useUi.setState(Object.fromEntries(UI_FIELDS.filter(f => saved.ui[f] !== undefined && (f !== 'course' || isCourseId(saved.ui[f]))).map(f => [f, saved.ui[f]])))
     const wins = Object.fromEntries(WINDOW_IDS.map(id => {
       const s = saved.wins?.[id]
       return [id, { open: !!s?.open, minimized: !!s?.minimized, maximized: !!s?.maximized, rect: s?.rect ?? null, z: 0 }]

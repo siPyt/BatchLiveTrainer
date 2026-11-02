@@ -41,6 +41,22 @@ test('a reload returns to the Control Studio window the student was in, not the 
   useUi.getState().resetToOverview()
 }))
 
+test('the chosen class is remembered across a reload, and an unknown saved class is ignored', () => withStorage(store => {
+  useUi.getState().resetToOverview()
+  useUi.getState().setCourse('7017')
+  store.set('batchlive-ui-session', JSON.stringify(snapshotUiSession()))
+  useUi.getState().setCourse('7016')
+  assert.equal(restoreUiSession(), true)
+  assert.equal(useUi.getState().course, '7017')
+  const saved = JSON.parse(store.get('batchlive-ui-session'))
+  saved.ui.course = 'nonsense'
+  store.set('batchlive-ui-session', JSON.stringify(saved))
+  useUi.getState().setCourse('DV-09')
+  assert.equal(restoreUiSession(), true)
+  assert.equal(useUi.getState().course, 'DV-09', 'a bad saved value leaves the current class alone')
+  useUi.getState().setCourse('7016')
+}))
+
 test('a missing or damaged saved session leaves the app on the Process display', () => withStorage(store => {
   useUi.getState().resetToOverview()
   assert.equal(restoreUiSession(), false)
