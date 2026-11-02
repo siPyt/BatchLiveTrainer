@@ -592,7 +592,9 @@ slides; chapter 10 had gaps that are now closed:
   Compare Batches with a Process Trend Comparison). Display ids histadmin, histview; catalogued in applications.ts.
 - UI verification: configure db1 / db2 (10 Mb), download PROPLUS, connect, start the service, run two OP_FINISH_500 batches,
   details, AGITATE events + comment, compare, DRAIN trend on XV-503, create OldBatches, archive refused while listed,
-  remove from the BOI list, archive, folder and AutoBackup. Two passes: Workshops page 15/15 Verified both times.
+  remove from the BOI list, archive, folder and AutoBackup. Passes: the first pass (profile p17a) stopped at 14/15 because the
+  optional maintenance step was not yet in the script; after adding it, two full passes on fresh profiles (p17b, p17c) both
+  showed the Workshops page 15/15 Verified.
 - Simplified: no real SQL databases or reports; trends use a fixed module list; the service must be running during the
   batch or nothing is collected.
 - Files: engine/batchHistorian.ts, engine/course7016Ch14Checks.ts / Ch14Workshops.ts, components/HistorianUi.tsx (Properties
@@ -823,8 +825,8 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
                        Historian and Campaign Manager dialogs and displays (first versions).
 - 2026-11-01  9e7633f  Chapters 14-15 finished: Workshops-page checks, catalogue entries (historian-admin, batch-history-view,
                        campaign-manager), securityTargets pattern for "Add input parameter", courseSave stores (vc, historian,
-                       campaigns), JSX and DisplayId fixes, CampaignDisplay refresh, progress notes. Two UI passes each:
-                       Ch14 15/15, Ch15 15/15. npm test 875/876 (dv09-audit only). The GitKraken push tool timed out and plain
+                       campaigns), JSX and DisplayId fixes, CampaignDisplay refresh, progress notes. UI passes: Ch14 first pass
+                       14/15 (maintenance step not yet scripted), re-run in full later 15/15; Ch15 15/15 twice. npm test 875/876 (dv09-audit only). The GitKraken push tool timed out and plain
                        git push has no credentials in the agent shell: push from VS Code / GitKraken if origin is behind.
 - 2026-11-01  (next commit)  Optional extras: Chapter 15 setup + cleanup batches and Terminate Campaign (checks 15o-4 / 15o-5,
                        journal line "has setup batch ... and cleanup batch ..."), coverage check of every workshop and optional
@@ -1239,9 +1241,13 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
 WHERE WE LEFT OFF (2026-11-01, Chapters 8-15 - latest, DONE):
 - Everything through Chapter 15 is built, tested and was walked through the real browser UI (Playwright against the Vite
   preview, port 5199). Chapters 8-10 were re-audited page by page (optional workshops included); Chapters 11, 12, 13, 14
-  and 15 were each done twice from start to finish on fresh profiles and the Workshops page showed every step Verified
-  both times (Ch11 24/24, Ch12 16/16, Ch13 12/12, Ch14 15/15, Ch15 17/17 including the optional setup / cleanup and
+  and 15 were each done twice from start to finish on fresh profiles (Chapter 14 three times: the first run was 14/15 until
+  the maintenance step was scripted) and the Workshops page showed every step Verified in the final two passes of each
+  chapter (Ch11 24/24, Ch12 16/16, Ch13 12/12, Ch14 15/15, Ch15 17/17 including the optional setup / cleanup and
   terminate steps).
+- How "through the UI" is meant here: Playwright scripts click, type and answer prompts in the real screens, and the
+  Workshops page checks decide Verified. Every pass starts from a profile seeded through Chapter 10 by in-page helper code
+  (not by clicking through Chapters 1-10 again), and the Confirm Action gate dialog is auto-clicked by the script.
 - Next candidates: the open items listed in sections 5F-5J (each section ends with "Simplified / not implemented").
   Nothing is known to be broken. The course PDFs/docx stay local (copyrighted, not in git).
 - Playwright scripts used for the passes are NOT in the repository (they live in the session folder): seed.mjs seeds the
