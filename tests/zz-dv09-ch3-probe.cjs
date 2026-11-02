@@ -1,0 +1,11 @@
+const { fixture } = require('./helpers/dv09-fixture.cjs')
+const { DV09_CH3 } = require('../src/renderer/src/engine/dv09Ch3.ts')
+fixture(2, ctx => {
+  const mk = () => ({ main: ctx.M(), security: {}, system: {}, library: ctx.L() })
+  const before = DV09_CH3.check(mk())
+  console.log('before ch3:', before.filter(c => c.verdict === 'verified').length, '/', before.length)
+  require('./helpers/dv09-ch3-setup.cjs')({ ...ctx, eng: n => ctx.eng(n) })
+  const after = DV09_CH3.check(mk())
+  console.log('after ch3:', after.filter(c => c.verdict === 'verified').length, '/', after.length)
+  for (const c of after) if (c.verdict !== 'verified') console.log('PENDING', c.id, c.detail)
+})

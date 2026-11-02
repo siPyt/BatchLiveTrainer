@@ -112,6 +112,12 @@ export interface DvUser {
   passwordNeverExpires?: boolean
   /** DV09-076: epoch ms from which the account can no longer log on; undefined = never expires. */
   accountExpires?: number
+  /** Course DV-09 Keys tab: keys granted for named Plant Areas only (p8-22). A key that is absent here is granted Sitewide. */
+  keyScopes?: Partial<Record<LockType, string[]>>
+  /** Course DV-09 Groups tab: the Plant Areas a group membership is limited to (p8-20). A group that is absent here is Sitewide. */
+  groupScopes?: Record<string, string[]>
+  /** Course DV-09 General tab: Windows Desktop Access (FlexLock; the Windows desktop itself is not simulated). */
+  windowsDesktopAccess?: boolean
 }
 
 /** DV09-077: a named group. Members inherit the group's keys (and, when the
@@ -125,13 +131,39 @@ export interface DvGroup {
   areas?: string[]
 }
 
+/** The Plant Area dialog (p8-20) says these keys only take effect when they are assigned Sitewide. */
+export const SITEWIDE_ONLY_LOCKS: LockType[] = ['CAN_CONFIGURE', 'CAN_DOWNLOAD', 'CAN_CALIBRATE', 'DIAGNOSTIC', 'SYSTEM_ADMIN']
+
+/**
+ * Where a user holds a key: 'sitewide', the list of Plant Areas, or null when the user does not hold it. The key can come from the
+ * user's own keys or from any group the user belongs to; each source has its own Plant Area scope (keyScopes / groupScopes).
+ */
+export function lockScope(user: DvUser | undefined, groups: DvGroup[], lock: LockType): 'sitewide' | string[] | null {
+  if (!user) return null
+  const areas = new Set<string>()
+  let held = false
+  if (user.locks.includes(lock)) {
+    held = true
+    const scope = user.keyScopes?.[lock]
+    if (!scope) return 'sitewide'
+    scope.forEach((a) => areas.add(a))
+  }
+  for (const g of groups) {
+    if (!g.members.includes(user.name) || !g.locks.includes(lock)) continue
+    held = true
+    const scope = user.groupScopes?.[g.name]
+    if (!scope) return 'sitewide'
+    scope.forEach((a) => areas.add(a))
+  }
+  return held ? Array.from(areas) : null
+}
+
 export function effectiveLocks(user: DvUser | undefined, groups: DvGroup[]): LockType[] {
   if (!user) return []
-  const out = new Set<LockType>(user.locks)
-  for (const g of groups) {
-    if (g.members.includes(user.name)) g.locks.forEach((l) => out.add(l))
-  }
-  return ALL_LOCKS.filter((l) => out.has(l))
+  return ALL_LOCKS.filter((l) => {
+    const scope = lockScope(user, groups, l)
+    return scope !== null && (scope === 'sitewide' || !SITEWIDE_ONLY_LOCKS.includes(l))
+  })
 }
 
 /** undefined = unrestricted (the user has no area restriction of their own). */
@@ -170,6 +202,8 @@ function applyPassword(user: DvUser, password: string, forceChange: boolean): Dv
   return { ...user, password, mustChangePassword: forceChange, passwordChangedAt: Date.now(),
     passwordHistory: appendHistory(user.passwordHistory, passwordFingerprint(user.name, user.password)) }
 }
+
+export type SecurityScope = '7016' | 'DV-09'
 
 interface SecurityState {
   users: DvUser[]
@@ -217,8 +251,15 @@ interface SecurityState {
   createGroup: (name: string, description: string) => string | null
   updateGroup: (name: string, patch: { newName?: string; description?: string }) => string | null
   deleteGroup: (name: string) => string | null
-  addGroupMember: (group: string, user: string) => string | null
+  addGroupMember: (group: string, user: string, area?: string | null) => string | null
   removeGroupMember: (group: string, user: string) => string | null
+  /** Course DV-09 Keys tab: grant a key Sitewide (area null) or for one Plant Area (adds to the areas already granted). */
+  grantUserKey: (user: string, lock: LockType, area: string | null) => string | null
+  /** Course DV-09 Plant Area of a group membership: null = Sitewide, otherwise the areas the membership is limited to. */
+  setMemberAreas: (group: string, user: string, areas: string[] | null) => string | null
+  /** Which course's security data is loaded: the DV-09 project starts without the OperatorA / Supervisor1 accounts the workshop creates. */
+  scope: SecurityScope
+  enterSecurityScope: (scope: SecurityScope) => void
   setGroupLocks: (group: string, locks: LockType[]) => string | null
   setGroupAreas: (group: string, areas: string[] | undefined) => string | null
   hasLock: (lock: LockType) => boolean
@@ -260,6 +301,29 @@ const DEFAULT_GROUPS: DvGroup[] = [
     locks: ['CONTROL', 'ALARMS'],
     members: ['OperatorA', 'Supervisor1']
   }
+]
+
+// Course DV-09 (p8-14): the User Manager of a fresh DeltaV system lists the built-in accounts and the groups Maintenance, Operate,
+// SIS Engineering, SIS Operate, SIS Supervise, Supervise and Tune. The Defining Users workshop (pp 8-32 .. 8-34) creates OperatorA
+// and Supervisor1 itself, so the DV-09 project starts without them. The key sets of the built-in groups are a training approximation.
+const dv09Users = (): DvUser[] => [
+  { name: 'admin', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  { name: 'administrator', fullName: 'Administrator', password: 'deltav', locks: [...ALL_LOCKS] },
+  { name: 'admin123', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  { name: 'ENGINEER', fullName: 'System Engineer', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  { name: 'CONFIGURE', fullName: 'DeltaV account for system configuration', password: DEFAULT_PASSWORD, locks: ['CAN_CONFIGURE', 'CAN_DOWNLOAD'] },
+  { name: 'MAINTAINER', fullName: 'DeltaV account for plant maintenance', password: DEFAULT_PASSWORD, locks: [], windowsDesktopAccess: false },
+  { name: 'OPERATOR', fullName: 'DeltaV account for plant operators', password: DEFAULT_PASSWORD, locks: [] },
+  { name: 'SUPERVISOR', fullName: 'DeltaV account for plant supervisors', password: DEFAULT_PASSWORD, locks: [] }
+]
+const dv09Groups = (): DvGroup[] => [
+  { name: 'Maintenance', description: 'Plant maintenance: calibration and diagnostics', locks: ['CAN_CALIBRATE', 'DIAGNOSTIC', 'SYSTEM_RECORDS'], members: ['MAINTAINER'] },
+  { name: 'Operate', description: 'Plant operators: control and alarm handling', locks: ['CONTROL', 'ALARMS', 'BATCH_OPERATE'], members: ['OPERATOR', 'SUPERVISOR'] },
+  { name: 'SIS Engineering', description: '', locks: [], members: [] },
+  { name: 'SIS Operate', description: '', locks: [], members: [] },
+  { name: 'SIS Supervise', description: '', locks: [], members: [] },
+  { name: 'Supervise', description: 'Supervisors: restricted control and signature verification', locks: ['RESTRICTED_CONTROL', 'ACTION_VERIFY'], members: ['SUPERVISOR'] },
+  { name: 'Tune', description: 'Tuning of the process', locks: ['TUNING'], members: ['SUPERVISOR'] }
 ]
 
 function activeConfig(s: Pick<SecurityState, 'users' | 'groups' | 'lockAssignments' | 'workstation'>): {
@@ -313,6 +377,7 @@ export const useSecurity = create<SecurityState>((set, get) => ({
   users: DEFAULT_USERS,
   groups: DEFAULT_GROUPS,
   workstation: null,
+  scope: '7016',
   passwordPolicy: defaultPasswordPolicy(),
   lockAssignments: {},
   currentUser: 'admin',
@@ -355,6 +420,18 @@ export const useSecurity = create<SecurityState>((set, get) => ({
 
   lockWorkstation: () => set({ locked: true }),
 
+  enterSecurityScope: (scope) => {
+    const keep = (users: DvUser[]): string => (users.some((u) => u.name === get().currentUser) ? get().currentUser : 'admin')
+    if (scope === 'DV-09') {
+      const users = dv09Users()
+      set({ scope, users, groups: dv09Groups(), lockAssignments: {}, workstation: null, passwordPolicy: defaultPasswordPolicy(), currentUser: keep(users) })
+    } else if (get().scope === 'DV-09') {
+      const saved = readWorkstation()
+      const users = saved?.users ?? DEFAULT_USERS
+      set({ scope, users, groups: saved?.groups ?? DEFAULT_GROUPS, lockAssignments: saved?.lockAssignments ?? {}, workstation: saved, passwordPolicy: defaultPasswordPolicy(), currentUser: keep(users) })
+    }
+  },
+
   addUser: (u) => {
     if (!get().requireLock('SYSTEM_ADMIN', `Create user ${u.name}`)) return false
     if (!u.name.trim() || get().users.some((x) => x.name.toLowerCase() === u.name.toLowerCase())) return false
@@ -380,7 +457,28 @@ export const useSecurity = create<SecurityState>((set, get) => ({
 
   setUserLocks: (name, locks) => {
     if (!get().requireLock('SYSTEM_ADMIN', `Set keys of user ${name}`)) return
-    set((s) => ({ users: s.users.map((u) => (u.name === name ? { ...u, locks } : u)) }))
+    set((s) => ({ users: s.users.map((u) => {
+      if (u.name !== name) return u
+      const scopes = u.keyScopes ? Object.fromEntries(Object.entries(u.keyScopes).filter(([lock]) => locks.includes(lock as LockType))) : undefined
+      return { ...u, locks, keyScopes: scopes && Object.keys(scopes).length ? scopes : undefined }
+    }) }))
+  },
+
+  grantUserKey: (name, lock, area) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Set keys of user ${name}`)) return 'Requires the System Admin key'
+    const u = get().users.find((x) => x.name === name)
+    if (!u) return `User ${name} does not exist`
+    if (!ALL_LOCKS.includes(lock)) return `Unknown lock ${String(lock)}`
+    if (area !== null && SITEWIDE_ONLY_LOCKS.includes(lock)) return `${LOCK_LABEL[lock]} only takes effect when it is assigned Sitewide`
+    const had = u.locks.includes(lock)
+    const scopes = { ...(u.keyScopes ?? {}) }
+    if (area === null) delete scopes[lock]
+    else if (!had) scopes[lock] = [area]
+    else if (scopes[lock]) scopes[lock] = Array.from(new Set([...(scopes[lock] as string[]), area]))
+    set((s) => ({ users: s.users.map((x) => (x.name === name
+      ? { ...x, locks: had ? x.locks : ALL_LOCKS.filter((l) => l === lock || x.locks.includes(l)), keyScopes: Object.keys(scopes).length ? scopes : undefined }
+      : x)) }))
+    return null
   },
 
   setUserAreas: (name, areas) => {
@@ -470,7 +568,14 @@ export const useSecurity = create<SecurityState>((set, get) => ({
         g.name === name
           ? { ...g, name: newName ?? g.name, description: patch.description ?? g.description }
           : g
-      )
+      ),
+      users: newName && newName !== name
+        ? s.users.map((u) => {
+            if (!u.groupScopes?.[name]) return u
+            const { [name]: moved, ...rest } = u.groupScopes
+            return { ...u, groupScopes: { ...rest, [newName]: moved } }
+          })
+        : s.users
     }))
     return null
   },
@@ -482,13 +587,31 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     return null
   },
 
-  addGroupMember: (group, user) => {
+  addGroupMember: (group, user, area) => {
     if (!get().requireLock('SYSTEM_ADMIN', `Add ${user} to group ${group}`)) return 'Requires the System Admin key'
     const g = get().groups.find((x) => x.name === group)
     if (!g) return `Group ${group} does not exist`
     if (!get().users.some((u) => u.name === user)) return `User ${user} does not exist`
     if (g.members.includes(user)) return `${user} is already a member of ${group}`
-    set((s) => ({ groups: s.groups.map((x) => (x.name === group ? { ...x, members: [...x.members, user] } : x)) }))
+    set((s) => ({
+      groups: s.groups.map((x) => (x.name === group ? { ...x, members: [...x.members, user] } : x)),
+      users: area ? s.users.map((u) => (u.name === user ? { ...u, groupScopes: { ...(u.groupScopes ?? {}), [group]: [area] } } : u)) : s.users
+    }))
+    return null
+  },
+
+  setMemberAreas: (group, user, areas) => {
+    if (!get().requireLock('SYSTEM_ADMIN', `Add ${user} to group ${group}`)) return 'Requires the System Admin key'
+    const g = get().groups.find((x) => x.name === group)
+    if (!g) return `Group ${group} does not exist`
+    if (!g.members.includes(user)) return `${user} is not a member of ${group}`
+    set((s) => ({ users: s.users.map((u) => {
+      if (u.name !== user) return u
+      const rest = { ...(u.groupScopes ?? {}) }
+      if (areas === null || !areas.length) delete rest[group]
+      else rest[group] = Array.from(new Set(areas))
+      return { ...u, groupScopes: Object.keys(rest).length ? rest : undefined }
+    }) }))
     return null
   },
 
@@ -498,7 +621,13 @@ export const useSecurity = create<SecurityState>((set, get) => ({
     if (!g) return `Group ${group} does not exist`
     if (!g.members.includes(user)) return `${user} is not a member of ${group}`
     set((s) => ({
-      groups: s.groups.map((x) => (x.name === group ? { ...x, members: x.members.filter((m) => m !== user) } : x))
+      groups: s.groups.map((x) => (x.name === group ? { ...x, members: x.members.filter((m) => m !== user) } : x)),
+      users: s.users.map((u) => {
+        if (u.name !== user || !u.groupScopes?.[group]) return u
+        const rest = { ...u.groupScopes }
+        delete rest[group]
+        return { ...u, groupScopes: Object.keys(rest).length ? rest : undefined }
+      })
     }))
     return null
   },
@@ -538,7 +667,7 @@ export const useSecurity = create<SecurityState>((set, get) => ({
       downloadedAt: Date.now()
     }
     set({ workstation: config })
-    persistWorkstation(config)
+    if (get().scope !== 'DV-09') persistWorkstation(config)
     return null
   },
 
@@ -614,6 +743,16 @@ export const useSecurity = create<SecurityState>((set, get) => ({
       if (area !== undefined && !get().hasAreaKey(area)) {
         set({ lastDenied: `Access Denied — ${action} requires the area key for ${area}` })
         return false
+      }
+      // Course DV-09: a key granted for named Plant Areas (Groups / Keys tab, p8-20/22) only works in those areas.
+      if (area !== undefined) {
+        const s = get()
+        const active = activeConfig(s)
+        const scope = lockScope(active.users.find((x) => x.name === s.currentUser), active.groups, effective)
+        if (Array.isArray(scope) && !scope.includes(area)) {
+          set({ lastDenied: `Access Denied — ${action} requires the ${LOCK_LABEL[effective]} key for ${area}` })
+          return false
+        }
       }
     }
     return true

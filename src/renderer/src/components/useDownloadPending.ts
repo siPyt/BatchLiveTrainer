@@ -3,6 +3,7 @@ import { useLibrary } from '../engine/libraryStore'
 import { useBatch } from '../engine/batchStore'
 import { useEm } from '../engine/emStore'
 import { computeDownloadPending, type DownloadPending } from '../engine/downloadPending'
+import { useDv09Cm } from '../engine/dv09Cm'
 
 /** Re-renders when anything that decides a download triangle changes, then reads the current picture. */
 export function useDownloadPending(): DownloadPending {
@@ -12,5 +13,6 @@ export function useDownloadPending(): DownloadPending {
   useBatch(s => s.units); useBatch(s => s.unitAssignments); useBatch(s => s.deployedUnits); useBatch(s => s.phaseClasses)
   useBatch(s => s.contained); useBatch(s => s.processCells)
   useEm(s => s.instances); useEm(s => s.classes); useEm(s => s.deployed)
+  useDv09Cm(s => s.cms)
   return computeDownloadPending()
 }

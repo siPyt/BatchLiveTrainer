@@ -28,6 +28,8 @@ import { useCtlUi, channelName } from './ControllerUi'
 import { useSerialUi, serialCardsOf, slotName, SERIAL_PORT_IDS } from './SerialExplorerUi'
 import { datasetDstName, PLC_TABLE_LABEL } from '../engine/serialIo'
 import type { TraditionalCard } from '../engine/traditionalIo'
+import { featureEnabled } from '../engine/systemPreferences'
+import { useFbUi, FieldbusTreeRows, FieldbusDetail, DeviceDefinitionRows } from './FieldbusUi'
 
 const IO_CARD_LABEL: Record<string, string> = { AI: 'Analog Input', AO: 'Analog Output', DI: 'Discrete Input', DO: 'Discrete Output' }
 
@@ -49,6 +51,8 @@ export type LibrarySelection =
   | { kind: 'decom' }
   | { kind: 'ctlnet' }
   | { kind: 'controller'; tag: string; assigned?: boolean }
+  /** Course DV-09 chapters 10-13: H1 cards, ports, devices and Library > Device Definitions (components/FieldbusUi.tsx). */
+  | { kind: 'fieldbus'; id: string; label: string }
   | { kind: 'sim'; tag: string }
   | { kind: 'batch'; sel: BatchSel }
 
@@ -313,6 +317,7 @@ export function LibraryTree({ selection, onSelect, depth = 0 }: { selection: Lib
       icon={<DvIcon kind="library" />} label={<span>Library</span>} onClick={() => onSelect({ kind: 'library' })}
       onContextMenu={e => setMenu({ x: e.clientX, y: e.clientY, label: 'Library', items: [{ label: "What's this?", onClick: () => whatsThis('library') }] })}>
       {renderTemplates(LIBRARY_TEMPLATES, depth + 1, [])}
+      <DeviceDefinitionRows depth={depth + 1} selection={selection} onSelect={onSelect} />
       <Row depth={depth + 1} open={!!open['Advanced Definitions']} onToggle={() => toggle('Advanced Definitions')} selected={is({ kind: 'advanced' })}
         icon={<LibIcon kind="advanced" />} label={<span>Advanced Definitions</span>} onClick={() => onSelect({ kind: 'advanced' })}>
         <EmClassTree depth={depth + 2} sel={batchSel} onSelect={pickBatch} />
@@ -351,7 +356,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   const controllers = useStore(s => s.hardware.controllers)
   const traditionalCards = useStore(s => s.hardware.traditionalCards)
   const serialCards = useStore(s => s.hardware.serialCards)
-  const ioCards = (tag: string): TraditionalCard[] => Object.values(traditionalCards ?? {}).filter(card => card.controllerTag === tag).sort((a, b) => a.slot - b.slot)
+  const ioCards = (tag: string): TraditionalCard[] => Object.values(traditionalCards ?? {}).filter(card => card.controllerTag === tag && !card.fieldbus).sort((a, b) => a.slot - b.slot)
   const lib = useLibrary()
   const batch = useBatch()
   const dp = useDownloadPending()
@@ -401,12 +406,13 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         label={<span>I/O</span>} sub={`${ioCards(c.tag).length + serialCardsOf(serialCards, c.tag).length} card(s)`} pending={pendingFor(c.tag) ? tri : undefined} dataAttr={{ 'data-io': c.tag }}
         onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: 'I/O', items: [
           { label: 'Explore', onClick: () => toggle(`${c.tag}:io`) },
-          { label: 'New Card...', onClick: () => useSerialUi.getState().open({ t: 'newCard', controller: c.tag }) },
+          { label: 'New Card...', onClick: () => (featureEnabled('fieldbus') ? useFbUi.getState().open({ t: 'newCard', controller: c.tag }) : useSerialUi.getState().open({ t: 'newCard', controller: c.tag })) },
+          { label: 'Auto-Sense I/O Cards...', onClick: () => useCtlUi.getState().open({ t: 'sense', tag: c.tag }) },
           sep,
           { label: "What's this?", onClick: () => window.alert('I/O — the cards of this controller. Auto-sense detects the installed cards; New Card configures a placeholder for a card (for example the Serial card) before it is connected.') },
           { label: 'Properties', disabled: 'Not modeled' }] }) }}>
         {serialCardsOf(serialCards, c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
-          label={<span>{slotName(card.slot)}</span>} sub={`Serial card${card.placeholder ? ' (placeholder)' : ''}, 2 ports${card.deployed ? '' : ' · not downloaded'}`} dataAttr={{ 'data-serial-card': card.id }}
+          label={<span>{slotName(card.slot)}</span>} sub={`Serial card${card.placeholder ? ' (placeholder)' : ''}, 2 ports${card.deployed ? '' : ' · not downloaded'}`} dataAttr={{ 'data-io-serial-card': card.id }}
           pending={!card.deployed || JSON.stringify(card.deployed) !== JSON.stringify(card.configured) ? tri : undefined}
           onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: slotName(card.slot), items: [
             { label: 'Explore', onClick: () => toggle(card.id) },
@@ -446,6 +452,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
               </Row>)}
             </Row> })}
         </Row>)}
+        <FieldbusTreeRows controller={c.tag} depth={d + 2} selection={selection} onSelect={onSelect} />
         {ioCards(c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
           label={<span>C{String(card.slot).padStart(2, '0')}</span>} sub={`${IO_CARD_LABEL[card.type]} card, 8 channels`} dataAttr={{ 'data-io-card': card.id }}>
           {card.channels.map(ch => <Row key={ch.channel} depth={d + 3} icon={<DvIcon kind="item" />} label={<span>{channelName(ch.channel)}</span>}
@@ -578,6 +585,8 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
   switch (selection.kind) {
     case 'batch':
       return <BatchDetail sel={selection.sel} onSelect={s => onSelect({ kind: 'batch', sel: s })} />
+    case 'fieldbus':
+      return <FieldbusDetail id={selection.id} />
     case 'library':
       return pane(<ContentsList rows={[
         ...LIBRARY_TEMPLATES.map(n => ({ key: n.name, icon: <LibIcon kind="classes" />, name: n.name, type: 'Templates', onOpen: () => onSelect({ kind: 'folder', path: [n.name] }) })),

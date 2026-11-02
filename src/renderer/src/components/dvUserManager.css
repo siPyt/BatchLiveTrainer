@@ -1,0 +1,46 @@
+.dvum { display: flex; flex-direction: column; height: 100%; background: #d4d0c8; color: #000; font-size: 12px; }
+.dvum-title { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 6px; background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-weight: 700; }
+.dvum-menubar { display: flex; gap: 2px; padding: 1px 4px; background: #d4d0c8; border-bottom: 1px solid #808080; position: relative; z-index: 20; }
+.dvum-menu { position: relative; }
+.dvum-menu > button { background: transparent; border: 1px solid transparent; padding: 1px 7px; font: inherit; color: #000; }
+.dvum-menu > button:hover, .dvum-menu > button.open { border-color: #808080 #fff #fff #808080; }
+.dvum-menu .dvum-drop { position: absolute; left: 0; top: 100%; min-width: 190px; background: #d4d0c8; border: 1px solid #404040; box-shadow: 2px 2px 0 #00000055; display: flex; flex-direction: column; }
+.dvum-menu .dvum-drop button { text-align: left; background: transparent; border: 0; padding: 3px 18px; font: inherit; color: #000; }
+.dvum-menu .dvum-drop button:hover:not(:disabled) { background: #0a246a; color: #fff; }
+.dvum-menu .dvum-drop button:disabled { color: #808080; }
+.dvum-body { flex: 1; min-height: 0; display: flex; gap: 4px; padding: 4px; }
+.dvum-left { flex: 1.5; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dvum-right { flex: 1; min-width: 0; display: flex; }
+.dvum-win { display: flex; flex-direction: column; min-height: 0; border: 2px solid; border-color: #fff #404040 #404040 #fff; background: #d4d0c8; }
+.dvum-win.users { flex: 3; }
+.dvum-win.groups { flex: 2; }
+.dvum-win.locks { flex: 1; }
+.dvum-wintitle { display: flex; align-items: center; gap: 5px; height: 18px; padding: 0 4px; background: #808080; color: #fff; font-weight: 700; }
+.dvum-win.active .dvum-wintitle { background: #0a246a; }
+.dvum-scroll { flex: 1; overflow: auto; background: #fff; border: 1px solid #808080; margin: 2px; }
+.dvum-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dvum-table th { position: sticky; top: 0; text-align: left; font-weight: 400; padding: 1px 4px; background: #d4d0c8; border: 1px solid; border-color: #fff #808080 #808080 #fff; white-space: nowrap; }
+.dvum-table td { padding: 0 4px; height: 15px; white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.dvum-table tr.sel td { background: #0a246a; color: #fff; }
+.dvum-status { height: 20px; display: flex; align-items: center; padding: 0 6px; border-top: 1px solid #808080; }
+.dvum-error { margin: 2px 4px; padding: 3px 6px; background: #ffe9e9; border: 1px solid #c33; color: #900; }
+dialog.dvum-dialog { min-width: 560px; max-width: 760px; background: #d4d0c8; color: #000; }
+.dvum-tabs { display: flex; gap: 1px; padding: 6px 6px 0; }
+.dvum-tabs button { background: #d4d0c8; border: 1px solid; border-color: #fff #404040 transparent #fff; border-bottom: none; padding: 2px 8px; font: inherit; color: #000; cursor: pointer; }
+.dvum-tabs button.on { font-weight: 700; margin-bottom: -1px; background: #d4d0c8; }
+.dvum-panel { margin: 0 6px; padding: 10px 12px; min-height: 270px; border: 1px solid; border-color: #fff #404040 #404040 #fff; display: flex; gap: 14px; }
+.dvum-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dvum-col label { display: flex; flex-direction: column; gap: 1px; }
+.dvum-col label.chk { flex-direction: row; align-items: center; gap: 5px; }
+.dvum-col input[type='text'], .dvum-col input[type='password'], .dvum-col select, .dvum-col textarea { font: inherit; border: 2px solid; border-color: #808080 #fff #fff #808080; padding: 1px 3px; background: #fff; }
+.dvum-col input:disabled, .dvum-col select:disabled, .dvum-col textarea:disabled { background: #d4d0c8; color: #808080; }
+.dvum-group { border: 1px solid #808080; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.dvum-group > legend { padding: 0 3px; }
+.dvum-pick { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.dvum-pick .dvum-scroll { margin: 0; height: 230px; flex: none; }
+.dvum-mid { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.dvum-btn { min-width: 78px; padding: 3px 10px; font: inherit; color: #000; background: #d4d0c8; border: 2px solid; border-color: #fff #404040 #404040 #fff; }
+.dvum-btn:disabled { color: #808080; text-shadow: 1px 1px #fff; }
+.dvum-btn:active:not(:disabled) { border-color: #404040 #fff #fff #404040; }
+.dvum-foot { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 6px 6px; }
+.dvum-note { color: #000; font-size: 11px; margin: 4px 0 0; }

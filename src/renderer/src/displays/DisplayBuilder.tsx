@@ -19,6 +19,7 @@ import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { DYNAMO_SETS, FONT_FAMILIES, TITLE_GROUP, clampPosition, formatLayout, historicalValue, pictureDiscretePath,
   pictureDiscreteSignal, pictureSourcePaths, refreshedSample, type DynamoSetName } from '../engine/pictureObjects'
 import { askConfirm } from '../components/AppNotices'
+import { OperateDv09 } from './OperateDv09'
 
 const PARAMS: PicParam[] = ['PV', 'SP', 'OUT', 'MODE', 'STATE']
 
@@ -41,7 +42,13 @@ function paramValue(m: AnyModule | undefined, param: PicParam): string {
   return '—'
 }
 
+/** Class DV-09 shows DeltaV Operate (Configure / Run) as the manual describes it; every other class keeps the Display Builder. */
 export function DisplayBuilder(): JSX.Element {
+  const course = useUi(s => s.course)
+  return course === 'DV-09' ? <OperateDv09 /> : <StandardDisplayBuilder />
+}
+
+function StandardDisplayBuilder(): JSX.Element {
   useDatabaseClient('DeltaV Operate (Configure)')
   const pictures = usePictures((s) => s.pictures)
   const createPicture = usePictures((s) => s.createPicture)
@@ -271,7 +278,7 @@ function PictureProperties({ picture, width, onClose }: { picture: string; width
   )
 }
 
-function Canvas({
+export function Canvas({
   picture,
   edit,
   selEl,

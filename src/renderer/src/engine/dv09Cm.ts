@@ -203,12 +203,12 @@ export function setDiscreteAlarm(tag: string, onValue: boolean, enabled?: boolea
   return useStore.getState().configureDiscreteAlarm(tag, onValue, enabled ?? alarm?.enabled ?? true) ? null : 'The alarm was not changed (see the Event Journal)'
 }
 
-/** Module Properties > Displays: the primary control display (a picture name such as Tank101). */
-export function setPrimaryDisplay(tag: string, name: string): string | null {
+/** Module Properties > Displays: the primary control display (a picture name such as Tank101) and optionally the detail display. */
+export function setPrimaryDisplay(tag: string, name: string, detail?: string): string | null {
   if (!useDv09Cm.getState().cms[tag]) return fail(tag, `${tag} is not a module created in DeltaV Explorer`)
   if (!dv09Module(tag)) return fail(tag, `${tag} has no block yet; add Discrete Output or Discrete Input first`)
   if (!requireUnlockedKey('CAN_CONFIGURE', `Assign module displays ${tag}`)) return 'Requires the Can Configure key'
-  patchModule(tag, { primaryDisplay: name.trim() || undefined })
+  patchModule(tag, { primaryDisplay: name.trim() || undefined, ...(detail === undefined ? {} : { detailDisplay: detail.trim() || undefined }) })
   log(tag, `Primary control display set to ${name.trim() || '(none)'}`)
   return null
 }
@@ -297,7 +297,7 @@ useStore.subscribe(s => {
     if (m?.type === 'DI' && dst && m.downloaded && !m.ioBad) {
       const before = inputState.get(cm.tag)
       inputState.set(cm.tag, m.state)
-      if (before !== undefined && before !== m.state) queueMicrotask(() => log(cm.tag, `${cm.tag}/DI1/PV_D changed to ${m.state ? 1 : 0} (${dst})`, 'DIAGNOSTIC'))
+      if (before !== undefined && before !== m.state) log(cm.tag, `${cm.tag}/DI1/PV_D changed to ${m.state ? 1 : 0} (${dst})`, 'DIAGNOSTIC')
       continue
     }
     if (m?.type === 'DI') inputState.delete(cm.tag)
@@ -307,7 +307,7 @@ useStore.subscribe(s => {
     if (on && !channelOn.has(cm.tag)) {
       channelOn.add(cm.tag)
       const where = `${target!.card.id.split('/').pop()} CH${String(target!.channel.channel).padStart(2, '0')}`
-      queueMicrotask(() => log(cm.tag, `${cm.tag}/DO1/OUT_D: card ${target!.card.slot} channel ${target!.channel.channel} (${dst}, ${where}) is on`, 'DIAGNOSTIC'))
+      log(cm.tag, `${cm.tag}/DO1/OUT_D: card ${target!.card.slot} channel ${target!.channel.channel} (${dst}, ${where}) is on`, 'DIAGNOSTIC')
     } else if (!on) channelOn.delete(cm.tag)
   }
 })

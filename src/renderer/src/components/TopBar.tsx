@@ -9,6 +9,7 @@ import { clockString, dateString } from '../utils/format'
 import { homeDisplayFor, navigationFor } from '../ui/displayNavigation'
 import { COURSES } from '../ui/courses'
 import { newProjectForActiveClass, openCourse } from '../ui/courseSwitch'
+import { openOperate } from '../ui/dv09Operate'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
 
 function RibbonButton({ icon, label, onClick, disabled, pressed }: {
@@ -195,7 +196,7 @@ export function TopBar(): JSX.Element {
       </div>
       <div className="operator-ribbon action-ribbon" role="toolbar" aria-label="Display actions">
         <RibbonButton icon="eye" label="Show navigation sidebar" pressed={navigationOpen} onClick={toggleNavigation} />
-        <RibbonButton icon="display" label="Process" onClick={() => navigate('process')} />
+        <RibbonButton icon="display" label="Process" onClick={() => (course === 'DV-09' ? openOperate('run') : navigate('process'))} />
         <RibbonButton icon="info" label="Event Journal" onClick={() => navigate('journal')} />
         <RibbonButton icon="sfc" label="SFC Charts" onClick={() => navigate('sfc')} />
         <RibbonButton icon="help" label="Course 7016 Workshops" onClick={() => navigate('workshops')} />

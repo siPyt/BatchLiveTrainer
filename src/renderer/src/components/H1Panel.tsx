@@ -115,6 +115,7 @@ function H1PortEditor({ card, portId }: { card: H1Card; portId: H1PortId }): JSX
   const port = card.ports[portId]
   const rt = card.runtime[portId]
   const [message, setMessage] = useState<Result>(null)
+  const [scanMenu, setScanMenu] = useState<{ x: number; y: number } | null>(null)
   const [description, setDescription] = useState(port.description)
   const [tag, setTag] = useState('PT-101')
   const [address, setAddress] = useState(20)
@@ -127,8 +128,9 @@ function H1PortEditor({ card, portId }: { card: H1Card; portId: H1PortId }): JSX
   const inventory = act.ffInventory(card, portId)
   const label = `${card.id} ${portId}`
   return (
-    <details className="traditional-channel" open={port.enabled}>
-      <summary>
+    <>
+    <details className="traditional-channel" open={port.enabled} data-h1-port-panel={`${card.id}/${portId}`}>
+      <summary onContextMenu={(e) => { e.preventDefault(); setScanMenu({ x: e.clientX, y: e.clientY }) }}>
         <span>{portId} segment</span>
         <span>
           {port.enabled ? 'Enabled' : 'Disabled'} · LAS {rt.lasAddress ?? 'none'} · live {rt.liveList.length} · cycles {rt.cycle}
@@ -167,6 +169,7 @@ function H1PortEditor({ card, portId }: { card: H1Card; portId: H1PortId }): JSX
           </tbody>
         </table>
         <div className="exp-newmod-title">Device port rescan (live inventory)</div>
+        <div className="traditional-toolbar"><button className="tbtn sm" onClick={() => setMessage(act.rescanPort(card.id, portId) ?? `Rescan Port (Auto-Sense Devices): ${inventory.length} device(s) listed`)}>Rescan Port (Auto-Sense Devices)</button></div>
         <table className="exp-table" data-inventory>
           <thead>
             <tr><th>Address</th><th>Device ID</th><th>Tag</th><th>State</th><th>Integrity</th><th>Model</th><th>Rev / DD</th><th /></tr>
@@ -214,6 +217,12 @@ function H1PortEditor({ card, portId }: { card: H1Card; portId: H1PortId }): JSX
         {Object.values(port.devices).map((device) => <FfDeviceEditor key={device.tag} card={card} device={device} />)}
       </div>
     </details>
+    {scanMenu && (
+      <div className="ctx-menu lib-ctx-menu" role="menu" aria-label={`${portId} menu`} style={{ position: 'fixed', left: scanMenu.x, top: scanMenu.y, zIndex: 60 }} onMouseLeave={() => setScanMenu(null)}>
+        <button role="menuitem" className="ctx-item" onClick={() => { setScanMenu(null); setMessage(act.rescanPort(card.id, portId) ?? `Rescan Port (Auto-Sense Devices): ${inventory.length} device(s) listed`) }}>Rescan Port (Auto-Sense Devices)</button>
+      </div>
+    )}
+    </>
   )
 }
 

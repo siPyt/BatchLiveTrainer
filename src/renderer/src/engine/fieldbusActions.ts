@@ -288,6 +288,18 @@ export function ffInventory(card: H1Card, port: H1PortId): FfInventoryRow[] {
   return rows.sort((a, b) => a.address - b.address)
 }
 
+/** Diagnostics: right-click the port > Rescan Port (Auto-Sense Devices), p12-34. The list shown is what the segment reports at this moment. */
+export function rescanPort(cardId: string, port: H1PortId): string | null {
+  if (!allow('DIAGNOSTIC', `Configure H1 card ${cardId}`)) return denial('Requires the Diagnostic key')
+  const card = getCard(cardId)
+  if (!card) return 'H1 card does not exist'
+  if (!card.downloaded) return fail(cardId, 'Download the H1 card first: its ports are not active')
+  if (!card.ports[port].enabled) return fail(cardId, `${port} is not enabled: enable the port in its Properties and download the card`)
+  const rows = ffInventory(card, port)
+  useStore.getState().logEvent('DIAGNOSTIC', cardId, `Rescan Port (Auto-Sense Devices) ${port}: ${rows.length} device(s) found, ${rows.filter((r) => r.integrity === 'Good').length} communicating`)
+  return null
+}
+
 // --- configuration devices --------------------------------------------------
 
 export function addFfDevice(cardId: string, port: H1PortId, tag: string, address: number, catalogId: string, revision: number, ddRevision: number): string | null {

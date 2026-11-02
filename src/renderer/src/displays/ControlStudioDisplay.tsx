@@ -28,6 +28,8 @@ import { connectedModuleTags, moduleBlocks } from '../engine/controlDiagram'
 import { deviceInterlockSignal, devicePermissiveSignal } from '../engine/simulate'
 import { deviceDescriptorCommandError, deviceDescriptorLabel } from '../engine/deviceDescriptors'
 import { NewControlModuleDialog } from './ExplorerDisplay'
+import { Dv09ControlStudio } from './Dv09ControlStudio'
+import { useDv09Cm } from '../engine/dv09Cm'
 import { DeviceLogicView, LogicExplanationView } from './ModuleLogicView'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
@@ -43,7 +45,14 @@ import type { ReactNode } from 'react'
 // Which module a check-out prompt is already open for, so a re-run of the effect does not ask twice.
 let vcPrompting: string | null = null
 
+/** Course DV-09 modules created in DeltaV Explorer (chapter 3) open in their own editor; every other module opens the standard Studio. */
 export function ControlStudioDisplay(): JSX.Element {
+  const studioTag = useUi((s) => s.studioTag)
+  const managed = useDv09Cm(s => !!studioTag && !!s.cms[studioTag])
+  return managed && studioTag ? <Dv09ControlStudio key={studioTag} tag={studioTag} /> : <StandardControlStudio />
+}
+
+function StandardControlStudio(): JSX.Element {
   useDatabaseClient('DeltaV Control Studio')
   const studioTag = useUi((s) => s.studioTag)
   const runtimeModules = useStore((s) => s.modules)

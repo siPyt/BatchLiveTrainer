@@ -5124,3 +5124,82 @@ button {
 .bam-box { border: 1px solid var(--dv-border); padding: 8px; } .bam-wide { grid-column: 1 / -1; }
 .bam-status { display: grid; grid-template-columns: 150px 1fr; gap: 3px 8px; margin: 0 0 8px; font-size: 12px; } .bam-status dd { margin: 0; font-weight: 700; }
 .bam-buttons { display: flex; gap: 6px; margin-top: 8px; }
+
+/* Course DV-09 chapter 3: Control Studio module editor and DeltaV Operate (Configure / Run). */
+.dv09-diagram { position: relative; min-height: 190px; background: #fff; background-image: linear-gradient(#e4e8ec 1px, transparent 1px), linear-gradient(90deg, #e4e8ec 1px, transparent 1px); background-size: 20px 20px; }
+.dv09-diagram-empty { position: absolute; inset: 10px; border: 2px dashed #9aa4ad; color: #5a6672; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; font-size: 13px; }
+.dv09-diagram-empty.over { border-color: #0078d7; background: rgba(0, 120, 215, 0.08); }
+.dv09-block { position: absolute; left: 60px; top: 30px; width: 190px; background: #e9eaed; border: 2px solid #5f6670; font-size: 12px; cursor: pointer; }
+.dv09-block.selected { outline: 2px solid #0078d7; }
+.dv09-block-title { text-align: center; padding: 3px 4px; border-bottom: 1px solid #5f6670; font-weight: 700; position: relative; }
+.dv09-block-icon { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: #101c78; border: 1px solid #000; }
+.dv09-block-row { display: flex; justify-content: space-between; padding: 2px 6px; }
+.dv09-block-row .pin { font-size: 11px; }
+.dv09-block-foot { text-align: right; padding: 2px 6px; border-top: 1px solid #5f6670; background: #d3d5d9; font-weight: 700; }
+.dv09-filterbar { display: flex; gap: 8px; align-items: center; padding: 3px 8px; font-size: 12px; background: var(--dv-bg-3); border-bottom: 1px solid var(--dv-border); }
+.dv09-filter-value { border: 1px solid var(--dv-border); background: #fff; color: #000; padding: 1px 8px; min-width: 160px; cursor: default; user-select: none; }
+.dv09-studio-message { margin-left: 16px; color: var(--dv-text-dim); }
+.dv09-operate { background: #d4d0c8; color: #000; }
+.dv09-op-title { background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-weight: 700; font-size: 12px; padding: 3px 6px; display: flex; align-items: center; gap: 6px; }
+.dv09-op-logo { background: #fff; color: #c0452f; width: 14px; height: 14px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #000; }
+.dv09-op-menu { background: #d4d0c8; border-bottom: 1px solid #808080; }
+.dv09-op-bar { display: flex; gap: 2px; align-items: center; padding: 2px 6px; background: #d4d0c8; border-bottom: 1px solid #808080; }
+.dv09-op-btn { width: 26px; height: 24px; background: transparent; border: 1px solid transparent; font-size: 15px; padding: 0; color: #000; }
+.dv09-op-btn:hover:not(:disabled) { border-color: #0078d7; background: #e5f1fb; }
+.dv09-op-btn:disabled { opacity: 0.4; }
+.dv09-op-status { flex: 1; margin-left: 12px; font-size: 12px; color: #333; }
+.dv09-op-mode { font-size: 11px; padding: 1px 8px; border: 1px inset #fff; background: #1d4ed8; color: #fff; }
+.dv09-operate.run .dv09-op-mode { background: #137a2b; }
+.dv09-op-body { flex: 1; display: flex; min-height: 0; }
+.dv09-op-tree { width: 190px; min-width: 190px; overflow: auto; background: #fff; border: 2px inset #fff; margin: 4px; font-size: 12px; color: #000; }
+.dv09-tree-row { display: flex; align-items: center; gap: 3px; padding: 1px 4px; white-space: nowrap; cursor: default; }
+.dv09-tree-row.sel { background: #0a246a; color: #fff; }
+.dv09-tree-row .tv-box { display: inline-flex; width: 11px; height: 11px; border: 1px solid #808080; align-items: center; justify-content: center; font-size: 10px; line-height: 1; background: #fff; color: #000; }
+.dv09-tree-row .tv-box.none { border-color: transparent; background: transparent; }
+.dv09-op-work { flex: 1; display: flex; flex-direction: column; min-width: 0; margin: 4px 4px 4px 0; }
+.dv09-op-tabs { display: flex; gap: 2px; min-height: 22px; }
+.dv09-op-tab { display: inline-flex; align-items: center; background: #bdb9b0; border: 1px solid #808080; border-bottom: none; font-size: 12px; }
+.dv09-op-tab.on { background: #fff; font-weight: 700; }
+.dv09-op-tabname, .dv09-op-tabx { background: transparent; border: none; padding: 2px 6px; font: inherit; color: #000; }
+.dv09-op-stage { position: relative; flex: 1; min-height: 0; display: flex; background: #808080; border: 2px inset #fff; overflow: hidden; }
+.dv09-op-empty { margin: auto; color: #e8e8e8; font-size: 14px; max-width: 420px; text-align: center; }
+.dv09-op-pic { position: relative; flex: 1; display: flex; min-width: 0; min-height: 0; }
+.dv09-op-pic.stamping .bld-canvas { cursor: crosshair; }
+.dv09-op-nav { position: absolute; left: 8px; top: 6px; display: flex; gap: 4px; z-index: 5; }
+.dv09-op-navbtn { width: 30px; height: 26px; background: #e0e6ec; border: 2px outset #fff; font-size: 14px; color: #1d3b5c; padding: 0; }
+.dv09-op-textedit { position: absolute; z-index: 6; font-size: 14px; min-width: 120px; }
+.dv09-toolbox { position: absolute; right: 14px; top: 14px; width: 150px; background: #d4d0c8; border: 2px outset #fff; z-index: 8; }
+.dv09-toolbox-title { background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 4px; }
+.dv09-toolbox-grid { display: grid; grid-template-columns: repeat(4, 32px); gap: 2px; padding: 4px; }
+.dv09-toolbox-grid button { width: 32px; height: 32px; padding: 0; background: #d4d0c8; border: 2px outset #fff; font-size: 15px; color: #000; }
+.dv09-toolbox-grid button.on { border-style: inset; background: #bdb9b0; }
+.dv09-abc { font-size: 9px; font-weight: 700; line-height: 1; color: #c0452f; display: block; }
+.dv09-textglyph { color: #1d4ed8; font-size: 17px; }
+.dv09-props, .dv09-capedit { position: absolute; right: 14px; bottom: 14px; width: 270px; background: #d4d0c8; border: 2px outset #fff; z-index: 9; font-size: 12px; color: #000; padding-bottom: 6px; }
+.dv09-capedit { right: auto; left: 14px; width: 420px; padding: 0 8px 8px; }
+.dv09-props table { width: 100%; border-collapse: collapse; background: #fff; }
+.dv09-props td { border: 1px solid #c0c0c0; padding: 1px 4px; }
+.dv09-props input, .dv09-props select { width: 100%; box-sizing: border-box; font-size: 12px; }
+.dv09-props-title { display: flex; justify-content: space-between; background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-weight: 700; padding: 1px 4px; margin: 0 -8px 6px; }
+.dv09-props .dv09-props-title { margin: 0 0 4px; }
+.dv09-props-title button { background: #d4d0c8; border: 1px outset #fff; font-size: 10px; padding: 0 4px; }
+.dv09-props-note { padding: 6px; }
+.dv09-fds { position: absolute; left: 20px; top: 20px; width: 430px; background: #fff; border: 2px outset #fff; z-index: 7; color: #000; }
+.dv09-fds-title { background: linear-gradient(90deg, #0a246a, #a6caf0); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 4px; }
+.dv09-fds-body { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 6px; }
+.dv09-fds-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; opacity: 0.55; }
+.dv09-fds-item.modeled { opacity: 1; cursor: grab; outline: 1px dotted #0078d7; }
+.dv09-swatches { display: grid; grid-template-columns: repeat(9, 24px); gap: 3px; }
+.dv09-swatch { width: 24px; height: 24px; border: 1px solid #555; padding: 0; }
+.dv09-swatch.on { outline: 2px solid #0078d7; }
+.dv09-swatch-sample { margin-top: 6px; padding: 4px 8px; border: 1px solid #555; font-size: 12px; color: #000; }
+.dv09-list { width: 100%; box-sizing: border-box; }
+.dv09-font { display: grid; grid-template-columns: 1.4fr 1fr 0.7fr; gap: 8px; align-items: start; }
+.dv09-font select { width: 100%; }
+.dv09-font .lib-dlg-check, .dv09-font-sample { grid-column: 1 / -1; }
+.dv09-font-sample { border: 1px solid #888; padding: 10px; text-align: center; background: #fff; color: #000; }
+.dv09-builder-pane { min-height: 90px; border: 1px solid var(--dv-border); padding: 10px; background: var(--dv-panel-2); }
+.dv09-builder-deltav { display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; min-height: 80px; }
+.dv09-browse-list { list-style: none; margin: 0; padding: 2px; min-height: 120px; max-height: 160px; overflow: auto; border: 1px solid var(--dv-border); background: #fff; color: #000; }
+.dv09-browse-list li { padding: 1px 6px; cursor: default; }
+.dv09-browse-list li.sel { background: #0a246a; color: #fff; }

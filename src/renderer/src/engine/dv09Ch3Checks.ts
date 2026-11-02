@@ -1,8 +1,7 @@
 import type { Dv09Ctx } from './dv09Registry'
 import type { StepCheck } from './workshopChecks'
 import type { EventLogEntry } from './types'
-import { signatureFor, type Dv09Cm } from './dv09Cm'
-import { useDv09Cm } from './dv09Cm'
+import { signatureFor, useDv09Cm, type Dv09Cm } from './dv09Cm'
 import { usePictures, type Picture } from './pictureStore'
 import { PICTURE_TEMPLATES } from './pictureObjects'
 import { MAIN_TEMPLATE_TEXT, OVW_REF, savedPicture, sameName } from './dv09Operate'
@@ -19,8 +18,6 @@ const parse = (text: string | undefined): Saved | null => { try { return text ? 
 
 /** The Tank101 picture and what its last File > Save stored (null while nothing was saved). */
 const tank = (pictures: Record<string, Picture>): { now?: Picture; saved: Picture | null } => ({ now: pictures.TANK101, saved: savedPicture(pictures.TANK101) })
-const isDatalink = (p: Picture | null | undefined, tag: string, path: string): boolean =>
-  !!p && p.elements.some(e => e.type === 'datalink' && e.tag === tag && e.path?.toUpperCase() === path)
 
 /**
  * Course DV-09 chapter 3 (pp 3-12 .. 3-50): modules XV-101 and XVSTAT-101 (Explorer + Control Studio), the picture Tank101
@@ -96,7 +93,7 @@ export function checkDv09Ch3(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-3c-1', launchAt >= 0, 'Step 1. DeltaV Operate was launched (the Operate button of the Explorer window)'))
   out.push(check('dv09-3c-2', launchAt >= 0 && configureAt >= 0, 'Step 2. DeltaV Operate was switched to Configure (CTRL-W)'))
   out.push(check('dv09-3c-3', !!now && now.template === 'MAIN', 'Step 3. The picture Tank101 was created from the main template (New Picture)'))
-  out.push(check('dv09-3c-4', !!saved ? saved.background !== undefined && saved.background !== PICTURE_TEMPLATES.MAIN.background : !!now && now.background !== PICTURE_TEMPLATES.MAIN.background,
+  out.push(check('dv09-3c-4', !!now && now.background !== undefined && now.background !== PICTURE_TEMPLATES.MAIN.background,
     `Step 4. Edit > Picture: the background color is ${now?.background ?? '(no picture)'} (the template colour is ${PICTURE_TEMPLATES.MAIN.background})`))
   out.push(check('dv09-3c-5', !!now && now.template === 'MAIN' && !now.elements.some(e => e.type === 'text' && e.content === MAIN_TEMPLATE_TEXT), 'Step 5. The text in the middle of the picture (the template text) was deleted'))
   out.push(check('dv09-3c-6', !!now && sameName(now.previousPicture, 'Ovw_ref') && sameName(now.nextPicture, 'alarmList'),

@@ -6,6 +6,7 @@ import { useExecutive } from './executive'
 import { useVc } from './versionControl'
 import { useHistorian } from './batchHistorian'
 import { useCampaigns } from './campaignManager'
+import { useSecurity } from './security'
 import { useDv09Cm } from './dv09Cm'
 import { usePictures } from './pictureStore'
 
@@ -41,6 +42,10 @@ const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 
 
 export interface CourseSave { version: number; savedAt: number; stores: Record<string, Record<string, unknown>> }
 
+/** Course DV-09 keeps the users, groups and key assignments of its security database in the project save (Defining Users workshop). */
+const SECURITY_FIELDS = ['users', 'groups', 'lockAssignments', 'workstation', 'passwordPolicy'] as const
+const securityData = (): Record<string, unknown> => Object.fromEntries(Object.entries(useSecurity.getState()).filter(([k]) => (SECURITY_FIELDS as readonly string[]).includes(k)))
+
 /** Data fields of a store (actions are code and are not saved). */
 function dataOf(state: object): Record<string, unknown> {
   return Object.fromEntries(Object.entries(state).filter(([, v]) => typeof v !== 'function'))
@@ -49,7 +54,9 @@ function dataOf(state: object): Record<string, unknown> {
 export function courseSnapshot(): CourseSave {
   // The operator pictures of the DV-09 project (workshop pictures) are part of its database; the 7016 save is unchanged.
   const entries = Object.entries(STORES).filter(([k]) => k !== 'pictures' || activeProject === 'DV-09')
-  return { version: VERSION, savedAt: Date.now(), stores: Object.fromEntries(entries.map(([k, s]) => [k, dataOf(s.getState())])) }
+  const stores = Object.fromEntries(entries.map(([k, s]) => [k, dataOf(s.getState())]))
+  if (activeProject === 'DV-09') stores.security = securityData()
+  return { version: VERSION, savedAt: Date.now(), stores }
 }
 
 export function saveCourseDatabase(): boolean {
@@ -78,6 +85,9 @@ export function restoreCourseDatabase(text?: string | null): boolean {
       s.setState(Object.fromEntries(Object.entries(data).filter(([f]) => known.has(f))))
     }
     const state = useStore.getState()
+    if (activeProject === 'DV-09' && saved.stores.security) {
+      useSecurity.setState(Object.fromEntries(Object.entries(saved.stores.security).filter(([f]) => (SECURITY_FIELDS as readonly string[]).includes(f))))
+    }
     if (activeProject !== '7016') return true
     const defaults = courseNamedSets()
     const builtIns = ['phase_failures', '$phase_restart_types']

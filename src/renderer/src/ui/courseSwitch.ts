@@ -1,4 +1,5 @@
 import { useLibrary } from '../engine/libraryStore'
+import { useSecurity } from '../engine/security'
 import { getActiveProject, restoreCourseDatabase, saveCourseDatabase, setActiveProject, type ProjectCourse } from '../engine/courseSave'
 import { COURSES, type CourseId } from './courses'
 import { useUi } from './uiStore'
@@ -11,6 +12,7 @@ const ACTIVE_KEY = 'batchlivetrainer.activeProject'
 const isProject = (v: unknown): v is ProjectCourse => v === '7016' || v === 'DV-09'
 
 export function installProject(c: ProjectCourse): boolean {
+  if (c === '7016') useSecurity.getState().enterSecurityScope('7016')
   return c === 'DV-09' ? useLibrary.getState().installDv09Project() : useLibrary.getState().installCourseProject()
 }
 

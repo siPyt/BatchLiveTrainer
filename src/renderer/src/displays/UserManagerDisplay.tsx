@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { DvUserManager } from '../components/DvUserManager'
+import { useUi } from '../ui/uiStore'
 import { PasswordPolicyEditor, UserAccountPolicy } from '../components/AccountPolicyPanel'
 import { useStore } from '../engine/store'
 import {
@@ -22,6 +24,11 @@ type Selection = { kind: 'user' | 'group'; name: string } | null
 const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--dv-text-dim)' }
 
 export function UserManagerDisplay(): JSX.Element {
+  const course = useUi((s) => s.course)
+  return course === 'DV-09' ? <DvUserManager /> : <LegacyUserManager />
+}
+
+function LegacyUserManager(): JSX.Element {
   const users = useSecurity((s) => s.users)
   const groups = useSecurity((s) => s.groups)
   const currentUser = useSecurity((s) => s.currentUser)

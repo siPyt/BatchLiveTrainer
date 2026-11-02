@@ -339,6 +339,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     set({ ...empty() })
     libraryHooks.reset.forEach(fn => fn(true))
     usePictures.setState({ pictures: {} })
+    useSecurity.getState().enterSecurityScope('DV-09')
     log('DV-09', 'Course DV-09 training database loaded: plant area AREA_A and decommissioned controller CTLR-02F896 (four I/O cards installed)')
     return true
   },

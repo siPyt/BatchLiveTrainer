@@ -7,6 +7,7 @@ import { useUi } from '../ui/uiStore'
 import { TraditionalIoPanel } from './TraditionalIoPanel'
 import { SerialIoPanel } from '../components/SerialIoPanel'
 import { H1Panel } from '../components/H1Panel'
+import { FieldbusRigPanel } from '../components/FieldbusRigPanel'
 import { useSystem } from '../engine/systemPreferences'
 import { ControllerLedStrip, IdentifyDialog } from '../components/ControllerIndicators'
 import { WhatsThis } from '../components/WhatsThis'
@@ -129,6 +130,7 @@ export function PhysicalNetworkDisplay(): JSX.Element {
           >
             <TraditionalIoPanel controllerTag={c.tag} />
             <SerialIoPanel controllerTag={c.tag} />
+            {c.installedH1?.length ? <FieldbusRigPanel /> : null}
             {fieldbusEnabled ? <H1Panel controllerTag={c.tag} /> : <p className="traditional-note" data-fieldbus-hidden>FOUNDATION fieldbus is hidden. Enable it in System Preferences, then shut down and reconnect the database server.</p>}
             {c.carrierIds.map((carrierId) => {
               const carrier = hardware.carriers[carrierId]

@@ -3,3 +3,23 @@
 .sp-dbicons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px 4px; padding: 6px; }
 .sp-dbicons span { font-size: 10px; text-align: center; color: #1b1f24; line-height: 1.2; }
 .sp-dbicons span::before { content: ''; display: block; width: 22px; height: 18px; margin: 0 auto 2px; background: linear-gradient(#5b8e57, #2f6a38); border-radius: 3px; }
+
+/* Explorer H1 dialogs */
+.fb-limits { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+.fb-limits th, .fb-limits td { border: 1px solid #b9b4a8; padding: 2px 10px; text-align: left; background: #fff; }
+.fb-sched { border: 1px solid #8a8f96; background: #fff; font-size: 11px; min-width: 520px; }
+.fb-sched-head, .fb-sched-row { display: grid; grid-template-columns: 220px 1fr; border-bottom: 1px solid #d7d3c9; }
+.fb-sched-head { background: #ffe200; font-weight: 700; }
+.fb-sched-head span, .fb-sched-row span { padding: 1px 6px; }
+.fb-sched-track { position: relative; min-height: 14px; }
+.fb-sched-track i { position: absolute; top: 2px; bottom: 2px; background: #5a5f68; }
+
+/* Fieldbus segment rig and Fluke 123 */
+.fb-rig .exp-table td, .fb-rig .exp-table th { font-size: 12px; }
+.fluke { width: 420px; border: 2px solid #b8a000; background: #ffd400; border-radius: 8px; padding: 8px; margin: 6px 0; color: #1b1f24; }
+.fluke-title { font-weight: 800; font-size: 12px; margin-bottom: 4px; }
+.fluke-screen { background: #c9d8bf; border: 2px solid #333; min-height: 96px; padding: 4px 8px; font-family: Consolas, monospace; font-size: 13px; }
+.fluke-screen .sel { background: #222; color: #c9d8bf; }
+.fluke-reading { font-size: 22px; font-weight: 700; }
+.fluke-off { color: #6c7a63; }
+.fluke-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }

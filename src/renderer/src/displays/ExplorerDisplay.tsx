@@ -32,8 +32,12 @@ import { SimulatorDialog } from '../components/SimulatorDialog'
 import { useLibrary, downloadState } from '../engine/libraryStore'
 import {
   LibraryTree, PhysicalNetworkTree, LibraryDetail, InstanceContents, ContextMenu, ControllerDownloadDialog,
-  instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, type LibrarySelection, type ContentsRow
+  instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, DRAG_TEMPLATE, type LibrarySelection, type ContentsRow
 } from '../components/LibraryExplorer'
+import { useDv09Cm, createFromTemplate, renameModule as renameDv09Module, assignToNode, type Dv09Cm } from '../engine/dv09Cm'
+import { Dv09NewModuleDialog, Dv09OperateButtons } from '../components/Dv09ModuleUi'
+import { DownloadDialog as Dv09DownloadDialog } from './Dv09ControlStudio'
+import { openOperate } from '../ui/dv09Operate'
 import { RecipesTree, openExecutiveApp } from '../components/ExecutiveUi'
 import { ProcessCellRows, BatchIcon, DRAG_MODULE, DRAG_PCELL_CLASS, batchLabel, useBatchEnabled } from '../components/BatchExplorer'
 import { useBatch } from '../engine/batchStore'
@@ -158,6 +162,9 @@ export function ExplorerDisplay(): JSX.Element {
   const libraryClasses = useLibrary(s => s.classes)
   const sims = useLibrary(s => s.sims)
   const hardwareControllers = useStore(s => s.hardware.controllers)
+  const dv09 = useUi(s => s.course) === 'DV-09'
+  const dv09Cms = useDv09Cm(s => s.cms)
+  const [dv09Download, setDv09Download] = useState<string | null>(null)
   const batchContained = useBatch(s => s.contained)
   const batchCellMembers = useBatch(s => s.cellMembers)
   const emCms = useEm(s => s.cmInstances)
@@ -173,6 +180,12 @@ export function ExplorerDisplay(): JSX.Element {
 
   const finishModuleRename = (): void => {
     if (!renamingModule) return
+    if (useDv09Cm.getState().cms[renamingModule.tag]) {
+      if (renameDv09Module(renamingModule.tag, renamingModule.value)) return
+      select(renamingModule.value.trim().toUpperCase())
+      setRenamingModule(null)
+      return
+    }
     const r = useLibrary.getState().renameInstance(renamingModule.tag, renamingModule.value)
     if (!alertResult(r)) return
     setRenamingModule(null)
@@ -224,7 +237,7 @@ export function ExplorerDisplay(): JSX.Element {
     return <TreeRow key={m.tag} depth={depth} selected={moduleSelected(m.tag)}
       icon={<ModuleIcon kind="control" size={16} />}
       pending={classInstance ? (dlState !== 'current' ? <span className="tv-pending" title={dlState === 'pending' ? 'Configuration changed — download required' : 'Not downloaded'}>▲</span> : undefined) :
-        <DownloadStatusIndicator tag={m.tag} compact />}
+        dv09Cms[m.tag] ? (dp.tag(m.tag) ? tri : undefined) : <DownloadStatusIndicator tag={m.tag} compact />}
       label={renamingModule?.tag === m.tag ? <input aria-label="Module name" className="exp-area-editor" autoFocus value={renamingModule.value}
         onFocus={e => e.target.select()} onClick={e => e.stopPropagation()}
         onChange={e => setRenamingModule({ tag: m.tag, value: e.target.value })}
@@ -236,13 +249,28 @@ export function ExplorerDisplay(): JSX.Element {
       drag={{ type: DRAG_MODULE, value: m.tag }}
       onClick={() => { setNode(null); setLibSel(null); setSetupView('modules'); select(m.tag) }}
       onDoubleClick={() => openStudio(m.tag)}
-      onKeyDown={classInstance ? e => { if (e.key === 'F2') setRenamingModule({ tag: m.tag, value: m.tag }) } : undefined}
+      onKeyDown={classInstance || dv09Cms[m.tag] ? e => { if (e.key === 'F2') setRenamingModule({ tag: m.tag, value: m.tag }) } : undefined}
       onContextMenu={(e) => {
         setNode(null); setLibSel(null); setSetupView('modules'); select(m.tag)
         if (classInstance) setInstMenu({ x: e.clientX, y: e.clientY, tag: m.tag })
         else setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: m.tag })
       }} />
   }
+
+  /** A control module that has no function block yet (right-click an area > New > Control Module, course DV-09). */
+  const renderBlankRow = (cm: Dv09Cm, depth: number): JSX.Element => <TreeRow key={cm.tag} depth={depth} selected={moduleSelected(cm.tag)}
+    icon={<ModuleIcon kind="control" size={16} />} pending={dp.tag(cm.tag) ? tri : undefined}
+    label={renamingModule?.tag === cm.tag ? <input aria-label="Module name" className="exp-area-editor" autoFocus value={renamingModule.value}
+      onFocus={e => e.target.select()} onClick={e => e.stopPropagation()}
+      onChange={e => setRenamingModule({ tag: cm.tag, value: e.target.value })} onBlur={finishModuleRename}
+      onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finishModuleRename() } else if (e.key === 'Escape') setRenamingModule(null) }} /> :
+      <span>{cm.tag}</span>}
+    sub={`${cm.description || cm.tag} — no function block`} dataAttr={{ 'data-module': cm.tag }}
+    onClick={() => { setNode(null); setLibSel(null); setSetupView('modules'); select(cm.tag) }}
+    onDoubleClick={() => openStudio(cm.tag)}
+    onKeyDown={e => { if (e.key === 'F2') setRenamingModule({ tag: cm.tag, value: cm.tag }) }}
+    onContextMenu={e => { setNode(null); setLibSel(null); setSetupView('modules'); select(cm.tag); setMenu({ x: e.clientX, y: e.clientY, kind: 'module', target: cm.tag }) }} />
+  const blankCms = (area: string): Dv09Cm[] => Object.values(dv09Cms).filter(cm => cm.area === area && !modules[cm.tag])
 
   const renderSfcRow = (sfc: SfcDef, depth: number): JSX.Element => <TreeRow key={sfc.name} depth={depth} selected={moduleSelected(sfc.name)}
     icon={<ModuleIcon kind="control" size={16} />} pending={<DownloadStatusIndicator tag={sfc.name} compact />}
@@ -276,7 +304,7 @@ export function ExplorerDisplay(): JSX.Element {
   const libLabel = (s: LibrarySelection): string => s.kind === 'batch' ? batchLabel(s.sel) : s.kind === 'library' ? 'Library' : s.kind === 'folder' ? s.path[s.path.length - 1] :
     s.kind === 'template' || s.kind === 'category' || s.kind === 'class' ? s.name : s.kind === 'advanced' ? 'Advanced Definitions' :
       s.kind === 'emClasses' ? 'Equipment Module Classes' : s.kind === 'cmClasses' ? 'Control Module Classes' : s.kind === 'network' ? 'Physical Network' :
-        s.kind === 'decom' ? 'Decommissioned Nodes' : s.kind === 'ctlnet' ? 'Control Network' : s.tag
+        s.kind === 'decom' ? 'Decommissioned Nodes' : s.kind === 'ctlnet' ? 'Control Network' : s.kind === 'fieldbus' ? s.label : s.tag
   const contentsName = libSel ? libLabel(libSel) : node ? (NODE_LABEL[node] ?? node.replace(/^[A-Z]+:/, '')) :
     setupView !== 'modules' ? SETUP_LABEL[setupView] ?? '' : selectedTag ?? databaseName
 
@@ -309,6 +337,7 @@ export function ExplorerDisplay(): JSX.Element {
           () => setLibSel({ kind: 'batch', sel: { t: 'cell', name: cell.name } }), { data: { 'data-contents-pcell': cell.name } })),
         ...c.ems.filter(em => !em.unit || !units[em.unit]).map(em => row(em.tag, <ModuleIcon kind="equipment" size={16} />, em.tag, 'Equipment Module', () => pickNode(`EM:${em.tag}`))),
         ...c.unassigned.map(moduleRow),
+        ...blankCms(area).map(cm => row(cm.tag, <ModuleIcon kind="control" size={16} />, cm.tag, 'Control Module', () => { setNode(null); setSetupView('modules'); select(cm.tag) }, { data: { 'data-contents-module': cm.tag } })),
         ...c.unassignedSfcs.map(sfc => row(sfc.name, <ModuleIcon kind="control" size={16} />, sfc.name, 'Control Module (SFC)', () => { setNode(null); select(sfc.name) })),
         ...Object.values(sims).filter(x => x.area === area && !batchCellMembers[x.tag]).map(x => row(x.tag, <ModuleIcon kind="control" size={16} />, x.tag, 'Control Module (simulation)', () => setLibSel({ kind: 'sim', tag: x.tag })))
       ]
@@ -347,7 +376,13 @@ export function ExplorerDisplay(): JSX.Element {
       sub={`Plant Area · ${mods.length} modules`}
       dataAttr={{ 'data-area': area }}
       drag={{ type: DRAG_AREA, value: area }}
-      drop={{ accepts: [DRAG_CLASS, DRAG_PCELL_CLASS], onDrop: (type, cls) => {
+      drop={{ accepts: dv09 ? [DRAG_CLASS, DRAG_PCELL_CLASS, DRAG_TEMPLATE] : [DRAG_CLASS, DRAG_PCELL_CLASS], onDrop: (type, cls) => {
+        if (type === DRAG_TEMPLATE) {
+          const r = createFromTemplate(cls, area)
+          if ('error' in r) { window.alert(r.error); return }
+          setOpen(o => ({ ...o, [area]: true })); setNode(null); setLibSel(null); setSetupView('modules'); select(r.tag)
+          return
+        }
         if (type === DRAG_PCELL_CLASS) {
           const r = useBatch.getState().createProcessCell(cls, area)
           if (alertResult(r)) {
@@ -385,6 +420,7 @@ export function ExplorerDisplay(): JSX.Element {
         renderModule={(tag, d) => modules[tag] ? renderModuleRow(modules[tag], d) : null} />
       {[
         ...unassigned.map(m => ({ key: m.tag, el: renderModuleRow(m, depth + 1) })),
+        ...blankCms(area).map(cm => ({ key: cm.tag, el: renderBlankRow(cm, depth + 1) })),
         ...unassignedSfcs.map(sfc => ({ key: sfc.name, el: renderSfcRow(sfc, depth + 1) })),
         ...Object.values(sims).filter(x => x.area === area && !batchCellMembers[x.tag]).map(sim => ({ key: sim.tag, el: <TreeRow key={sim.tag} depth={depth + 1}
           selected={libSel?.kind === 'sim' && libSel.tag === sim.tag} icon={<ModuleIcon kind="control" size={16} />} label={<span>{sim.tag}</span>}
@@ -426,7 +462,7 @@ export function ExplorerDisplay(): JSX.Element {
           { label: 'Properties', disabled: 'Right-click an item and choose Properties' }] },
         { label: 'Applications', items: [
           { label: 'Control Studio', onClick: () => useUi.getState().navigate('studio') },
-          { label: 'DeltaV Operate', onClick: () => useUi.getState().navigate('process') },
+          { label: 'DeltaV Operate', onClick: () => (dv09 ? openOperate('run') : useUi.getState().navigate('process')) },
           { label: 'Recipe Studio', onClick: () => openExecutiveApp('recipestudio') },
           { label: 'Batch Application Manager', onClick: () => openExecutiveApp('batchmgr') },
           { label: 'Batch Operator Interface', onClick: () => openExecutiveApp('boi') },
@@ -450,13 +486,20 @@ export function ExplorerDisplay(): JSX.Element {
         <DvToolButton label="Paste" icon="paste" disabled />
         <span className="dvx-tsep" />
         <DvToolButton label="Delete" icon="delete" onClick={deleteSelected} />
+        <Dv09OperateButtons />
         <span className="dvx-tsep" />
         <DvToolButton label="Large Icons" icon="large" disabled />
         <DvToolButton label="Small Icons" icon="small" disabled />
         <DvToolButton label="List" icon="list" disabled />
         <DvToolButton label="Details" icon="details" pressed />
+        <span className="dvx-tsep" />
+        <DvToolButton label="Lock Key (User Manager)" icon="lockKey" onClick={() => useUi.getState().navigate('users')} />
       </div>
-      {createArea && (
+      {createArea && dv09 && !newModuleEm && (
+        <Dv09NewModuleDialog area={createArea} onClose={() => setCreateArea(null)}
+          onCreated={tag => { setOpen(o => ({ ...o, [createArea]: true })); setNode(null); setLibSel(null); setSetupView('modules'); select(tag) }} />
+      )}
+      {createArea && !(dv09 && !newModuleEm) && (
         <NewModuleForm
           initialArea={createArea}
           initialEquipment={newModuleEm}
@@ -599,6 +642,7 @@ export function ExplorerDisplay(): JSX.Element {
           download: () => setModuleDownload({ tag: instMenu.tag, controller: libraryAssignments[instMenu.tag] })
         }) }} />}
       {moduleDownload && <ControllerDownloadDialog controller={moduleDownload.controller} tag={moduleDownload.tag} onClose={() => setModuleDownload(null)} />}
+      {dv09Download && <Dv09DownloadDialog tag={dv09Download} onClose={() => setDv09Download(null)} />}
 
       {menu && (
         <div className="ctx-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
@@ -684,6 +728,20 @@ export function ExplorerDisplay(): JSX.Element {
               >
                 Delete Equipment Module
               </button>
+            </>
+          ) : dv09 && dv09Cms[menu.target] ? (
+            <>
+              <div className="ctx-label">{menu.target}</div>
+              <div className="ctx-parent">Open ▸</div>
+              <button className="ctx-item ctx-sub" onClick={() => { openStudio(menu.target); setMenu(null) }}>Open with Control Studio</button>
+              <button className="ctx-item" onClick={() => { setRenamingModule({ tag: menu.target, value: menu.target }); setMenu(null) }}>Rename</button>
+              <div className="ctx-parent">Assign to ▸</div>
+              {Object.values(hardwareControllers).filter(c => c.commissioned).map(c => (
+                <button key={c.tag} className="ctx-item ctx-sub" onClick={() => { const e = assignToNode(menu.target, c.tag); if (e) window.alert(e); setMenu(null) }}>{c.tag}</button>
+              ))}
+              <div className="ctx-parent">Download ▸</div>
+              <button className="ctx-item ctx-sub" disabled={!libraryAssignments[menu.target]} title={libraryAssignments[menu.target] ? undefined : 'Assign the module to a controller first'}
+                onClick={() => { setDv09Download(menu.target); setMenu(null) }}>Control Module...</button>
             </>
           ) : (
             <>
@@ -1324,7 +1382,7 @@ function DvMenuBar({ menus }: { menus: { label: string; items: DvMenuItem[] }[] 
   </div>
 }
 
-type ToolIcon = 'newArea' | 'newModule' | 'newEm' | 'cut' | 'copy' | 'paste' | 'delete' | 'large' | 'small' | 'list' | 'details'
+type ToolIcon = 'newArea' | 'newModule' | 'newEm' | 'cut' | 'copy' | 'paste' | 'delete' | 'large' | 'small' | 'list' | 'details' | 'lockKey'
 
 function DvToolButton({ label, icon, onClick, disabled, pressed }: { label: string; icon: ToolIcon; onClick?: () => void; disabled?: boolean; pressed?: boolean }): JSX.Element {
   const balls = (star: string): JSX.Element => <>
@@ -1344,6 +1402,7 @@ function DvToolButton({ label, icon, onClick, disabled, pressed }: { label: stri
       {icon === 'small' && <>{[1, 6, 11].map(y => <g key={y}><rect x={1} y={y} width={4} height={4} fill="#4f6fa8" /><rect x={9} y={y} width={4} height={4} fill="#4f6fa8" /></g>)}</>}
       {icon === 'list' && <>{[2, 7, 12].map(y => <g key={y}><rect x={1} y={y} width={3} height={3} fill="#4f6fa8" /><path d={`M6,${y + 1.5} H15`} stroke="#3f444b" /></g>)}</>}
       {icon === 'details' && <><rect x={1} y={1} width={14} height={14} fill="#fff" stroke="#3f444b" /><path d="M1,5 H15 M1,9 H15 M1,13 H15 M6,1 V15" stroke="#3f444b" strokeWidth={0.8} /></>}
+      {icon === 'lockKey' && <><rect x={2} y={7} width={8} height={7} fill="#c9a43a" stroke="#6e5a0b" /><path d="M4,7 V5 a2,2 0 0 1 4,0 V7" fill="none" stroke="#3f444b" strokeWidth={1.2} /><circle cx={12} cy={4} r={2.2} fill="#d9d9d9" stroke="#3f444b" /><path d="M12,6 V12 M12,9 H14 M12,11 H14" stroke="#3f444b" /></>}
     </svg>
   </button>
 }
