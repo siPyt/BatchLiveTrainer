@@ -9,6 +9,7 @@ import { useCampaigns } from './campaignManager'
 import { useSecurity } from './security'
 import { useDv09Cm } from './dv09Cm'
 import { usePictures } from './pictureStore'
+import { useDv09Ops } from './dv09Settings'
 
 // BatchLiveTrainer keeps the student's Course 7016 DV_School database between sessions: the configuration
 // built in Chapters 1-5 (classes, modules, unit/phase/EM configuration, assignments, downloads) and the
@@ -27,7 +28,7 @@ export const getActiveProject = (): ProjectCourse => activeProject
 export const saveKeyFor = (c: ProjectCourse): string => (c === 'DV-09' ? DV09_SAVE_KEY : COURSE_SAVE_KEY)
 
 type Store = { getState: () => object; setState: (partial: Record<string, unknown>) => void }
-const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 'historian' | 'campaigns' | 'dv09cm' | 'pictures', Store> = {
+const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 'historian' | 'campaigns' | 'dv09cm' | 'pictures' | 'dv09ops', Store> = {
   main: useStore as unknown as Store,
   library: useLibrary as unknown as Store,
   batch: useBatch as unknown as Store,
@@ -37,7 +38,8 @@ const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 
   historian: useHistorian as unknown as Store,
   campaigns: useCampaigns as unknown as Store,
   dv09cm: useDv09Cm as unknown as Store,
-  pictures: usePictures as unknown as Store
+  pictures: usePictures as unknown as Store,
+  dv09ops: useDv09Ops as unknown as Store
 }
 
 export interface CourseSave { version: number; savedAt: number; stores: Record<string, Record<string, unknown>> }
@@ -53,7 +55,7 @@ function dataOf(state: object): Record<string, unknown> {
 
 export function courseSnapshot(): CourseSave {
   // The operator pictures of the DV-09 project (workshop pictures) are part of its database; the 7016 save is unchanged.
-  const entries = Object.entries(STORES).filter(([k]) => k !== 'pictures' || activeProject === 'DV-09')
+  const entries = Object.entries(STORES).filter(([k]) => (k !== 'pictures' && k !== 'dv09ops') || activeProject === 'DV-09')
   const stores = Object.fromEntries(entries.map(([k, s]) => [k, dataOf(s.getState())]))
   if (activeProject === 'DV-09') stores.security = securityData()
   return { version: VERSION, savedAt: Date.now(), stores }

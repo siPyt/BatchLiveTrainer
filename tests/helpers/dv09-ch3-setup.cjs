@@ -50,6 +50,9 @@ module.exports = function dv09Ch3Setup(ctx) {
   must('save picture', O.savePicture('TANK101'))
 
   // Adding a Datalink
+  O.logOperate('Datalink Stamper selected')
+  O.logOperate('Expression Builder opened')
+  O.logOperate('Browse DeltaV Control Parameters started')
   must('datalink XV-101', O.addDatalink('TANK101', { source: 'DVSYS.XV-101/DO1/SP_D.F_CV', inPlace: true, refreshSeconds: 1, x: 300, y: 200, color: '#0000ff' }))
   must('datalink XVSTAT-101', O.addDatalink('TANK101', { source: 'DVSYS.XVSTAT-101/DI1/PV_D.F_CV', inPlace: false, refreshSeconds: 1, x: 300, y: 260, color: '#0000ff' }))
 
@@ -58,6 +61,7 @@ module.exports = function dv09Ch3Setup(ctx) {
   must('text 2', O.addText('TANK101', 160, 260, 'XVSTAT-101 status'))
   const texts = pic().elements.filter(e => e.type === 'text')
   must('caption (Property Window)', O.setTextCaption('TANK101', texts[0].id, 'XV-101 SP_D', 'Property Window') ? '' : 'failed')
+  O.logOperate('Text Caption Editor opened')
   must('caption (Text Caption Editor)', O.setTextCaption('TANK101', texts[1].id, 'XVSTAT-101 PV_D', 'Text Caption Editor') ? '' : 'failed')
   must('font dialog', O.setTextFont('TANK101', texts[0].id, { fontFamily: 'Arial', bold: true }, 'Font dialog') ? '' : 'failed')
   must('font property window', O.setTextFont('TANK101', texts[1].id, { fontFamily: 'Verdana', fontSize: 16, italic: true }, 'Property Window') ? '' : 'failed')

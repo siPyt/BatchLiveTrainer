@@ -8,6 +8,8 @@ import { useUi } from '../ui/uiStore'
 import { compareAlarmRank, alarmColumnText, ALARM_COLUMNS, loadAlarmColumns, saveAlarmColumns } from '../utils/format'
 import type { ActiveAlarm, AlarmPriority, AnyModule } from '../engine/types'
 import type { AlarmColumnKey } from '../utils/format'
+import { useDv09Ops, effectiveAlarmColumns, startQuickEdit } from '../engine/dv09Settings'
+import { AlarmListQuickEdit } from '../components/AlarmListQuickEdit'
 
 type Filter = 'ALL' | AlarmPriority | 'UNACK' | 'SHELVED'
 
@@ -27,8 +29,20 @@ export function AlarmSummary(): JSX.Element {
   const openSfc = useUi(s => s.openSfc)
   const [filter, setFilter] = useState<Filter>('ALL')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
-  const [columns, setColumns] = useState<AlarmColumnKey[]>(() => loadAlarmColumns())
+  const [localColumns, setColumns] = useState<AlarmColumnKey[]>(() => loadAlarmColumns())
   const [columnPickerOpen, setColumnPickerOpen] = useState(false)
+  // Course DV-09 chapter 13: the columns are those saved with alarmList.grf (Quick Edit > Properties > Columns), not a browser setting.
+  const dv09 = useUi((s) => s.course) === 'DV-09'
+  const ops = useDv09Ops()
+  const columns = dv09 ? effectiveAlarmColumns(ops) : localColumns
+  const [bannerMenu, setBannerMenu] = useState<{ x: number; y: number } | null>(null)
+  useEffect(() => { if (dv09) useStore.getState().logEvent('DIAGNOSTIC', 'alarmList', 'Alarm List opened (DeltaV Operate Run)') }, [dv09])
+  useEffect(() => {
+    if (!bannerMenu) return
+    const close = (): void => setBannerMenu(null)
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [bannerMenu])
 
   function toggleColumn(key: AlarmColumnKey): void {
     setColumns((cur) => {
@@ -70,14 +84,22 @@ export function AlarmSummary(): JSX.Element {
   const total = shown.length
   const shelved = alarms.filter((a) => a.shelvedUntil !== undefined).length
 
+  if (dv09 && ops.quickEdit) return <AlarmListQuickEdit unack={unack} total={total} shelved={shelved} />
+
   return (
     <div className="display" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div className="alarm-list-head">
+      <div className="alarm-list-head" data-alarm-list-banner
+        onContextMenu={dv09 ? (e) => { e.preventDefault(); setBannerMenu({ x: e.clientX, y: e.clientY }) } : undefined}>
         <span className="alh-title">Alarm List</span>
         <span className="alh-counts">
           Unack: <b>{unack}</b>&nbsp;&nbsp; Total: <b>{total}</b>&nbsp;&nbsp; Suppressed: <b>{shelved}</b>
         </span>
       </div>
+      {bannerMenu && (
+        <div className="ctx-menu lib-ctx-menu" role="menu" aria-label="Alarm List menu" style={{ position: 'fixed', left: bannerMenu.x, top: bannerMenu.y, zIndex: 60 }} onMouseDown={(e) => e.stopPropagation()}>
+          <button role="menuitem" className="ctx-item" onClick={() => { setBannerMenu(null); startQuickEdit() }}>Quick Edit</button>
+        </div>
+      )}
       <div className="toolbar-row">
         {(['ALL', 'CRITICAL', 'WARNING', 'ADVISORY', 'UNACK', 'SHELVED'] as Filter[]).map((f) => (
           <button key={f} className={'tbtn sm' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>
@@ -90,7 +112,7 @@ export function AlarmSummary(): JSX.Element {
           </button>
         )}
         <span style={{ flex: 1 }} />
-        <div style={{ position: 'relative' }}>
+        {!dv09 && <div style={{ position: 'relative' }}>
           <button className={'tbtn sm' + (columnPickerOpen ? ' active' : '')}
             title="Configure/Quick Edit/Properties: choose and reorder alarm-summary columns"
             onClick={() => setColumnPickerOpen((v) => !v)}>
@@ -118,7 +140,7 @@ export function AlarmSummary(): JSX.Element {
               })}
             </div>
           )}
-        </div>
+        </div>}
         <button className="tbtn sm" onClick={ackAll} disabled={unack === 0}>
           Acknowledge All ({unack})
         </button>

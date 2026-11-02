@@ -5,7 +5,6 @@ import {
   TIME_DIV_US, VOLT_DIV_MV, type MeterButton, type RigEnd, type TestPoint
 } from '../engine/fieldbusRigModel'
 import { checkoutRecordings, rigHubTerminator, rigMeterPress, rigPlug, rigRecord, rigReset, rigSetLead, rigClearMeasurements } from '../engine/fieldbusRig'
-import '../dv09-chapters.css'
 
 // Course DV-09 chapter 12 (pp 12-15 .. 12-17): Workshop - Wire Fieldbus Segment on the training simulator, and (pp 12-36 .. 12-53) the segment
 // checkout with the Fluke 123 test tool. A lesson model: the readings follow the wiring state but certify no real installation.

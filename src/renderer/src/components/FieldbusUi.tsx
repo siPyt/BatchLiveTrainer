@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { create } from 'zustand'
 import { useStore } from '../engine/store'
 import { useSystem } from '../engine/systemPreferences'
+import { useSecurity } from '../engine/security'
 import { SimulatorDialog } from './SimulatorDialog'
 import { TreeRow, DvIcon, ContextMenu, type LibrarySelection } from './LibraryExplorer'
 import { useSerialUi } from './SerialExplorerUi'
@@ -12,7 +13,6 @@ import {
   type DeviceAlarmKind, type FfDevice, type H1Card, type H1PortId
 } from '../engine/fieldbus'
 import { findFfDevice, rankPriority } from '../engine/deviceAlarms'
-import '../dv09-chapters.css'
 
 // Course DV-09 chapters 12 and 13 in DeltaV Explorer: I/O > New Card (Add Card dialog, p12-22) or Auto-Sense I/O Cards, the H1 card C05 with its
 // ports (P01 > Properties with the General and Advanced tabs, View Schedule, pp 12-23 .. 12-30), Download > Card (Step 5, p12-33),
@@ -26,6 +26,8 @@ export type FbDlg =
   | { t: 'alarms'; cardId: string; device: string }
   | { t: 'device'; cardId: string; device: string }
   | { t: 'commission'; cardId: string; port: H1PortId; deviceId: string }
+  | { t: 'compare'; cardId: string; device: string }
+  | { t: 'auditDetail'; device: string; entry: number }
   | null
 export const useFbUi = create<{ dlg: FbDlg; open: (d: NonNullable<FbDlg>) => void; close: () => void }>(set => ({ dlg: null, open: dlg => set({ dlg }), close: () => set({ dlg: null }) }))
 
@@ -119,7 +121,7 @@ function ScheduleDialog({ cardId, port: portId, onClose }: { cardId: string; por
 
 function PortDialog({ cardId, port: portId, tab: startTab, onClose }: { cardId: string; port: H1PortId; tab?: 'General' | 'Advanced'; onClose: () => void }): JSX.Element | null {
   const card = useStore(s => s.hardware.h1Cards?.[cardId])
-  const user = 'ADMINISTRATOR'
+  const user = useSecurity((s) => s.currentUser).toUpperCase()
   const [tab, setTab] = useState<'General' | 'Advanced'>(startTab ?? 'General')
   const port0 = card?.ports[portId]
   const [enabled, setEnabled] = useState(port0?.enabled ?? false)
@@ -203,7 +205,7 @@ function PriorityEditor({ rank, onChange, label }: { rank: number; onChange: (ra
 }
 
 function AlarmDialog({ cardId, device: tag, kind, onClose }: { cardId: string; device: string; kind: DeviceAlarmKind; onClose: () => void }): JSX.Element | null {
-  const found = useStore(s => findFfDevice(s.hardware, tag))
+  const found = findFfDevice(useStore(s => s.hardware), tag)
   const setting = found?.device.alarms.settings[kind]
   const [enabled, setEnabled] = useState(setting?.enabled ?? false)
   const [rank, setRank] = useState(setting?.rank ?? 7)
@@ -225,7 +227,7 @@ function AlarmDialog({ cardId, device: tag, kind, onClose }: { cardId: string; d
 
 /** Properties of the Fieldbus Device Alarms node (p13-9): every alarm of the device with its Enabled box and Priority. */
 function AlarmsDialog({ cardId, device: tag, onClose }: { cardId: string; device: string; onClose: () => void }): JSX.Element | null {
-  const found = useStore(s => findFfDevice(s.hardware, tag))
+  const found = findFfDevice(useStore(s => s.hardware), tag)
   const [draft, setDraft] = useState(() => Object.fromEntries(DEVICE_ALARM_KINDS.map(k => [k, { ...(found?.device.alarms.settings[k] ?? { enabled: false, rank: 7 }) }])) as Record<DeviceAlarmKind, { enabled: boolean; rank: number }>)
   const [error, setError] = useState<string | null>(null)
   if (!found) return null
@@ -254,7 +256,7 @@ function AlarmsDialog({ cardId, device: tag, onClose }: { cardId: string; device
 // --- Fieldbus Device Properties (pp 13-16 .. 13-19) ---------------------------------
 
 function DeviceDialog({ cardId, device: tag, onClose }: { cardId: string; device: string; onClose: () => void }): JSX.Element | null {
-  const found = useStore(s => findFfDevice(s.hardware, tag))
+  const found = findFfDevice(useStore(s => s.hardware), tag)
   const modules = useStore(s => s.modules)
   const hardware = useStore(s => s.hardware)
   const [tab, setTab] = useState<'General' | 'Alarms & Displays'>('General')
@@ -321,6 +323,65 @@ function CommissionDialog({ cardId, port, deviceId, onClose }: { cardId: string;
   </SimulatorDialog>
 }
 
+/** Compare Devices (pp 13-36 .. 13-38): Compare = the selected device, To: = the same tag by default; then the Compare Configurations list (Resource and Transducer blocks). */
+function CompareDialog({ cardId, device: tag, onClose }: { cardId: string; device: string; onClose: () => void }): JSX.Element | null {
+  const hardware = useStore(s => s.hardware)
+  const [to, setTo] = useState(tag)
+  const [step, setStep] = useState<'pick' | 'result'>('pick')
+  const [error, setError] = useState<string | null>(null)
+  const [diffs, setDiffs] = useState<ReturnType<typeof act.compareFfDevices> | null>(null)
+  const [tab, setTab] = useState('Resource')
+  const known = Object.values(hardware.h1Cards ?? {}).flatMap(c => H1_PORT_IDS.flatMap(p => Object.keys(c.ports[p].devices)))
+  if (!findFfDevice(hardware, tag)) return null
+  const run = (): void => {
+    const other = findFfDevice(hardware, to.trim())
+    if (!other) { setError(`Device ${to.trim() || '(blank)'} was not found in the DeltaV system`); return }
+    const r = act.compareFfDevices({ cardId, tag }, { cardId: other.card.id, tag: other.device.tag })
+    if ('error' in r) { setError(r.error); return }
+    setError(null); setDiffs(r); setStep('result')
+    useStore.getState().logEvent('DIAGNOSTIC', tag, `Compare Devices: ${tag} with ${to.trim()}: ${r.differences.length} difference(s)`)
+  }
+  if (step === 'pick') return <SimulatorDialog className="module-download-dialog dvd" label="Compare Devices" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <label>Compare:<input aria-label="Compare" readOnly value={tag} /></label>
+      <label>To:<input aria-label="To" list="fb-compare-tags" value={to} onChange={e => { setTo(e.target.value); setError(null) }} /></label>
+      <datalist id="fb-compare-tags">{known.map(k => <option key={k} value={k} />)}</datalist>
+      <p className="exp-hint">The To: field contains the same tag by default. Type another device tag, or Browse to locate it in the DeltaV system: {known.join(', ') || 'no devices'}.</p>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={() => setError('Browse: type the device tag in the To: field (the list shows the devices of the system).')}>Browse...</button>
+      <button className="tbtn sm" onClick={run}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div><Err error={error} />
+  </SimulatorDialog>
+  const list = diffs && 'differences' in diffs ? diffs.differences : []
+  const scopes = ['Resource', ...Array.from(new Set(list.filter(d => d.scope !== 'RESOURCE').map(d => d.scope)))]
+  const shown = list.filter(d => (tab === 'Resource' ? d.scope === 'RESOURCE' : d.scope === tab))
+  return <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="Compare Configurations" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <div className="dvd-tabs" role="tablist">{scopes.map(s => <button key={s} role="tab" aria-selected={s === tab} className={(s === tab ? 'on ' : '') + (list.some(d => (s === 'Resource' ? d.scope === 'RESOURCE' : d.scope === s)) ? 'fb-diff-tab' : '')} onClick={() => setTab(s)}>{s}</button>)}</div>
+      <p>{tag} and {to.trim()}: {list.length ? `${list.length} difference(s); tabs with differences are green.` : 'no differences between the two configurations.'}</p>
+      <table className="fb-limits"><thead><tr><th>Parameter</th><th>{tag}</th><th>{to.trim()}</th></tr></thead><tbody>
+        {shown.map(d => <tr key={d.scope + d.parameter}><td>{d.parameter}</td><td className="fb-diff">{d.left}</td><td className="fb-diff">{d.right}</td></tr>)}
+        {!shown.length && <tr><td colSpan={3}>No differences on this tab.</td></tr>}
+      </tbody></table>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={onClose}>Close</button></div>
+  </SimulatorDialog>
+}
+
+/** Double-clicking an audit trail event (p10-45): a read-only Configuration Change Detail. */
+function AuditDetailDialog({ device: tag, entry, onClose }: { device: string; entry: number; onClose: () => void }): JSX.Element | null {
+  const found = findFfDevice(useStore(s => s.hardware), tag)
+  const h = found?.device.history.find(x => x.id === entry)
+  if (!found || !h) return null
+  return <SimulatorDialog className="module-download-dialog dvd" label="Configuration Change Detail" onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <p>Date/Time of Event: {new Date(h.time).toLocaleString()}</p><p>User: {h.user}</p><p>Tag: {tag}</p><p>Event Type: {h.type}</p>
+      <p>Block: {h.block} · Parameter: {h.parameter}</p><p>As Found: {h.oldValue} · As Left: {h.newValue}</p><p>Reason: {h.reason || '(none)'}</p><p>Method: {h.method || '(none)'}</p>
+      <p className="exp-hint">This dialog box cannot be edited.</p>
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={onClose}>Close</button></div>
+  </SimulatorDialog>
+}
+
 export function FieldbusDialogHost(): JSX.Element | null {
   const dlg = useFbUi(s => s.dlg)
   const close = useFbUi(s => s.close)
@@ -333,6 +394,8 @@ export function FieldbusDialogHost(): JSX.Element | null {
     case 'alarms': return <AlarmsDialog key={dlg.device} cardId={dlg.cardId} device={dlg.device} onClose={close} />
     case 'device': return <DeviceDialog key={dlg.device} cardId={dlg.cardId} device={dlg.device} onClose={close} />
     case 'commission': return <CommissionDialog key={dlg.deviceId} cardId={dlg.cardId} port={dlg.port} deviceId={dlg.deviceId} onClose={close} />
+    case 'compare': return <CompareDialog key={dlg.device} cardId={dlg.cardId} device={dlg.device} onClose={close} />
+    case 'auditDetail': return <AuditDetailDialog key={`${dlg.device}/${dlg.entry}`} device={dlg.device} entry={dlg.entry} onClose={close} />
   }
 }
 
@@ -396,6 +459,8 @@ export function FieldbusTreeRows({ controller, depth, selection, onSelect }: { c
                 onDoubleClick={() => ui.open({ t: 'device', cardId: card.id, device: device.tag })}
                 onContextMenu={e => { pick(`device:${device.tag}`, device.tag); show(e, device.tag, [
                   { label: 'Explore', onClick: () => toggle(dkey) },
+                  { label: 'Compare...', onClick: () => ui.open({ t: 'compare', cardId: card.id, device: device.tag }) },
+                  { label: 'Audit Trail', onClick: () => pick(`audit:${device.tag}`, `Audit Trail - By Device: ${device.tag}`) },
                   sep,
                   { label: 'Properties', onClick: () => ui.open({ t: 'device', cardId: card.id, device: device.tag }) }]) }}>
                 {device.blocks.map(b => <TreeRow key={b.tag} depth={depth + 3} icon={<DvIcon kind="item" />} label={<span>{b.tag}</span>} sub={`${b.type} block · ${b.mode}`} />)}
@@ -468,6 +533,15 @@ export function FieldbusDetail({ id }: { id: string }): JSX.Element {
     return wrap(<table className="dvx-details" role="grid"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>
       {found.device.blocks.map(b => <tr key={b.tag}><td><span className="dvx-name"><DvIcon kind="item" /><span>{b.tag}</span></span></td><td>{b.type} block ({b.mode})</td></tr>)}
       <tr><td><span className="dvx-name"><DvIcon kind="item" /><span>Fieldbus Device Alarms</span></span></td><td>Fieldbus Device Alarms</td></tr>
+    </tbody></table>)
+  }
+  if (kind === 'audit') {
+    const found = findFfDevice(hardware, arg)
+    if (!found) return <div className="exp-empty">Device not found.</div>
+    return wrap(<table className="dvx-details" role="grid" aria-label="Audit Trail"><thead><tr><th>Date</th><th>Time</th><th>User</th><th>Event Type</th><th>Reason</th></tr></thead><tbody>
+      {[...found.device.history].reverse().map(h => <tr key={h.id} data-audit-event={h.id} onDoubleClick={() => ui.open({ t: 'auditDetail', device: arg, entry: h.id })}>
+        <td>{new Date(h.time).toLocaleDateString()}</td><td>{new Date(h.time).toLocaleTimeString()}</td><td>{h.user}</td><td>{h.type === 'CONFIG' ? 'Configuration Change' : h.type}</td><td>{h.reason || h.method || `${h.block} ${h.parameter}`}</td></tr>)}
+      {!found.device.history.length && <tr><td colSpan={5} className="dvx-empty">No events are recorded for {arg} yet. Changes to the resource or transducer block (mode, write lock, calibration) and the commissioning are recorded; a reason is required once the device is commissioned.</td></tr>}
     </tbody></table>)
   }
   if (kind === 'dd') {

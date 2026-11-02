@@ -412,6 +412,14 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
           sep,
           { label: "What's this?", onClick: () => window.alert('I/O — the cards of this controller. Auto-sense detects the installed cards; New Card configures a placeholder for a card (for example the Serial card) before it is connected.') },
           { label: 'Properties', disabled: 'Not modeled' }] }) }}>
+        {ioCards(c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
+          label={<span>C{String(card.slot).padStart(2, '0')}</span>} sub={`${IO_CARD_LABEL[card.type]} card, 8 channels`} dataAttr={{ 'data-io-card': card.id }}>
+          {card.channels.map(ch => <Row key={ch.channel} depth={d + 3} icon={<DvIcon kind="item" />} label={<span>{channelName(ch.channel)}</span>}
+            sub={`${ch.dst || '(unnamed)'}${ch.enabled ? ' · enabled' : ''}`} dataAttr={{ 'data-io-channel': `${card.id}/${channelName(ch.channel)}` }}
+            onClick={() => undefined}
+            onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: `${channelName(ch.channel)}`, items: [
+              { label: 'Properties', onClick: () => useCtlUi.getState().open({ t: 'channel', cardId: card.id, channel: ch.channel }) }] }) }} />)}
+        </Row>)}
         {serialCardsOf(serialCards, c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
           label={<span>{slotName(card.slot)}</span>} sub={`Serial card${card.placeholder ? ' (placeholder)' : ''}, 2 ports${card.deployed ? '' : ' · not downloaded'}`} dataAttr={{ 'data-io-serial-card': card.id }}
           pending={!card.deployed || JSON.stringify(card.deployed) !== JSON.stringify(card.configured) ? tri : undefined}
@@ -454,14 +462,6 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
             </Row> })}
         </Row>)}
         <FieldbusTreeRows controller={c.tag} depth={d + 2} selection={selection} onSelect={onSelect} />
-        {ioCards(c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
-          label={<span>C{String(card.slot).padStart(2, '0')}</span>} sub={`${IO_CARD_LABEL[card.type]} card, 8 channels`} dataAttr={{ 'data-io-card': card.id }}>
-          {card.channels.map(ch => <Row key={ch.channel} depth={d + 3} icon={<DvIcon kind="item" />} label={<span>{channelName(ch.channel)}</span>}
-            sub={`${ch.dst || '(unnamed)'}${ch.enabled ? ' · enabled' : ''}`} dataAttr={{ 'data-io-channel': `${card.id}/${channelName(ch.channel)}` }}
-            onClick={() => undefined}
-            onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: `${channelName(ch.channel)}`, items: [
-              { label: 'Properties', onClick: () => useCtlUi.getState().open({ t: 'channel', cardId: card.id, channel: ch.channel }) }] }) }} />)}
-        </Row>)}
       </Row>}
       {unitsOn(c.tag).map(u => <Row key={u} depth={d + 1} icon={<BatchIcon kind="unit" />} label={<span>{u}</span>} sub="Assigned unit module"
         dataAttr={{ 'data-controller-unit': u }}

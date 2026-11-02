@@ -26,6 +26,7 @@ import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
 import { ExportImportPanel } from '../components/ExportImportPanel'
 import { useSecUi } from '../components/SecurityExplorerUi'
+import { useWindows } from '../ui/windowStore'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useSystem } from '../engine/systemPreferences'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
@@ -495,7 +496,7 @@ export function ExplorerDisplay(): JSX.Element {
         <DvToolButton label="List" icon="list" disabled />
         <DvToolButton label="Details" icon="details" pressed />
         <span className="dvx-tsep" />
-        <DvToolButton label="Lock Key (User Manager)" icon="lockKey" onClick={() => useUi.getState().navigate('users')} />
+        <DvToolButton label="Lock Key (User Manager)" icon="lockKey" onClick={() => { useWindows.getState().minimize('explorer'); useUi.getState().navigate('users') }} />
       </div>
       {createArea && dv09 && !newModuleEm && (
         <Dv09NewModuleDialog area={createArea} onClose={() => setCreateArea(null)}
@@ -702,6 +703,7 @@ export function ExplorerDisplay(): JSX.Element {
               >
                 Equipment Module…
               </button>
+              {dv09 && <button className="ctx-item" onClick={() => { useStore.getState().setSignatureArea(menu.target, !useStore.getState().signature.areas.includes(menu.target)); setMenu(null) }}>{useStore.getState().signature.areas.includes(menu.target) ? 'Disable Electronic Signature' : 'Enable Electronic Signature'}</button>}
               <div className="ctx-parent">Assign... ▸</div>
               <button className="ctx-item ctx-sub" onClick={() => { setAssignAreaName(menu.target); setMenu(null) }}>
                 Unit And All Contained Modules to Node
@@ -711,6 +713,7 @@ export function ExplorerDisplay(): JSX.Element {
             <>
               <div className="ctx-label">{menu.target}</div>
               <button className="ctx-item" onClick={() => { openSfc(menu.target); setMenu(null) }}>Open SFC</button>
+              {dv09 && <button className="ctx-item" onClick={() => { useSecUi.getState().open({ t: 'esig', tag: menu.target }); setMenu(null) }}>Electronic Signature</button>}
             </>
           ) : menu.kind === 'em' ? (
             <>

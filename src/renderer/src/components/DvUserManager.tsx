@@ -158,7 +158,7 @@ function UserDialog({ existing, onClose }: { existing?: DvUser; onClose: () => v
         rows={Object.entries(d.groups).map(([g, s]) => ({ key: g, label: g, area: scopeLabel(s) }))} grantLabel="Add -->" removeLabel="<-- Remove"
         onGrant={(g, area) => { set({ groups: { ...d.groups, [g]: area === null ? null : Array.from(new Set([...(d.groups[g] ?? []), area])) } }); return null }}
         onRemove={g => { const next = { ...d.groups }; delete next[g]; set({ groups: next }) }} />}
-      {tab === 'Keys' && <Picker title="All Locks" heading="Has Key for" ariaPrefix="User" items={ALL_LOCKS.map(l => LOCK_LABEL[l])} withArea areas={areas}
+      {tab === 'Keys' && <Picker title="All Locks" heading="Has Key for" ariaPrefix="User" items={ALL_LOCKS.map(l => LOCK_LABEL[l]).sort((a, b) => a.localeCompare(b))} withArea areas={areas}
         rows={(Object.keys(d.keys) as LockType[]).sort((a, b) => ALL_LOCKS.indexOf(a) - ALL_LOCKS.indexOf(b)).map(l => ({ key: l, label: LOCK_LABEL[l], area: scopeLabel(d.keys[l] ?? null) }))}
         grantLabel="Grant Key -->" removeLabel="<-- Remove Key"
         onGrant={(label, area) => {
@@ -211,7 +211,7 @@ function GroupDialog({ existing, onClose }: { existing?: DvGroup; onClose: () =>
         rows={Object.entries(d.members).map(([m, s]) => ({ key: m, label: m, area: scopeLabel(s) }))} grantLabel="Add -->" removeLabel="<-- Remove"
         onGrant={(m, area) => { set({ members: { ...d.members, [m]: area === null ? null : Array.from(new Set([...(d.members[m] ?? []), area])) } }); return null }}
         onRemove={m => { const next = { ...d.members }; delete next[m]; set({ members: next }) }} />}
-      {tab === 'Keys' && <Picker title="All Locks" heading="Has Key for" ariaPrefix="Group" items={ALL_LOCKS.map(l => LOCK_LABEL[l])} withArea={false} areas={areas}
+      {tab === 'Keys' && <Picker title="All Locks" heading="Has Key for" ariaPrefix="Group" items={ALL_LOCKS.map(l => LOCK_LABEL[l]).sort((a, b) => a.localeCompare(b))} withArea={false} areas={areas}
         rows={d.keys.map(l => ({ key: l, label: LOCK_LABEL[l] }))} grantLabel="Grant Key -->" removeLabel="<-- Remove"
         onGrant={label => { const lock = ALL_LOCKS.find(l => LOCK_LABEL[l] === label) as LockType; if (!d.keys.includes(lock)) set({ keys: [...d.keys, lock] }); return null }}
         onRemove={l => set({ keys: d.keys.filter(k => k !== l) })} />}

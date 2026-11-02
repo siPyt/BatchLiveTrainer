@@ -7,7 +7,6 @@ import { SimulatorPanel } from '../components/SimulatorPanel'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { useVc } from '../engine/versionControl'
 import { useVcUi } from '../components/VersionControlUi'
-import '../dv09-chapters.css'
 
 // Course 7016 pp 3-6..3-9 (DV09-108/109): the DeltaV System Preferences dialog (DeltaV -> Engineering -> System
 // Preferences) and the DeltaV Database Administrator (File -> Shutdown Server / Connect to Server, status bar).

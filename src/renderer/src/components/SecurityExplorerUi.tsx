@@ -9,7 +9,7 @@ import { EXPORT_KIND_LABEL, type ExportKind } from '../engine/projectExport'
 // Course DV-09 chapter 8 in DeltaV Explorer: Physical Network / Control Strategies / Named Set > Export (pp 8-56 .. 8-60, the file is
 // saved to the removable drive chosen in the Save dialog) and Control Network > PROPLUS > Download > Workstation (Defining Users, Step 3).
 
-export type SecDlg = { t: 'export'; kind: ExportKind; names: string[] } | { t: 'workstation' } | null
+export type SecDlg = { t: 'export'; kind: ExportKind; names: string[] } | { t: 'workstation' } | { t: 'esig'; tag: string } | null
 export const useSecUi = create<{ dlg: SecDlg; open: (d: NonNullable<SecDlg>) => void; close: () => void }>(set => ({ dlg: null, open: dlg => set({ dlg }), close: () => set({ dlg: null }) }))
 
 export function saveExportFile(text: string, fileName: string): void {
@@ -70,6 +70,28 @@ function WorkstationDialog({ onClose }: { onClose: () => void }): JSX.Element {
   </SimulatorDialog>
 }
 
+/** Right-click a module > Electronic Signature (p8-41): browse for the policy that is tied to the module. */
+function SignatureDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
+  const signature = useStore(s => s.signature)
+  const setPolicy = useStore(s => s.setModuleSignaturePolicy)
+  const [policy, setPick] = useState(signature.modules[tag] ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const names = Object.keys(signature.policies)
+  const submit = (): void => { if (!setPolicy(tag, policy || undefined)) { setError(useSecurity.getState().lastDenied?.replace(/^Access Denied — /, '') ?? 'The policy could not be associated'); return }; onClose() }
+  return <SimulatorDialog className="module-download-dialog dvd" label={`Electronic Signature ${tag}`} onClose={onClose}>
+    <div className="lib-dlg-fields dvd-panel">
+      <p>Select the signature policy that applies to <b>{tag}</b>.</p>
+      <ul className="dvd-list" aria-label="Signature policies" style={{ listStyle: 'none', margin: 0, padding: 2 }}>
+        <li><label><input type="radio" name="policy" checked={policy === ''} onChange={() => setPick('')} /> (none)</label></li>
+        {names.map(n => <li key={n}><label><input type="radio" name="policy" aria-label={n} checked={policy === n} onChange={() => setPick(n)} /> {n}</label></li>)}
+      </ul>
+      {names.length === 0 && <p className="exp-hint">No signature policy exists yet: create one under Setup &gt; Electronic Signatures.</p>}
+      {error && <p role="alert" className="lib-dlg-error">{error}</p>}
+    </div>
+    <div className="dvd-buttons"><button className="tbtn sm" onClick={submit}>OK</button><button className="tbtn sm" onClick={onClose}>Cancel</button></div>
+  </SimulatorDialog>
+}
+
 export function SecurityDialogHost(): JSX.Element | null {
   const dlg = useSecUi(s => s.dlg)
   const close = useSecUi(s => s.close)
@@ -77,5 +99,6 @@ export function SecurityDialogHost(): JSX.Element | null {
   return <>
     {dlg.t === 'export' && <ExportDialog key={`${dlg.kind}:${dlg.names.join(',')}`} kind={dlg.kind} names={dlg.names} onClose={close} />}
     {dlg.t === 'workstation' && <WorkstationDialog onClose={close} />}
+    {dlg.t === 'esig' && <SignatureDialog key={dlg.tag} tag={dlg.tag} onClose={close} />}
   </>
 }

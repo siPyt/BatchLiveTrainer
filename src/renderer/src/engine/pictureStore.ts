@@ -73,6 +73,8 @@ export interface Picture {
   height?: number
   previousPicture?: string
   nextPicture?: string
+  /** Course DV-09 chapter 13: the VB script of the picture (Edit Script); User_Ref/UserSettings hold the alarm threshold initialization. */
+  script?: string
 }
 
 export type PictureTarget = { kind: 'display'; display: 'alarms' | 'process' } | { kind: 'picture'; name: string }

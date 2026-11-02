@@ -94,8 +94,8 @@ export function Dv09ControlStudio({ tag }: { tag: string }): JSX.Element {
             onDragLeave={() => setDropping(false)}
             onDrop={e => { const t = e.dataTransfer.getData(DND_BLOCK); if (t === 'DO' || t === 'DI') { e.preventDefault(); if (!block && !online) drop(t) } }}>
             {!block ? <div className={'dv09-diagram-empty' + (dropping ? ' over' : '')} data-diagram-empty>
-              Diagram View — drag and drop a function block from the IO palette here
-              {m === undefined && <span> (Discrete Output for a discrete output module, Discrete Input for a discrete input module)</span>}
+              <div>Diagram View — drag and drop a function block from the IO palette here
+                {m === undefined && <div className="exp-hint">Discrete Output for a discrete output module, Discrete Input for a discrete input module.</div>}</div>
             </div> :
               <div className={'dv09-block' + (selected === block.name ? ' selected' : '')} data-block={block.name} role="button" tabIndex={0}
                 onClick={() => select(block.name)}>

@@ -102,6 +102,12 @@ export function checkDv09Ch3(ctx: Dv09Ctx): StepCheck[] {
     'Step 7. Tank101 was saved (File > Save) with its background and Previous/Next links'))
 
   // ---- Workshop - Adding a Datalink ---------------------------------------------------------------------------------
+  const stamperAt = findAny(events, /^Datalink Stamper selected/)
+  const builderAt = stamperAt >= 0 ? findAny(events, /^Expression Builder opened/, stamperAt) : -1
+  const browseAt = builderAt >= 0 ? findAny(events, /^Browse DeltaV Control Parameters started/, builderAt) : -1
+  out.push(check('dv09-3d-1', stamperAt >= 0, 'Step 1. The Datalink Stamper button of the DeltaV_ToolBox was selected'))
+  out.push(check('dv09-3d-2', builderAt >= 0, 'Step 2. The ellipsis button of the Datalink dialog started the Expression Builder'))
+  out.push(check('dv09-3d-3', browseAt >= 0, 'Step 3. On the DeltaV tab the Browse DeltaV Control Parameters button started the browser'))
   const dlSet = (p: Picture | null | undefined, tag: string, path: string) => p?.elements.find(e => e.type === 'datalink' && e.tag === tag && e.path?.toUpperCase() === path)
   const xvLink = dlSet(now, 'XV-101', 'DO1/SP_D')
   const statLink = dlSet(now, 'XVSTAT-101', 'DI1/PV_D')
@@ -116,7 +122,8 @@ export function checkDv09Ch3(ctx: Dv09Ctx): StepCheck[] {
   out.push(check('dv09-3e-1', texts.length >= 2, `Step 1. Text objects identify the datalinks (${texts.length} text object(s) on the picture)`))
   out.push(check('dv09-3e-2', texts.some(e => e.color !== undefined), 'Step 2. The colour of a text was modified (View > Color Selections)'))
   out.push(check('dv09-3e-3', find(events, 'TANK101', /Text caption changed to .* \(Property Window\)/) >= 0, 'Step 3. A text Caption was changed in the Property Window'))
-  out.push(check('dv09-3e-5', find(events, 'TANK101', /^Text Caption Editor: Write Caption/) >= 0, 'Steps 4, 5. The Text Caption Editor was used (Write Caption)'))
+  out.push(check('dv09-3e-4', findAny(events, /^Text Caption Editor opened/) >= 0, 'Step 4. The Text Caption Editor button of the DeltaV_ToolBox was used'))
+  out.push(check('dv09-3e-5', find(events, 'TANK101', /^Text Caption Editor: Write Caption/) >= 0, 'Step 5. A text was changed with Write Caption in the Text Caption Editor'))
   out.push(check('dv09-3e-6', find(events, 'TANK101', /^Text font set in the Font dialog/) >= 0, 'Step 6. The Font dialog of a text was used (right-click > Font)'))
   out.push(check('dv09-3e-7', find(events, 'TANK101', /^Text FontName \/ FontSize \/ FontStyle set in the Property Window/) >= 0, 'Step 7. FontName, FontSize and FontStyle were modified in the Properties window'))
 

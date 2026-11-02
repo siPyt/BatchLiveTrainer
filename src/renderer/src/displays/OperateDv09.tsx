@@ -13,6 +13,7 @@ import { SimulatorDialog } from '../components/SimulatorDialog'
 import { askConfirm } from '../components/AppNotices'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { Canvas } from './DisplayBuilder'
+import { UserSettingsHost, useUsUi } from '../components/Dv09UserSettingsUi'
 
 // Course DV-09 chapter 3: DeltaV Operate (Configure / Run) as the manual shows it (pp 3-20 .. 3-50): title bar, menu bar, button bar,
 // System Tree, the DeltaV_ToolBox and the work area with the pictures. The pictures themselves are the Display Builder pictures.
@@ -28,6 +29,8 @@ const DND_DYNAMO = 'application/x-dv09-dynamo'
 export function displayName(key: string): string {
   if (key === OVW_REF) return 'Ovw_ref'
   if (key === 'ALARMLIST') return 'alarmList'
+  if (key === 'USER_REF') return 'User_Ref'
+  if (key === 'USERSETTINGS') return 'UserSettings'
   return key.charAt(0) + key.slice(1).toLowerCase()
 }
 
@@ -37,9 +40,11 @@ type Tool = null | { kind: 'datalink'; source: string; inPlace: boolean; refresh
 export function OperateDv09(): JSX.Element {
   useDatabaseClient('DeltaV Operate (Configure)')
   const mode = useOperate(s => s.mode)
-  const open = useOperate(s => s.open)
-  const active = useOperate(s => s.active)
+  const openRaw = useOperate(s => s.open)
+  const activeRaw = useOperate(s => s.active)
   const pictures = usePictures(s => s.pictures)
+  const open = openRaw.filter(k => !!pictures[k])
+  const active = activeRaw && pictures[activeRaw] ? activeRaw : null
   const requestedPicture = useUi(s => s.builderPicture)
   const requestedRun = useUi(s => s.builderRun)
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -129,7 +134,8 @@ export function OperateDv09(): JSX.Element {
       { label: 'New Picture...', onClick: () => setDialog('new'), disabled: !configure },
       { label: 'Open...', onClick: () => setDialog('open') },
       { label: 'Close', onClick: () => { if (active) void closePicture(active) }, disabled: !active },
-      { label: 'Save', onClick: save, disabled: !active || !configure }] },
+      { label: 'Save', onClick: save, disabled: !active || !configure },
+      { label: 'Save As...', onClick: () => useUsUi.getState().open('saveas'), disabled: !active || !configure }] },
     { label: 'Edit', items: [
       { label: 'Picture...', onClick: () => setDialog('picture'), disabled: !configure || !active },
       { label: 'Delete', onClick: remove, disabled: !configure || !selEl }] },
@@ -195,8 +201,8 @@ export function OperateDv09(): JSX.Element {
               onContext={(x, y) => setCtx({ x, y })} />
               : !dynamoWindow && <div className="dv09-op-empty" data-operate-empty>{configure ? 'No picture is open. Use File > New Picture or File > Open, or double-click a picture in the System Tree.' :
                 'DeltaV Operate (Run). Select the Open Main Display button to open a picture.'}</div>}
-            {configure && <ToolBox tool={tool} onDatalink={() => setDialog('datalink')} onText={() => { if (active) { setTool({ kind: 'text' }); setMessage('Click on the picture where the text is to be placed, then type.') } else setMessage('Open a picture first.') }}
-              onCaptionEditor={() => setCaptionEditor(true)} onNew={() => setDialog('new')} onOpen={() => setDialog('open')} onSave={save} />}
+            {configure && <ToolBox tool={tool} onDatalink={() => { logOperate('Datalink Stamper selected'); setDialog('datalink') }} onText={() => { if (active) { setTool({ kind: 'text' }); setMessage('Click on the picture where the text is to be placed, then type.') } else setMessage('Open a picture first.') }}
+              onCaptionEditor={() => { logOperate('Text Caption Editor opened'); setCaptionEditor(true) }} onNew={() => setDialog('new')} onOpen={() => setDialog('open')} onSave={save} />}
             {configure && showProps && <PropertyWindow pic={active} element={selected} onClose={() => setShowProps(false)} />}
             {configure && captionEditor && <CaptionEditor pic={active} element={selected} onClose={() => setCaptionEditor(false)} />}
           </div>
@@ -210,6 +216,7 @@ export function OperateDv09(): JSX.Element {
       </div>}
       {dialog === 'new' && <NewPictureDialog onClose={() => setDialog(null)} onCreated={key => { openPicture(key); setMessage(`${displayName(key)}.grf created from the main template`) }} />}
       {dialog === 'open' && <OpenDialog label="Open" pictures={pictures} onClose={() => setDialog(null)} onOpen={name => { openPicture(name); setDialog(null) }} />}
+      <UserSettingsHost active={active} configure={configure} menuAt={ctx && !(selected && selected.type === 'text') ? ctx : null} closeMenu={() => setCtx(null)} />
       {dialog === 'openmain' && <OpenDialog label="Open Main Display" pictures={pictures} onClose={() => setDialog(null)} onOpen={name => { openMain(name); setDialog(null) }} />}
       {dialog === 'picture' && active && pic && <PictureDialog pic={pic} onClose={() => setDialog(null)} />}
       {dialog === 'prevnext' && active && pic && <PrevNextDialog pic={pic} onClose={() => setDialog(null)} />}
@@ -464,7 +471,7 @@ function DatalinkDialog({ onOk, onClose }: { onOk: (t: NonNullable<Tool>) => voi
     <div className="lib-dlg-fields dvd-panel">
       <fieldset className="dvd-group"><legend>Source</legend>
         <div className="dvd-inline"><input aria-label="Source" value={source} onChange={e => setSource(e.target.value)} placeholder="DVSYS.MODULE/BLOCK/PARAMETER.F_CV" />
-          <button className="tbtn sm" aria-label="Browse (ellipsis)" title="Expression Builder / Browser" onClick={() => setBuilder(true)}>…</button></div>
+          <button className="tbtn sm" aria-label="Browse (ellipsis)" title="Expression Builder / Browser" onClick={() => { logOperate('Expression Builder opened'); setBuilder(true) }}>…</button></div>
         {parsed && 'error' in parsed && <p role="alert" className="lib-dlg-error">{parsed.error}</p>}
       </fieldset>
       <div className="dvd-split">
@@ -515,7 +522,7 @@ function ExpressionBuilder({ initial, refresh, onOk, onClose }: { initial: strin
       <div className="dvd-tabs" role="tablist" aria-label="Data Source Browser">{BUILDER_TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.id}</button>)}</div>
       <div className="dv09-builder-pane">
         {tab === 'DeltaV' ? <div className="dv09-builder-deltav">
-          <button className="tbtn sm" onClick={() => setBrowse(true)}>Browse DeltaV Control Parameters</button>
+          <button className="tbtn sm" onClick={() => { logOperate('Browse DeltaV Control Parameters started'); setBrowse(true) }}>Browse DeltaV Control Parameters</button>
           <button className="tbtn sm" onClick={() => window.alert('Workstation display parameters, for example DVSYS.THISUSER/USERNAME.A_CV identifies the current user logged onto the DeltaV Workstation.')}>Help on Display Parameters</button>
         </div> : <p className="exp-hint">{note}</p>}
       </div>

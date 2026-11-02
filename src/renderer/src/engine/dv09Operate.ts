@@ -3,6 +3,8 @@ import { useStore } from './store'
 import { usePictures, pictureSignature, type PicElement, type Picture } from './pictureStore'
 import { PICTURE_TEMPLATES, pictureSourcePaths, DYNAMO_SETS, type DynamoSetName } from './pictureObjects'
 import { requireUnlockedKey } from './security'
+import { libraryHooks } from './libraryStore'
+import { ensureUserRef } from './dv09Settings'
 
 // Course DV-09 chapter 3: the DeltaV Operate (Configure / Run) workflow on top of the picture model (pictureStore).
 
@@ -16,7 +18,22 @@ interface OperateState {
   open: string[]
   active: string | null
 }
-export const useOperate = create<OperateState>(() => ({ mode: 'run', open: [], active: null }))
+const OPERATE_KEY = 'batchlivetrainer.dv09.operate.v1'
+const restoreOperate = (): OperateState => {
+  try {
+    const text = typeof window !== 'undefined' ? window.localStorage?.getItem(OPERATE_KEY) : null
+    const v = text ? JSON.parse(text) as Partial<OperateState> : {}
+    return { mode: v.mode === 'configure' ? 'configure' : 'run', open: Array.isArray(v.open) ? v.open.filter(k => typeof k === 'string') : [], active: typeof v.active === 'string' ? v.active : null }
+  } catch { return { mode: 'run', open: [], active: null } }
+}
+export const useOperate = create<OperateState>(() => restoreOperate())
+// The open windows of DeltaV Operate survive a reload of the application.
+useOperate.subscribe(s => {
+  try { if (typeof window !== 'undefined') window.localStorage?.setItem(OPERATE_KEY, JSON.stringify({ mode: s.mode, open: s.open, active: s.active })) } catch { /* storage unavailable */ }
+})
+
+// A new project starts with nothing open in DeltaV Operate.
+libraryHooks.reset.push(() => useOperate.setState({ mode: 'run', open: [], active: null }))
 
 const log = (tag: string, description: string, category: 'CONFIGURE' | 'DIAGNOSTIC' | 'OPERATOR' = 'CONFIGURE'): void =>
   useStore.getState().logEvent(category, tag, description)
@@ -34,6 +51,7 @@ export const sameName = (a: string | undefined, b: string): boolean => !!a && pi
 
 /** Ovw_ref.grf ships with DeltaV Operate; the DV-09 project gets a plain overview picture to edit (chapter 3, Adding a Dynamo). */
 export function ensureStandardPictures(): void {
+  ensureUserRef()
   const p = usePictures.getState().pictures
   if (p[OVW_REF]) return
   usePictures.setState({ pictures: { ...p, [OVW_REF]: { name: OVW_REF, template: 'MAIN', background: PICTURE_TEMPLATES.MAIN.background,
@@ -47,7 +65,7 @@ export function createMainPicture(name: string, template = 'main'): string | nul
   if (!key) return (reject(name, 'Picture name is required'), 'Picture name is required')
   if (template.toLowerCase() !== 'main') return (reject(key, `Template ${template} is not modeled; select the main template`), `Template ${template} is not modeled`)
   if (usePictures.getState().pictures[key]) return (reject(key, 'A picture with this name already exists'), 'A picture with this name already exists')
-  if (!/^[A-Z][A-Z0-9_]*$/.test(key)) return (reject(key, 'Picture names use letters, digits and underscore and start with a letter'), 'Invalid picture name')
+  if (!/^[A-Z][A-Z0-9_]*$/.test(key)) return (reject(key, 'Picture names use letters, digits and underscore and start with a letter'), 'Picture names use letters, digits and underscore and start with a letter')
   if (!requireUnlockedKey('CAN_CONFIGURE', `Create dynamic picture element ${key}`)) return 'Requires the Can Configure key'
   const info = PICTURE_TEMPLATES.MAIN
   const picture: Picture = { name: key, template: 'MAIN', background: info.background, width: info.width, height: info.height,
@@ -87,8 +105,7 @@ export interface DatalinkSpec { source: string; inPlace: boolean; refreshSeconds
 export function addDatalink(pic: string, spec: DatalinkSpec): string | null {
   const parsed = parseDatalinkSource(spec.source)
   if ('error' in parsed) return (reject(pic, parsed.error), parsed.error)
-  const discrete = /^(DC1|DI1|DO1)\//i.test(parsed.path)
-  if (spec.inPlace && !discrete) return (reject(pic, 'In-place data entry is configured here for discrete SP_D parameters'), 'In-place data entry is not available for this parameter')
+  if (spec.inPlace && !/^(DC1|DO1)\/SP_D$/i.test(parsed.path)) return (reject(pic, 'In-Place data entry needs a writable SP_D parameter; PV_D and other parameters are read-only here'), 'In-Place data entry needs a writable SP_D parameter')
   const el: Omit<PicElement, 'id'> = {
     type: 'datalink', x: spec.x, y: spec.y, tag: parsed.tag, path: parsed.path, label: false, refreshSeconds: spec.refreshSeconds,
     ...(spec.inPlace ? { entry: { method: 'DISCRETE' as const } } : {}), ...(spec.color ? { color: spec.color } : {})

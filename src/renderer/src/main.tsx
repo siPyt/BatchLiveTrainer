@@ -14,6 +14,7 @@ import { useNotices } from './components/AppNotices'
 // Messages appear inside the app (some hosts, such as automated/embedded browsers, suppress native alert popups).
 window.alert = (message?: unknown): void => { useNotices.getState().push(String(message ?? '')) }
 import './styles.css'
+import './dv09-chapters.css'
 
 // BatchLiveTrainer opens on the Course 7016 DV_School training database (ED_CENTER_BATCH): the student's saved
 // database when there is one, otherwise a fresh copy. It is autosaved while the app runs.

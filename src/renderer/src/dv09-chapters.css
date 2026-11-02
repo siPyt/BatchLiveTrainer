@@ -13,6 +13,8 @@
 .fb-sched-head span, .fb-sched-row span { padding: 1px 6px; }
 .fb-sched-track { position: relative; min-height: 14px; }
 .fb-sched-track i { position: absolute; top: 2px; bottom: 2px; background: #5a5f68; }
+.fb-diff { background: #fff7a8; }
+.dvd-tabs button.fb-diff-tab { background: #9ed49a; }
 
 /* Fieldbus segment rig and Fluke 123 */
 .fb-rig .exp-table td, .fb-rig .exp-table th { font-size: 12px; }
@@ -27,3 +29,25 @@
 .fb-led.on-green { color: #1f8f3a; font-weight: 700; }
 .fb-led.on-red { color: #c62828; font-weight: 700; }
 .fb-led.on-amber { color: #c98a00; font-weight: 700; }
+
+/* Operate: Save As and the script editor (chapter 13) */
+.us-files { margin: 4px 0; padding: 4px 8px 4px 22px; height: 120px; overflow: auto; border: 1px solid #8a8f96; background: #fff; font-size: 12px; }
+.us-script { width: min(900px, 92vw); }
+.us-toolbar { display: flex; gap: 6px; padding: 4px 8px; background: #ece9e2; border-bottom: 1px solid #b9b4a8; }
+.us-find { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f4f1ea; border-bottom: 1px solid #b9b4a8; }
+.us-code { display: block; width: calc(100% - 16px); margin: 8px; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.35; white-space: pre; overflow: auto; }
+
+/* Alarm List Quick Edit and the Alarm Summary Configuration dialog (chapter 13) */
+.al-config-title { background: linear-gradient(#2f5f9e, #1f467a); color: #fff; font-weight: 700; padding: 3px 8px; font-size: 12px; }
+.al-config-menu { display: flex; gap: 10px; padding: 2px 8px; background: #ece9e2; border-bottom: 1px solid #b9b4a8; font-size: 12px; position: relative; }
+.al-config-sample td { font-family: Consolas, monospace; color: #444; }
+.al-tabs { display: flex; gap: 2px; margin-bottom: 6px; }
+.al-tabs button { padding: 2px 8px; border: 1px solid #8a8f96; background: #e9e6df; font-size: 12px; cursor: pointer; }
+.al-tabs button.on { background: #fff; border-bottom-color: #fff; font-weight: 700; }
+.al-cols { display: grid; grid-template-columns: 170px 90px 1fr; gap: 10px; align-items: start; }
+.al-cols select { width: 100%; }
+.al-col-buttons { display: flex; flex-direction: column; gap: 6px; }
+.al-displayed { border: 1px solid #8a8f96; background: #fff; min-height: 170px; font-size: 12px; }
+.al-displayed .row { display: grid; grid-template-columns: 1fr 90px; padding: 1px 4px; cursor: pointer; }
+.al-displayed .row.sel { background: #0a246a; color: #fff; }
+.al-displayed .head { font-weight: 700; background: #e9e6df; cursor: default; }
