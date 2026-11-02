@@ -212,7 +212,7 @@ export function pictureElementError(el: PicElement, modules: Record<string, AnyM
     if (error) return error
   }
   if (el.actuatorFlowAnimation) {
-    if (el.type !== 'valve') return 'Actuator color animation requires a valve'
+    if (el.type !== 'valve' && !(el.type === 'dynamo' && el.dynamoSet === 'VALVE_HORIZONTAL_CONTROL_D1')) return 'Actuator color animation requires a valve'
     const error = flowAnimationError(el.actuatorFlowAnimation, modules)
     if (error) return error
   }

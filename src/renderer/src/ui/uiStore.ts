@@ -259,6 +259,8 @@ export const useUi = create<UiState>((set, get) => ({
       return false
     }
     set({ sfcName: key, selectedTag: key })
+    // Course DV-09: a control module SFC opens in Control Studio (chapter 7), not on the SFC Charts page.
+    if (get().course === 'DV-09' && useStore.getState().sfcLifecycle[key]) { get().openStudio(key); return true }
     get().navigate('sfc')
     return true
   },

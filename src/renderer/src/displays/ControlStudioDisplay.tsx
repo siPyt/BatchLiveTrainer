@@ -32,6 +32,8 @@ import { Dv09ControlStudio } from './Dv09ControlStudio'
 import { Dv09SfcStudio } from './Dv09SfcStudio'
 import { Dv09StudioNewDialog } from '../components/Dv09SfcUi'
 import { useDv09Cm } from '../engine/dv09Cm'
+import { isLoopCm } from '../engine/dv09Loops'
+import { Dv09LoopStudio } from './Dv09LoopStudio'
 import { DeviceLogicView, LogicExplanationView } from './ModuleLogicView'
 import type {
   AnalogSignalRef, AnyModule, FbBlockType, FunctionBlockModule, PidModule,
@@ -51,10 +53,11 @@ let vcPrompting: string | null = null
 export function ControlStudioDisplay(): JSX.Element {
   const studioTag = useUi((s) => s.studioTag)
   const managed = useDv09Cm(s => !!studioTag && !!s.cms[studioTag])
-  const dv09 = useUi(s => s.course) === 'DV-09'
+  const loop = useDv09Cm(s => !!studioTag && isLoopCm(s.cms[studioTag])); const dv09 = useUi(s => s.course) === 'DV-09'
   const sfcModule = useStore(s => !!studioTag && !!s.sfcs[studioTag])
   // Course DV-09 chapter 7: a control module SFC (SFC-T101) opens in the SFC editor of Control Studio.
   if (dv09 && sfcModule && studioTag) return <Dv09SfcStudio key={studioTag} name={studioTag} />
+  if (managed && studioTag && loop) return <Dv09LoopStudio key={studioTag} tag={studioTag} />
   return managed && studioTag ? <Dv09ControlStudio key={studioTag} tag={studioTag} /> : <StandardControlStudio />
 }
 

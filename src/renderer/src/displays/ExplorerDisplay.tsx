@@ -36,7 +36,8 @@ import {
   LibraryTree, PhysicalNetworkTree, LibraryDetail, InstanceContents, ContextMenu, ControllerDownloadDialog,
   instanceMenuItems, alertResult, TreeRow, DvIcon, ContentsList, DRAG_AREA, DRAG_CLASS, DRAG_TEMPLATE, type LibrarySelection, type ContentsRow
 } from '../components/LibraryExplorer'
-import { useDv09Cm, createFromTemplate, renameModule as renameDv09Module, assignToNode, type Dv09Cm } from '../engine/dv09Cm'
+import { useDv09Cm, renameModule as renameDv09Module, assignToNode, type Dv09Cm } from '../engine/dv09Cm'
+import { createFromTemplate } from '../engine/dv09Loops'
 import { Dv09NewModuleDialog, Dv09OperateButtons } from '../components/Dv09ModuleUi'
 import { DownloadDialog as Dv09DownloadDialog } from './Dv09ControlStudio'
 import { openOperate } from '../ui/dv09Operate'
@@ -652,9 +653,12 @@ export function ExplorerDisplay(): JSX.Element {
           {menu.kind === 'namedSets' ? (
             <>
               <div className="ctx-label">Named Sets</div>
-              <button className="ctx-item" onClick={() => {
+              {dv09 && <><div className="ctx-parent">New ▸</div>
+                <button className="ctx-item ctx-sub" onClick={() => { setNamedSetCreateRequest(value => value + 1); setMenu(null) }}>Named Set</button>
+                <button className="ctx-item ctx-sub" disabled title="Named Set folders are not modeled">Named Set Folder</button></>}
+              {!dv09 && <button className="ctx-item" onClick={() => {
                 setNamedSetCreateRequest(value => value + 1); setMenu(null)
-              }}>New Named Set...</button>
+              }}>New Named Set...</button>}
             </>
           ) : menu.kind === 'namedSet' ? (
             <>
@@ -712,7 +716,9 @@ export function ExplorerDisplay(): JSX.Element {
           ) : menu.kind === 'sfc' ? (
             <>
               <div className="ctx-label">{menu.target}</div>
-              <button className="ctx-item" onClick={() => { openSfc(menu.target); setMenu(null) }}>Open SFC</button>
+              {dv09 ? <><div className="ctx-parent">Open ▸</div>
+                <button className="ctx-item ctx-sub" onClick={() => { openSfc(menu.target); setMenu(null) }}>Open with Control Studio</button></> :
+                <button className="ctx-item" onClick={() => { openSfc(menu.target); setMenu(null) }}>Open SFC</button>}
               {dv09 && <button className="ctx-item" onClick={() => { useSecUi.getState().open({ t: 'esig', tag: menu.target }); setMenu(null) }}>Electronic Signature</button>}
             </>
           ) : menu.kind === 'em' ? (

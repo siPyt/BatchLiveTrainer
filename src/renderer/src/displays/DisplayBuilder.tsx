@@ -433,6 +433,7 @@ export function Canvas({
         }
         if (el.type === 'dynamo' && el.dynamoSet) {
           return <CourseDynamo key={el.id} element={el} modules={modules} alarms={alarms} selected={sel} onMouseDown={startDrag}
+            flowColor={flow && !('error' in flow) ? flow.color : undefined} actuatorColor={actuator && !('error' in actuator) ? actuator.color : undefined}
             onClick={(event) => { event.stopPropagation(); if (!edit && el.tag) openFaceplate(el.tag) }} />
         }
         if (el.type === 'dynamo') {

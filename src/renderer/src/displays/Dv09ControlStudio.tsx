@@ -6,6 +6,7 @@ import {
   setFilters, setIoDst, setModeTarget, setPrimaryDisplay, studioBlockSelected, studioOnline, studioOpened, writeSpD, type Dv09BlockType
 } from '../engine/dv09Cm'
 import { traditionalChannels } from '../engine/traditionalIo'
+import { addLoopBlock } from '../engine/dv09Loops'
 import { SimulatorDialog } from '../components/SimulatorDialog'
 import { ModuleIcon, FunctionBlockIcon } from '../components/EngineeringIcons'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
@@ -17,8 +18,8 @@ import { Btn, Group, Stack } from './ControlStudioDisplay'
 
 const DND_BLOCK = 'application/x-dv09-block'
 const IO_PALETTE: { label: string; type: Dv09BlockType | null; note: string }[] = [
-  { label: 'Analog Input', type: null, note: 'Analog modules are created in Chapter 4' },
-  { label: 'Analog Output', type: null, note: 'Analog modules are created in Chapter 4' },
+  { label: 'Analog Input', type: 'AI', note: 'Drag onto the diagram' },
+  { label: 'Analog Output', type: 'AO', note: 'Drag onto the diagram' },
   { label: 'Discrete Input', type: 'DI', note: 'Drag onto the diagram' },
   { label: 'Discrete Output', type: 'DO', note: 'Drag onto the diagram' }
 ]
@@ -43,7 +44,7 @@ export function Dv09ControlStudio({ tag }: { tag: string }): JSX.Element {
   const dirty = cmDirty(cm)
   const status = (): string => (cm.deployed === undefined ? 'Not downloaded' : cmNeedsDownload(cm) ? 'Download required' : 'Downloaded')
   const run = (err: string | null): void => setMessage(err ?? '')
-  const drop = (type: Dv09BlockType): void => { run(addBlock(tag, type)); setSelected(type + '1'); setDropping(false) }
+  const drop = (type: Dv09BlockType): void => { run(type === 'AI' || type === 'AO' ? addLoopBlock(tag, type) : addBlock(tag, type)); setSelected(type + '1'); setDropping(false) }
   const select = (name: string): void => {
     setSelected(name)
     if (online) studioBlockSelected(tag, name)
@@ -92,7 +93,7 @@ export function Dv09ControlStudio({ tag }: { tag: string }): JSX.Element {
           <div className="studio-page dv09-diagram" role="document" aria-label={`${tag} diagram`}
             onDragOver={e => { if (!block && !online && e.dataTransfer.types.includes(DND_BLOCK)) { e.preventDefault(); setDropping(true) } }}
             onDragLeave={() => setDropping(false)}
-            onDrop={e => { const t = e.dataTransfer.getData(DND_BLOCK); if (t === 'DO' || t === 'DI') { e.preventDefault(); if (!block && !online) drop(t) } }}>
+            onDrop={e => { const t = e.dataTransfer.getData(DND_BLOCK); if (t === 'DO' || t === 'DI' || t === 'AO' || t === 'AI') { e.preventDefault(); if (!block && !online) drop(t) } }}>
             {!block ? <div className={'dv09-diagram-empty' + (dropping ? ' over' : '')} data-diagram-empty>
               <div>Diagram View — drag and drop a function block from the IO palette here
                 {m === undefined && <div className="exp-hint">Discrete Output for a discrete output module, Discrete Input for a discrete input module.</div>}</div>
@@ -236,7 +237,7 @@ function AlarmView({ tag, online }: { tag: string; online: boolean }): JSX.Eleme
   )
 }
 
-function FilterDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
+export function FilterDialog({ tag, onClose }: { tag: string; onClose: () => void }): JSX.Element {
   const current = useDv09Cm(s => s.cms[tag]?.filters ?? [])
   const [picked, setPicked] = useState<string[]>(current)
   const toggle = (g: string): void => setPicked(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g])
@@ -249,7 +250,7 @@ function FilterDialog({ tag, onClose }: { tag: string; onClose: () => void }): J
   </SimulatorDialog>
 }
 
-function AssignDialog({ tag, onClose, onMessage }: { tag: string; onClose: () => void; onMessage: (m: string) => void }): JSX.Element {
+export function AssignDialog({ tag, onClose, onMessage }: { tag: string; onClose: () => void; onMessage: (m: string) => void }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)
   const current = useLibrary(s => s.assignments[tag])
   const nodes = Object.values(controllers).filter(c => c.commissioned)

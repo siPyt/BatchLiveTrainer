@@ -11,7 +11,7 @@ import { useUi } from '../ui/uiStore'
 import { dv09ExpressionText } from '../engine/dv09Sfc'
 import { Dv09ExpressionBrowser } from './Dv09SfcUi'
 
-export type SfcPropertiesTarget = { step: SfcStep; kind: 'transition' } |
+export type SfcPropertiesTarget = { step: SfcStep; kind: 'transition'; /** Course DV-09: the selective alternate (T1A) the Properties dialog edits. */ alternate?: number } |
   { step: SfcStep; kind: 'action'; index: number | null }
 
 const QUALIFIERS: ActionQualifier[] = ['N', 'R', 'L', 'D', 'P', 'S', 'SD', 'DS', 'SL']
@@ -39,8 +39,10 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const present = (text: string): string => dv09 ? dv09ExpressionText(text, modules, useStore.getState().namedSets.configured) : text
   const context = { ...sfcExpressionContext(useStore.getState(), name), stepId: target.step.id }
   const initial = target.kind === 'action' && target.index !== null ? target.step.actions[target.index] : defaultAction(modules)
+  const alternate = dv09 && target.kind === 'transition' && target.alternate !== undefined && target.step.alternatives?.[target.alternate] ? target.alternate : undefined
+  const alternateRoute = alternate !== undefined ? target.step.alternatives?.[alternate] : undefined
   const [description, setDescription] = useState(target.kind === 'transition' ?
-    target.step.transitionDescription ?? '' : initial.description ?? '')
+    alternateRoute ? alternateRoute.description ?? '' : target.step.transitionDescription ?? '' : initial.description ?? '')
   const [actionName, setActionName] = useState(initial.name ?? '')
   const [qualifier, setQualifier] = useState<ActionQualifier>(initial.qualifier ?? 'N')
   const [actionType, setActionType] = useState<'ASSIGNMENT' | 'BOOLEAN' | 'BLOCK'>(
@@ -49,8 +51,9 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [delayExpression, setDelayExpression] = useState(initial.timingCondition ?
     conditionExpression(initial.timingCondition, 'tag' in initial.timingCondition ? modules[initial.timingCondition.tag] : undefined) : 'TRUE')
   const [useExpression, setUseExpression] = useState(!!initial.timingCondition)
+  const shownCondition = alternateRoute?.condition ?? target.step.transition
   const [expression, setExpression] = useState(dv09 && target.kind === 'action' && target.index === null ? '' : present(target.kind === 'transition' ?
-    conditionExpression(target.step.transition, 'tag' in target.step.transition ? modules[target.step.transition.tag] : undefined) :
+    conditionExpression(shownCondition, 'tag' in shownCondition ? modules[shownCondition.tag] : undefined) :
     assignmentExpression(initial, modules[initial.tag])))
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'general' | 'confirm'>('general')
@@ -62,7 +65,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [confirmTimeoutExpression, setConfirmTimeoutExpression] = useState(confirmInitial?.timeoutExpression ?? 'FALSE')
   const [validation, setValidation] = useState('')
   const [browser, setBrowser] = useState<'action' | 'transition' | 'delay' | 'confirm' | 'confirmTimeout' | null>(null)
-  const [route, setRoute] = useState(target.step.nextStep === undefined ? 'sequential' :
+  const [route, setRoute] = useState(alternateRoute ? `step:${alternateRoute.nextStep}` : target.step.nextStep === undefined ? 'sequential' :
     target.step.nextStep === null ? 'complete' : `step:${target.step.nextStep}`)
   const [alternatives, setAlternatives] = useState((target.step.alternatives ?? []).map(item => ({
     expression: present(conditionExpression(item.condition, 'tag' in item.condition ? modules[item.condition.tag] : undefined)),
@@ -76,7 +79,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const [parallelTargets, setParallelTargets] = useState(target.step.parallelNextSteps ?? [])
   const [parallelJoin, setParallelJoin] = useState(oldJoin?.id ?? '')
   const stepNumber = steps.findIndex(step => step.id === target.step.id) + 1
-  const title = dv09 ? (target.kind === 'transition' ? `T${stepNumber} Properties` :
+  const title = dv09 ? (target.kind === 'transition' ? `T${stepNumber}${alternate !== undefined ? String.fromCharCode(65 + alternate) : ''} Properties` :
     `A${(target.index ?? target.step.actions.length) + 1} Properties`) :
     target.kind === 'transition' ? 'Transition Properties' : target.index === null ? 'Add Action' : 'Action Properties'
   const fail = (message: string): void => {
@@ -90,7 +93,14 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
   const apply = (): void => {
     let patch: Partial<SfcStep>
     const related: { expected: SfcStep; patch: Partial<SfcStep> }[] = []
-    if (target.kind === 'transition') {
+    if (target.kind === 'transition' && alternate !== undefined) {
+      const result = parseSfcCondition(expression, useStore.getState().modules, context)
+      if (result.error !== undefined) { fail(result.error); return }
+      if (!route.startsWith('step:')) { fail('Choose the step this transition leads to'); return }
+      const routes = (target.step.alternatives ?? []).map((item, index) => index === alternate ?
+        { condition: result.value, nextStep: route.slice(5), description } : item)
+      patch = { alternatives: routes }
+    } else if (target.kind === 'transition') {
       const result = parseSfcCondition(expression, useStore.getState().modules, context)
       if (result.error !== undefined) { fail(result.error); return }
       const parsed: NonNullable<SfcStep['alternatives']> = []
@@ -164,24 +174,24 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
     <label>Description<input aria-label="Description" value={description} onChange={e => setDescription(e.target.value)} /></label>}
     {target.kind === 'transition' && !parallel && <label>When true, go to
       <select aria-label="Transition destination" value={route} onChange={e => setRoute(e.target.value)}>
-        <option value="sequential">Next sequential step (last step completes)</option>
-        <option value="complete">Complete routine</option>
-        {steps.map(step => <option key={step.id} value={`step:${step.id}`}>{step.name} ({step.id})</option>)}
+        {alternate === undefined && <option value="sequential">Next sequential step (last step completes)</option>}
+        {alternate === undefined && <option value="complete">{dv09 ? 'Termination (end of the sequence)' : 'Complete routine'}</option>}
+        {steps.map(step => <option key={step.id} value={`step:${step.id}`}>{dv09 ? step.name : `${step.name} (${step.id})`}</option>)}
       </select>
     </label>}
     {target.kind === 'action' && tab === 'general' && <>
       <div className="sfc-edit-row">
-        <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"
-          value={actionName} onChange={e => setActionName(e.target.value)} /></label>
+        {(!dv09 || qualifier === 'R') && <label>{qualifier === 'R' ? 'Reset target' : 'Action name'}<input aria-label="Action name"
+          value={actionName} onChange={e => setActionName(e.target.value)} /></label>}
         <label>Type<select aria-label="Action type" value={actionType} onChange={e => {
           const type = e.target.value === 'BOOLEAN' ? 'BOOLEAN' : e.target.value === 'BLOCK' ? 'BLOCK' : 'ASSIGNMENT'
           setActionType(type)
           const parameter = Object.entries(context.parameters).find(([, binding]) => binding.type === 'BOOLEAN')?.[0] ?? 'ACTIVE'
           const fallback = defaultAction(modules)
           setExpression(type === 'BOOLEAN' ? `'${parameter}.CV'` : type === 'BLOCK' ? `'${Object.keys(context.blocks ?? {})[0] ?? 'TIMECHK'}'` :
-            assignmentExpression(fallback, modules[fallback.tag]))
-        }}><option value="ASSIGNMENT">Assignment</option><option value="BOOLEAN">Boolean parameter</option>
-          <option value="BLOCK">Non-Boolean function block</option></select></label>
+            dv09 ? '' : assignmentExpression(fallback, modules[fallback.tag]))
+        }}><option value="ASSIGNMENT">Assignment</option><option value="BOOLEAN">{dv09 ? 'Boolean' : 'Boolean parameter'}</option>
+          <option value="BLOCK">{dv09 ? 'Non-Boolean' : 'Non-Boolean function block'}</option></select></label>
         <label>Qualifier<select aria-label="Action qualifier" value={qualifier}
           onChange={e => setQualifier(e.target.value as ActionQualifier)}>
           {QUALIFIERS.map(item => <option key={item} value={item}>{dv09 ? DV09_QUALIFIER_LABELS[item] : item}</option>)}
@@ -227,7 +237,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
         elapses first (0 waits indefinitely) the action fails: CONFIRM_FAIL is set and FAILED_CONFIRMS increases; PENDING_CONFIRMS counts
         actions not yet confirmed or failed. The step's transition must test these parameters, for example 'PENDING_CONFIRMS.CV' = 0.</p>
     </div>}
-    {target.kind === 'transition' && <fieldset><legend>Parallel divergence and synchronization</legend>
+    {target.kind === 'transition' && !dv09 && <fieldset><legend>Parallel divergence and synchronization</legend>
       <label><input type="checkbox" aria-label="Activate parallel paths" checked={parallel}
         onChange={e => setParallel(e.target.checked)} />Activate parallel paths when true</label>
       {parallel && <>
@@ -245,7 +255,7 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
         </select></label>
       </>}
     </fieldset>}
-    {target.kind === 'transition' && !parallel && <fieldset><legend>Selective alternate routes</legend>
+    {target.kind === 'transition' && !parallel && !dv09 && <fieldset><legend>Selective alternate routes</legend>
       <p className="traditional-note">Primary transition is evaluated first, then these routes in order. Only one path activates.
         Choose an explicit primary destination when adding routes. Use parallel divergence above for concurrent independent paths; native palette editing is not implemented.</p>
       {alternatives.map((item, index) => <div key={index}>
@@ -260,12 +270,12 @@ export function SfcPropertiesDialog({ name, target, onClose }: {
       </div>)}
       <button className="tbtn sm" onClick={() => setAlternatives(items => [...items, { expression: 'TRUE', nextStep: '', description: '' }])}>Add alternate route</button>
     </fieldset>}
-    <p className="traditional-note">
+    {!dv09 && <p className="traditional-note">
       Expressions combine module paths ('^/TAG/PID1/PV.CV', '//TAG/DC1/PV_D.CV'), local Boolean/Named Set parameters, step parameters
       ('PENDING_CONFIRMS.CV'), T_ACTIVE and numbers with AND, OR, XOR, NOT, comparisons, + - * / and ABS, SQRT, ROUND, MIN, MAX, IF.
       Boolean actions reference a local parameter instead of assigning a literal. Non-Boolean actions reference a configured local ALARM
       action-time monitor; other function-block activation types remain unsupported. Properties edits do not Save or Download the SFC.
-    </p>
+    </p>}
     {error && <p role="alert">{error}</p>}
     <div className="sfc-edit-row">
       <button className="tbtn sm" onClick={apply}>OK</button>

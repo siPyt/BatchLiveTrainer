@@ -83,7 +83,7 @@ export function setBackgroundColor(pic: string, color: string): string | null {
 let seq = 0
 const uid = (): string => `D${Date.now().toString(36)}${seq++}`
 
-export interface DatalinkSource { tag: string; path: string }
+export interface DatalinkSource { tag: string; path: string; /** Course DV-09 chapter 7: a module parameter of a control module SFC (MESSAGE). */ sfc?: boolean }
 
 /** DVSYS.XV-101/DO1/SP_D.F_CV (or without DVSYS.; .A_CV for the text form) -> module and block path. Returns an error text for anything else. */
 export function parseDatalinkSource(source: string): DatalinkSource | { error: string } {
@@ -91,6 +91,12 @@ export function parseDatalinkSource(source: string): DatalinkSource | { error: s
   const m = text.match(/^([A-Za-z0-9_$-]+)\/(.+?)(?:\.(?:F_|A_)?CV)?$/i)
   if (!m) return { error: `${source.trim() || '(empty)'} is not a parameter path; use DVSYS.MODULE/BLOCK/PARAMETER.TYPE_FIELD` }
   const tag = m[1].toUpperCase()
+  const sfc = useStore.getState().sfcs[tag]
+  if (sfc) {
+    const parameter = m[2].toUpperCase()
+    const parameters = useStore.getState().sfcLifecycle[tag]?.draft.parameters ?? sfc.parameters ?? {}
+    return Object.hasOwn(parameters, parameter) ? { tag, path: parameter, sfc: true } : { error: `${tag} has no module parameter ${parameter}` }
+  }
   const module = useStore.getState().modules[tag]
   if (!module) return { error: `Module ${tag} does not exist` }
   const path = m[2].toUpperCase()
@@ -105,6 +111,17 @@ export interface DatalinkSpec { source: string; inPlace: boolean; refreshSeconds
 export function addDatalink(pic: string, spec: DatalinkSpec): string | null {
   const parsed = parseDatalinkSource(spec.source)
   if ('error' in parsed) return (reject(pic, parsed.error), parsed.error)
+  if (parsed.sfc) {
+    const binding = useStore.getState().sfcLifecycle[parsed.tag]?.draft.parameters?.[parsed.path]
+    if (spec.inPlace && binding?.type !== 'NAMED_SET') return (reject(pic, 'In-Place data entry of an SFC parameter needs a Named Set parameter'), 'In-Place data entry of an SFC parameter needs a Named Set parameter')
+    const element: Omit<PicElement, 'id'> = {
+      type: 'datalink', x: spec.x, y: spec.y, tag: parsed.tag, path: parsed.path, label: false, refreshSeconds: spec.refreshSeconds,
+      ...(spec.inPlace ? { entry: { method: 'NAMED_SET' as const } } : {}), ...(spec.color ? { color: spec.color } : {})
+    }
+    if (!usePictures.getState().addElement(pic, element)) return 'The datalink was not added (see the Event Journal)'
+    log(pic, `Datalink DVSYS.${parsed.tag}/${parsed.path}.F_CV added (data entry ${spec.inPlace ? 'In-Place' : 'None'}, refresh ${spec.refreshSeconds} s)`)
+    return null
+  }
   if (spec.inPlace && !/^(DC1|DO1)\/SP_D$/i.test(parsed.path)) return (reject(pic, 'In-Place data entry needs a writable SP_D parameter; PV_D and other parameters are read-only here'), 'In-Place data entry needs a writable SP_D parameter')
   const el: Omit<PicElement, 'id'> = {
     type: 'datalink', x: spec.x, y: spec.y, tag: parsed.tag, path: parsed.path, label: false, refreshSeconds: spec.refreshSeconds,

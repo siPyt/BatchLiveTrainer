@@ -77,7 +77,7 @@ export function checkDv09Ch9(s: Dv09Ch9State, pictures: Record<string, Picture>,
   const mtrRec = s.deviceLifecycle['MTR-MODBUS']
   const mtrBound = hw.deviceBindings?.['MTR-MODBUS']
   const mtrIo = !!mtrBound && mtrBound.input === 'MTR-IN/R2' && mtrBound.output === 'MTR-OUT/R2'
-  const mtrDeployedAt = eventIndex(s.eventLog, 'MTR-MODBUS', /Full downloaded to/)
+  const mtrDeployedAt = eventIndex(s.eventLog, 'MTR-MODBUS', /Full downloaded to|^Module downloaded to/)
   const start = mtrDeployedAt >= 0 ? eventIndex(s.eventLog, 'MTR-MODBUS', /^Start command issued/, mtrDeployedAt) : -1
   const stop = start >= 0 ? eventIndex(s.eventLog, 'MTR-MODBUS', /^Stop command issued/, start) : -1
 
@@ -85,7 +85,7 @@ export function checkDv09Ch9(s: Dv09Ch9State, pictures: Record<string, Picture>,
   const ficRec = s.pidLifecycle['FIC-MODBUS']
   const ficBound = hw.analogBindings?.['FIC-MODBUS']
   const ficIo = !!ficBound && ficBound.input === 'FLOW-IN/R40001' && ficBound.output === 'FLOW-OUT/R40001'
-  const ficOnlineAt = lastIndex(s.eventLog, 'FIC-MODBUS', /^PID_LOOP placed Online/)
+  const ficOnlineAt = lastIndex(s.eventLog, 'FIC-MODBUS', /^PID_LOOP placed Online|^Module downloaded to/)
   const ficWrite = ficOnlineAt >= 0 ? s.eventLog.findIndex((e, i) => i > ficOnlineAt && e.tag === 'FIC-MODBUS' && /^(OUT set to|Setpoint|SP set|Mode set to)/.test(e.description)) : -1
   const reg = card?.runtime.memory.P02?.['1']?.['HOLDING_REGISTERS:0']
   const flowIn = Object.values(hw.traditionalCards ?? {}).filter(c => c.serial?.cardId === card?.id).flatMap(c => c.channels).find(ch => ch.dst === 'FLOW-IN/R40001')

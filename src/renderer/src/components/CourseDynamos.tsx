@@ -8,13 +8,16 @@ import type { ActiveAlarm, AnyModule } from '../engine/types'
  * These are opt-in objects for custom pictures; they never replace the approved plant mechanical symbols.
  * Default animation follows the course example: white when stopped/closed, yellow when running/open/flowing.
  */
-export function CourseDynamo({ element, modules, alarms, onMouseDown, onClick, selected }: {
+export function CourseDynamo({ element, modules, alarms, onMouseDown, onClick, selected, flowColor, actuatorColor }: {
   element: PicElement
   modules: Record<string, AnyModule>
   alarms: ActiveAlarm[]
   onMouseDown?: (event: React.MouseEvent) => void
   onClick?: (event: React.MouseEvent) => void
   selected?: boolean
+  /** Shared-table True / False color of a color animation (valve body and actuator, chapter 6). */
+  flowColor?: string
+  actuatorColor?: string
 }): JSX.Element | null {
   if (!element.dynamoSet) return null
   const info = DYNAMO_SETS[element.dynamoSet]
@@ -23,7 +26,7 @@ export function CourseDynamo({ element, modules, alarms, onMouseDown, onClick, s
   const error = 'error' in state ? state.error : undefined
   const alarmState = element.showActiveAlarm ? highestRankedAlarmState(element.tag ?? '', alarms) : 'NORMAL'
   const alarming = alarmState !== 'NORMAL'
-  const color = live ? live.color : '#d8d8d8'
+  const color = flowColor ?? (live ? live.color : '#d8d8d8')
   const active = !!live && live.active && !live.bad
   const outline = alarming ? '#cc0000' : '#4a4a4a'
   const w = info.width
@@ -58,12 +61,12 @@ export function CourseDynamo({ element, modules, alarms, onMouseDown, onClick, s
     default: {
       const position = live?.position !== undefined ? Math.max(0, Math.min(100, live.position)) : 0
       body = <g>
-        <path d={`M 14 28 A 20 20 0 0 1 ${w - 14} 28 Z`} fill="#e8e8e8" stroke={outline} strokeWidth={alarming ? 3 : 1.5} />
+        <path d={`M 14 28 A 20 20 0 0 1 ${w - 14} 28 Z`} fill={actuatorColor ?? "#e8e8e8"} stroke={outline} strokeWidth={alarming ? 3 : 1.5} />
         <line x1={w / 2} y1={28} x2={w / 2} y2={36} stroke={outline} strokeWidth={2} />
         <path d={`M 4 ${h - 8} L 4 36 L ${w / 2} ${(36 + h - 8) / 2} L ${w - 4} 36 L ${w - 4} ${h - 8} L ${w / 2} ${(36 + h - 8) / 2} Z`}
           fill={color} stroke={outline} strokeWidth={alarming ? 3 : 1.5} />
         <rect x={4} y={h - 6} width={w - 8} height={5} fill="#ffffff" stroke="#777" strokeWidth={1} />
-        <rect x={4} y={h - 6} width={((w - 8) * position) / 100} height={5} fill="#3a6ea5" />
+        <rect x={4} y={h - 6} width={((w - 8) * position) / 100} height={5} fill={actuatorColor ?? "#3a6ea5"} />
       </g>
     }
   }

@@ -16,9 +16,10 @@ import {
   Dv09AssignDialog, Dv09MessageDialog, Dv09ParamDialog, Dv09RenameDialog, Dv09SaveAsDialog, Dv09SfcDownloadDialog, Dv09StudioNewDialog
 } from '../components/Dv09SfcUi'
 import { ModuleIcon } from '../components/EngineeringIcons'
+import { SimulatorDialog } from '../components/SimulatorDialog'
+import { SfcBlockAlarmControls } from '../components/SfcBlockAlarmControls'
 import { PaneResizer, usePersistentSize } from '../components/PaneResizer'
 import { Btn, Group, Stack } from './ControlStudioDisplay'
-import '../dv09-ch7.css'
 
 // Course DV-09 chapter 7: Control Studio for a control module SFC (SFC-T101). File > New with the Algorithm type Sequential Function Chart,
 // the All SFC Items palette (Step, Transition, Termination), the Action window (right-click > Add...), Action and Transition Properties,
@@ -35,8 +36,8 @@ const PALETTE: { id: 'step' | 'transition' | 'termination' | 'inputParameter' | 
 ]
 const TABS = ['File', 'Home', 'Diagram', 'View', 'Settings']
 
-type Dialog = null | 'new' | 'saveAs' | 'props' | 'assign' | 'download' | 'param'
-interface Menu { x: number; y: number; kind: 'step' | 'transition' | 'action' | 'actionBlank' | 'param' | 'paramBlank'; index?: number; param?: string }
+type Dialog = null | 'new' | 'saveAs' | 'props' | 'assign' | 'download' | 'param' | 'alarm'
+interface Menu { x: number; y: number; kind: 'step' | 'transition' | 'action' | 'actionBlank' | 'param' | 'paramBlank'; index?: number; param?: string; alternate?: number }
 
 export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
   const runtime = useStore(s => s.sfcs[name])
@@ -157,7 +158,7 @@ export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
               <Btn glyph="assign" label="Assign To Node" onClick={() => setDialog('assign')} unavailable={unavailableOnline} />
             </Group>
             <Group label="Insert">
-              <Btn glyph="alarm" label="Alarm" unavailable="SFC alarms are not part of this workshop" />
+              <Btn glyph="alarm" label="Alarm" onClick={needEdit(() => setDialog('alarm'))} unavailable={unavailableOnline} />
               <Btn glyph="moduleParameter" label="Module Parameter" onClick={needEdit(() => setParamEdit(null))} unavailable={unavailableOnline} />
             </Group>
             <Group label="Algorithm">
@@ -229,11 +230,12 @@ export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
             onDrop={e => { const id = e.dataTransfer.getData(DND_ITEM); setDropping(false); if (id) { e.preventDefault(); palette(id) } }}>
             {draftSteps.length === 0 ? <div className="dv09-diagram-empty" data-diagram-empty>
               Diagram View — drag Step from the All SFC Items palette here (or double-click it)</div> :
-              <SfcChart sfc={sfc} selected={selected} onSelect={i => { setSelected(i); setSelectedAction(null) }}
+              <SfcChart sfc={sfc} selected={selected} endTransition onSelect={i => { setSelected(i); setSelectedAction(null) }}
                 onContext={(target, x, y) => {
                   const index = draftSteps.findIndex(s => s.id === target.step.id)
                   setSelected(index)
-                  setMenu({ x: Math.min(x, window.innerWidth - 210), y: Math.min(y, window.innerHeight - 190), kind: target.kind === 'transition' ? 'transition' : 'step', index })
+                  setMenu({ x: Math.min(x, window.innerWidth - 210), y: Math.min(y, window.innerHeight - 190), kind: target.kind === 'transition' ? 'transition' : 'step', index,
+                    alternate: target.kind === 'transition' ? target.alternate : undefined })
                 }}
                 onProperties={target => { if (target.kind === 'transition') { if (editable) setProperties(target) } }} />}
           </div>
@@ -244,7 +246,7 @@ export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
               <table className="studio-param-table" aria-label={`${name} actions`}>
                 <thead><tr><th>Alarm</th><th>Action</th><th>Text</th><th>Description</th><th>Qualifier</th></tr></thead>
                 <tbody>{(step?.actions ?? []).map((action, i) => <tr key={i} data-action-row={i} className={selectedAction === i ? 'sel' : ''}
-                  onClick={() => setSelectedAction(i)} onDoubleClick={() => editable && setProperties({ kind: 'action', step, index: i })}
+                  onClick={() => setSelectedAction(i)} onDoubleClick={() => editable && step && setProperties({ kind: 'action', step, index: i })}
                   onContextMenu={e => { setSelectedAction(i); ctx(e, { kind: 'action', index: i }) }}>
                   <td /><td>{action.name || `A${i + 1}`}</td><td>{textOf(i)}</td><td>{action.description ?? ''}</td><td>{action.qualifier ?? 'N'}</td></tr>)}
                   {!step && <tr><td colSpan={5} className="exp-hint">Select a step to see its actions.</td></tr>}
@@ -283,7 +285,7 @@ export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
             menu.kind === 'step' && menu.index !== undefined ? needEdit(() => deleteStep(menu.index as number)) : undefined)}
         </>}
         {menu.kind === 'transition' && <>
-          {item('Properties...', needEdit(() => step && setProperties({ kind: 'transition', step })))}
+          {item('Properties...', needEdit(() => step && setProperties({ kind: 'transition', step, ...(menu.alternate !== undefined ? { alternate: menu.alternate } : {}) })))}
           {item('Rename...')}
           {item('Delete')}
         </>}
@@ -306,6 +308,10 @@ export function Dv09SfcStudio({ name }: { name: string }): JSX.Element {
       {dialog === 'props' && lifecycle && <SfcModuleProperties configuration={lifecycle.draft} onClose={() => setDialog(null)} />}
       {dialog === 'assign' && <Dv09AssignDialog name={name} onClose={() => setDialog(null)} onMessage={setMessage} />}
       {dialog === 'download' && <Dv09SfcDownloadDialog name={name} onClose={() => setDialog(null)} onMessage={m => { setMessage(m); setSelected(null) }} />}
+      {dialog === 'alarm' && <SimulatorDialog className="module-download-dialog dvd dvd-wide" label="SFC Alarms" onClose={() => setDialog(null)}>
+        <SfcBlockAlarmControls name={name} />
+        <div className="dvd-buttons"><button className="tbtn sm" onClick={() => setDialog(null)}>Close</button></div>
+      </SimulatorDialog>}
       {paramEdit !== undefined && <Dv09ParamDialog name={name} configuration={lifecycle.draft} parameter={paramEdit ?? undefined}
         defaultName={`PARAM${Object.keys(lifecycle.draft.parameters ?? {}).length + 1}`} onClose={() => setParamEdit(undefined)} />}
       {properties && <SfcPropertiesDialog name={name} target={properties} onClose={() => setProperties(null)} />}

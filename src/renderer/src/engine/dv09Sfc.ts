@@ -43,11 +43,14 @@ export function saveSfcAs(from: string, to: string, area: string): string | null
   if (error) { log(from, `Save As rejected: ${error}`, 'DIAGNOSTIC'); return error }
   if (!requireUnlockedKey('CAN_CONFIGURE', `Save SFC ${key}`)) return 'Requires the Can Configure key'
   if (key !== from || area !== runtime.area) {
+    // Actions on the module's own parameters and function blocks address the SFC by name.
+    const rename = (steps: SfcStep[]): SfcStep[] => steps.map(step => ({ ...step,
+      actions: step.actions.map(a => ('tag' in a && a.tag === from ? { ...a, tag: key } : a) as typeof a) }))
     useStore.setState(st => {
       const { [from]: moved, ...sfcs } = st.sfcs
       const { [from]: life, ...lifecycles } = st.sfcLifecycle
-      return { sfcs: { ...sfcs, [key]: { ...moved, name: key, area } },
-        sfcLifecycle: { ...lifecycles, [key]: { ...life, draft: { ...life.draft, name: key, area } } }, rev: st.rev + 1 }
+      return { sfcs: { ...sfcs, [key]: { ...moved, name: key, area, steps: rename(moved.steps) } },
+        sfcLifecycle: { ...lifecycles, [key]: { ...life, draft: { ...life.draft, name: key, area, steps: rename(life.draft.steps) } } }, rev: st.rev + 1 }
     })
     log(key, `${from} saved as ${area}/${key}`)
   }

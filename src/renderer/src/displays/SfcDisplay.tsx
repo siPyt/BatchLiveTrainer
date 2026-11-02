@@ -257,8 +257,10 @@ function SfcEditor({ sfc }: { sfc: SfcDef }): JSX.Element {
  * standard steps, transition cross-bars with live boolean evaluation, and
  * attached [qualifier | parameter | value] action blocks — a 2D vector
  * flowchart instead of stacked HTML form cards. */
-export function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
+export function SfcChart({ sfc, selected, onSelect, onContext, onProperties, endTransition }: {
   sfc: SfcDef; selected: number | null; onSelect: (i: number) => void
+  /** Course DV-09: also draw the transition of the last step (a chart ends with a termination or leads back to a step). */
+  endTransition?: boolean
   onContext: (target: SfcPropertiesTarget, x: number, y: number) => void
   onProperties: (target: SfcPropertiesTarget) => void
 }): JSX.Element {
@@ -317,8 +319,8 @@ export function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
                 nodes.push(
                   <g key={key} transform={`translate(${cx}, ${cy})`} className="sfc-transition" data-transition={kind}
                     onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
-                    onDoubleClick={() => onProperties({ kind: 'transition', step })}
-                    onContextMenu={ev => { ev.preventDefault(); onContext({ kind: 'transition', step }, ev.clientX, ev.clientY) }}>
+                    onDoubleClick={() => onProperties({ kind: 'transition', step, ...(kind.startsWith('alternate-') ? { alternate: Number(kind.slice(10)) } : {}) })}
+                    onContextMenu={ev => { ev.preventDefault(); onContext({ kind: 'transition', step, ...(kind.startsWith('alternate-') ? { alternate: Number(kind.slice(10)) } : {}) }, ev.clientX, ev.clientY) }}>
                     <title>{tip}</title>
                     <path d="M -8 0 H 8 M 0 -8 V 8" className="sfc-cross-halo" />
                     <path d="M -8 0 H 8 M 0 -8 V 8" className={lit ? 'sfc-cross sfc-cross-true' : 'sfc-cross'} />
@@ -403,7 +405,8 @@ export function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
               <g transform={`translate(${CENTER_X + STEP_W / 2}, ${y + 6})`}>
                 <line x1={0} y1={step.actions.length === 1 ? 17 : 21} x2={14} y2={step.actions.length === 1 ? 17 : 21} className={isActive ? 'sfc-line-active' : 'sfc-line'} />
                 {step.actions.map((a, ai) => {
-                  const [param, value] = splitAction(a, modules[a.tag])
+                  const [rawParam, value] = splitAction(a, modules[a.tag])
+                  const param = endTransition ? rawParam.replace(/^\^\//, '//') : rawParam
                   const runtime = sfc.actionStates?.[sfcActionStateKey(step, a, parallel)]
                   const actionActive = a.qualifier === 'R' ?
                     isActive && elapsed === 0 && runtime?.resetStep === step.id :
@@ -435,7 +438,7 @@ export function SfcChart({ sfc, selected, onSelect, onContext, onProperties }: {
             )}
 
             {/* a terminating step has no routed edge, so its transition is drawn directly under it */}
-            {!layout.edges.some(e => e.from === step.id) && (!isLast || step.nextStep !== undefined || step.parallelNextSteps?.length) && (
+            {!layout.edges.some(e => e.from === step.id) && (endTransition || !isLast || step.nextStep !== undefined || step.parallelNextSteps?.length) && (
               <g transform={`translate(${CENTER_X}, ${transY})`} onClick={() => onSelect(i)} style={{ cursor: 'pointer' }}
                 className="sfc-transition" data-transition="primary"
                 onDoubleClick={() => onProperties({ kind: 'transition', step })}

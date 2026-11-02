@@ -14,6 +14,9 @@ import { askConfirm } from '../components/AppNotices'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { Canvas } from './DisplayBuilder'
 import { UserSettingsHost, useUsUi } from '../components/Dv09UserSettingsUi'
+import { ExtDialogs, ExtButtons, expertOpened, type ExtDialog } from './OperateDv09Ext'
+import { addRectangle, addTank, addAnimDynamo, lastElement } from '../engine/dv09OperateEx'
+import { FRS_ITEMS, FrsDynamoDialog, askFrsProperties } from './OperateDv09Frs'
 
 // Course DV-09 chapter 3: DeltaV Operate (Configure / Run) as the manual shows it (pp 3-20 .. 3-50): title bar, menu bar, button bar,
 // System Tree, the DeltaV_ToolBox and the work area with the pictures. The pictures themselves are the Display Builder pictures.
@@ -21,7 +24,9 @@ import { UserSettingsHost, useUsUi } from '../components/Dv09UserSettingsUi'
 const TEMPLATES = ['FullScreen', 'HARTDetail', 'HARTDetailDVC', 'Help', 'Ia', 'Iafb', 'main', 'Main1280', 'Main1680']
 const COLORS = ['#000000', '#ffffff', '#ff0000', '#00aa00', '#0000ff', '#ffff00', '#ff8800', '#8800aa', '#00aaaa', '#888888', '#c9e4c5', '#add8e6',
   '#f4cccc', '#fff2cc', '#d9ead3', '#cfe2f3', '#ead1dc', '#b6d7a8']
-const DYNAMO_SET_NAMES = ['Pumps', 'PumpsAnim', 'Tanks2', 'TanksAnim1', 'Valves', 'Valves2', 'ValvesAnim']
+const DYNAMO_SET_NAMES = ['frsModules', 'Pumps', 'PumpsAnim', 'PipesAnim', 'Tanks', 'Tanks2', 'TanksAnim1', 'Valves', 'Valves2', 'ValvesAnim']
+/** The dynamos of the sets the chapters 4-6 workshops use (name in the set -> what is dropped on the picture). */
+const SET_ITEMS: Record<string, string[]> = { frsModules: FRS_ITEMS, Tanks: ['Tank'], PumpsAnim: ['PumpAnimC1'], ValvesAnim: ['ValveHorizontalControlD1'], PipesAnim: ['PipeAnimH'] }
 const VALVES2 = Array.from({ length: 17 }, (_, i) => `Valve${i + 1}`)
 const DND_DYNAMO = 'application/x-dv09-dynamo'
 
@@ -35,7 +40,7 @@ export function displayName(key: string): string {
 }
 
 type Dialog = null | 'new' | 'open' | 'picture' | 'prevnext' | 'datalink' | 'colors' | 'font' | 'openmain'
-type Tool = null | { kind: 'datalink'; source: string; inPlace: boolean; refresh: number } | { kind: 'text' }
+type Tool = null | { kind: 'datalink'; source: string; inPlace: boolean; refresh: number } | { kind: 'text' } | { kind: 'rectangle' }
 
 export function OperateDv09(): JSX.Element {
   useDatabaseClient('DeltaV Operate (Configure)')
@@ -56,6 +61,7 @@ export function OperateDv09(): JSX.Element {
   const [menu, setMenu] = useState<string | null>(null)
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
   const [message, setMessage] = useState('')
+  const [ext, setExt] = useState<ExtDialog | null>(null)
   const configure = mode === 'configure'
   const pic = active ? pictures[active] : undefined
 
@@ -94,6 +100,7 @@ export function OperateDv09(): JSX.Element {
     const key = pictureKey(name)
     if (!usePictures.getState().pictures[key]) { window.alert(`Picture not found: ${name}`); return }
     useOperate.setState(s => ({ open: s.open.includes(key) ? s.open : [...s.open, key], active: key, ...(how === 'run' ? { mode: 'run' as const } : {}) }))
+    if (how !== 'run' && useOperate.getState().mode === 'configure') useStore.getState().logEvent('DIAGNOSTIC', key, 'Picture opened in Configure (File > Open)')
     setSelEl(null)
   }
   const openMain = (name: string): void => {
@@ -125,6 +132,29 @@ export function OperateDv09(): JSX.Element {
       setMessage(e ?? `Datalink ${tool.source} placed`)
       if (!e) { const els = usePictures.getState().pictures[active].elements; setSelEl(els[els.length - 1].id) }
       setTool(null)
+    } else if (tool.kind === 'rectangle') {
+      const e = addRectangle(active, Math.max(0, Math.min(930, x)), Math.max(0, Math.min(450, y)))
+      setMessage(e ?? 'Rectangle added')
+      if (!e) setSelEl(lastElement(active))
+      setTool(null)
+    }
+  }
+  const dropDynamo = (value: string, x: number, y: number): void => {
+    if (!active) return
+    const px = Math.max(0, Math.min(900, x)), py = Math.max(0, Math.min(560, y))
+    let e: string | null
+    if (FRS_ITEMS.includes(value)) { askFrsProperties({ pic: active, item: value, x: px, y: py }); return }
+    if (value === 'Valve17') e = addDynamo(active, 'VALVE17', px, py)
+    else if (value === 'Tank') e = addTank(active, px, py)
+    else if (value === 'PumpAnimC1') e = addAnimDynamo(active, 'PUMPS_ANIM', px, py)
+    else if (value === 'ValveHorizontalControlD1') e = addAnimDynamo(active, 'VALVE_HORIZONTAL_CONTROL_D1', px, py)
+    else e = addAnimDynamo(active, 'PIPES_ANIM', px, py)
+    setMessage(e ?? `${value} added`)
+    if (!e) {
+      const id = lastElement(active)
+      setSelEl(id)
+      if (value === 'PumpAnimC1') setExt({ kind: 'pump', id })
+      else if (value === 'ValveHorizontalControlD1') setExt({ kind: 'valve', id })
     }
   }
   const selected = pic && selEl ? pic.elements.find(e => e.id === selEl) : undefined
@@ -170,6 +200,8 @@ export function OperateDv09(): JSX.Element {
         <button className="dv09-op-btn" aria-label="Save Picture" title="Save" disabled={!configure || !active} onClick={save}>💾</button>
         <span className="dvx-tsep" />
         <button className="dv09-op-btn" aria-label="Open Main Display" title="Open Main Display" disabled={configure} onClick={() => setDialog('openmain')}>▦</button>
+        <button className="dv09-op-btn" aria-label="Process History View" title="Process History View (Event Chronicle)" disabled={configure}
+          onClick={() => { useStore.getState().logEvent('DIAGNOSTIC', 'DeltaV Operate', 'Process History View (Event Chronicle) opened'); useUi.getState().navigate('journal') }}>🕘</button>
         <span className="dvx-tsep" />
         <span className="dv09-op-status" role="status">{message}</span>
         <span className="dv09-op-mode" data-mode-badge>{configure ? 'Configure' : 'Run'}</span>
@@ -197,17 +229,28 @@ export function OperateDv09(): JSX.Element {
               onTextCancel={() => setTool(null)}
               onNavigate={(kind) => followPictureLink(active, kind, kind === 'Previous' ? pic.previousPicture : pic.nextPicture)}
               onPrevNext={() => setDialog('prevnext')}
-              onDropDynamo={(x, y) => { const e = addDynamo(active, 'VALVE17', Math.max(0, Math.min(920, x)), Math.max(0, Math.min(580, y))); setMessage(e ?? 'Valve17 added'); if (!e) { const els = usePictures.getState().pictures[active].elements; setSelEl(els[els.length - 1].id) } }}
+              onDropDynamo={dropDynamo}
               onContext={(x, y) => setCtx({ x, y })} />
               : !dynamoWindow && <div className="dv09-op-empty" data-operate-empty>{configure ? 'No picture is open. Use File > New Picture or File > Open, or double-click a picture in the System Tree.' :
                 'DeltaV Operate (Run). Select the Open Main Display button to open a picture.'}</div>}
             {configure && <ToolBox tool={tool} onDatalink={() => { logOperate('Datalink Stamper selected'); setDialog('datalink') }} onText={() => { if (active) { setTool({ kind: 'text' }); setMessage('Click on the picture where the text is to be placed, then type.') } else setMessage('Open a picture first.') }}
-              onCaptionEditor={() => { logOperate('Text Caption Editor opened'); setCaptionEditor(true) }} onNew={() => setDialog('new')} onOpen={() => setDialog('open')} onSave={save} />}
+              onCaptionEditor={() => { logOperate('Text Caption Editor opened'); setCaptionEditor(true) }} onNew={() => setDialog('new')} onOpen={() => setDialog('open')} onSave={save}
+              extra={<ExtButtons pic={active} selected={selected} onRectangle={() => { if (active) { setTool({ kind: 'rectangle' }); setMessage('Click on the picture where the rectangle is to be placed.') } }}
+                onExpert={kind => { if (active && selected) { expertOpened(active, kind === 'entry' ? 'Data Entry Expert' : 'Visibility Expert'); setExt({ kind, id: selected.id }) } }} />} />}
             {configure && showProps && <PropertyWindow pic={active} element={selected} onClose={() => setShowProps(false)} />}
             {configure && captionEditor && <CaptionEditor pic={active} element={selected} onClose={() => setCaptionEditor(false)} />}
           </div>
         </div>
       </div>
+      {ctx && selected && (selected.type === 'rectangle' || selected.type === 'dynamo' || selected.type === 'tank') && configure && active && <div className="ctx-menu dv09-op-ctx" style={{ left: ctx.x, top: ctx.y, position: 'fixed' }} onMouseDown={e => e.stopPropagation()}>
+        {selected.type === 'rectangle' && <button className="ctx-item" onClick={() => { setCtx(null); setExt({ kind: 'rectcolor', id: selected.id }) }}>Color...</button>}
+        {selected.type === 'rectangle' && <button className="ctx-item" onClick={() => { setCtx(null); setExt({ kind: 'animations', id: selected.id }) }}>Animations...</button>}
+        {selected.type === 'dynamo' && selected.dynamoSet === 'PUMPS_ANIM' && <button className="ctx-item" onClick={() => { setCtx(null); setExt({ kind: 'pump', id: selected.id }) }}>Dynamo Properties...</button>}
+        {selected.type === 'dynamo' && selected.dynamoSet === 'VALVE_HORIZONTAL_CONTROL_D1' && <button className="ctx-item" onClick={() => { setCtx(null); setExt({ kind: 'valve', id: selected.id }) }}>Dynamo Properties...</button>}
+        <button className="ctx-item" onClick={() => { setCtx(null); remove() }}>Delete</button>
+      </div>}
+      {active && <ExtDialogs pic={active} ext={ext} setExt={setExt} setMessage={setMessage} />}
+      <FrsDynamoDialog onMessage={setMessage} onPlaced={pic => { const els = usePictures.getState().pictures[pic]?.elements ?? []; setSelEl(els[els.length - 1]?.id ?? null) }} />
       {ctx && selected && selected.type === 'text' && configure && <div className="ctx-menu dv09-op-ctx" style={{ left: ctx.x, top: ctx.y, position: 'fixed' }} onMouseDown={e => e.stopPropagation()}>
         <button className="ctx-item" onClick={() => { setCtx(null); setDialog('colors') }}>Color...</button>
         <button className="ctx-item" onClick={() => { setCtx(null); setDialog('font') }}>Font...</button>
@@ -216,7 +259,7 @@ export function OperateDv09(): JSX.Element {
       </div>}
       {dialog === 'new' && <NewPictureDialog onClose={() => setDialog(null)} onCreated={key => { openPicture(key); setMessage(`${displayName(key)}.grf created from the main template`) }} />}
       {dialog === 'open' && <OpenDialog label="Open" pictures={pictures} onClose={() => setDialog(null)} onOpen={name => { openPicture(name); setDialog(null) }} />}
-      <UserSettingsHost active={active} configure={configure} menuAt={ctx && !(selected && selected.type === 'text') ? ctx : null} closeMenu={() => setCtx(null)} />
+      <UserSettingsHost active={active} configure={configure} menuAt={ctx && !(selected && (selected.type === 'text' || selected.type === 'rectangle' || selected.type === 'dynamo' || selected.type === 'tank')) ? ctx : null} closeMenu={() => setCtx(null)} />
       {dialog === 'openmain' && <OpenDialog label="Open Main Display" pictures={pictures} onClose={() => setDialog(null)} onOpen={name => { openMain(name); setDialog(null) }} />}
       {dialog === 'picture' && active && pic && <PictureDialog pic={pic} onClose={() => setDialog(null)} />}
       {dialog === 'prevnext' && active && pic && <PrevNextDialog pic={pic} onClose={() => setDialog(null)} />}
@@ -234,7 +277,7 @@ function ValveGlyph(): JSX.Element {
 function PictureWindow({ name, pic, configure, selEl, setSelEl, tool, onStamp, onTextDone, onTextCancel, onNavigate, onPrevNext, onDropDynamo, onContext }: {
   name: string; pic: Picture; configure: boolean; selEl: string | null; setSelEl: (id: string | null) => void; tool: Tool
   onStamp: (x: number, y: number) => void; onTextDone: (x: number, y: number, text: string) => void; onTextCancel: () => void
-  onNavigate: (kind: 'Previous' | 'Next') => void; onPrevNext: () => void; onDropDynamo: (x: number, y: number) => void; onContext: (x: number, y: number) => void
+  onNavigate: (kind: 'Previous' | 'Next') => void; onPrevNext: () => void; onDropDynamo: (value: string, x: number, y: number) => void; onContext: (x: number, y: number) => void
 }): JSX.Element {
   const wrap = useRef<HTMLDivElement>(null)
   const [textAt, setTextAt] = useState<{ x: number; y: number } | null>(null)
@@ -254,12 +297,12 @@ function PictureWindow({ name, pic, configure, selEl, setSelEl, tool, onStamp, o
     <div className={'dv09-op-pic' + (tool ? ' stamping' : '')} ref={wrap} data-picture={name} aria-label={`${displayName(name)}.grf`}
       onClick={e => {
         if (!configure || !tool) return
-        if (tool.kind === 'datalink') onStamp(pos(e).x, pos(e).y)
+        if (tool.kind === 'datalink' || tool.kind === 'rectangle') onStamp(pos(e).x, pos(e).y)
         else if (tool.kind === 'text' && !textAt) { setTextAt(pos(e)); setText('') }
       }}
       onContextMenu={e => { if (configure) { e.preventDefault(); onContext(e.clientX, e.clientY) } }}
       onDragOver={e => { if (configure && e.dataTransfer.types.includes(DND_DYNAMO)) e.preventDefault() }}
-      onDrop={e => { if (!configure) return; const v = e.dataTransfer.getData(DND_DYNAMO); if (v === 'Valve17') { e.preventDefault(); const p = pos(e); onDropDynamo(p.x, p.y) } }}>
+      onDrop={e => { if (!configure) return; const v = e.dataTransfer.getData(DND_DYNAMO); if (v === 'Valve17' || Object.values(SET_ITEMS).some(items => items.includes(v))) { e.preventDefault(); const p = pos(e); onDropDynamo(v, p.x, p.y) } }}>
       <Canvas picture={name} edit={configure} selEl={selEl} setSelEl={setSelEl} />
       {pic.template === 'MAIN' && <div className="dv09-op-nav" data-nav-group>
         <button className="dv09-op-navbtn" aria-label="Previous Picture" title={pic.previousPicture ? `Previous: ${pic.previousPicture}` : 'Previous picture is not configured'}
@@ -289,7 +332,8 @@ function SystemTree({ pictures, active, selEl, onOpen, onSelect, onOpenDynamoSet
   if (expanded.ROOT) {
     rows.push(node('DYN', 1, 'Dynamo Sets', { children: true }))
     if (expanded.DYN) for (const set of DYNAMO_SET_NAMES) {
-      rows.push(node(`DYN:${set}`, 2, set, { children: set === 'Valves2', onDouble: set === 'Valves2' ? onOpenDynamoSet : undefined, data: `dynamo-set:${set}` }))
+      rows.push(node(`DYN:${set}`, 2, set, { children: set === 'Valves2' || set in SET_ITEMS, onDouble: set === 'Valves2' ? onOpenDynamoSet : undefined, data: `dynamo-set:${set}` }))
+      if (set in SET_ITEMS && expanded[`DYN:${set}`]) for (const v of SET_ITEMS[set]) rows.push(node(`DYN:${set}:${v}`, 3, v, { drag: v, data: `dynamo:${v}` }))
       if (set === 'Valves2' && expanded['DYN:Valves2']) for (const v of VALVES2) rows.push(node(`DYN:Valves2:${v}`, 3, v, { drag: v === 'Valve17' ? v : undefined, data: `dynamo:${v}` }))
     }
     rows.push(node('GLOB', 1, 'Globals', { children: true }), node('HELP', 1, 'Help & Information', { children: true }))
@@ -309,8 +353,8 @@ function elementLabel(el: PicElement): string {
   return el.type === 'text' ? `Text: ${el.content}` : el.type === 'datalink' ? `Datalink: ${el.tag}/${el.path}` : el.type === 'dynamo' ? `Dynamo: ${el.dynamoSet ? DYNAMO_SETS[el.dynamoSet].label : 'dynamo'}` : el.type
 }
 
-function ToolBox({ tool, onDatalink, onText, onCaptionEditor, onNew, onOpen, onSave }: {
-  tool: Tool; onDatalink: () => void; onText: () => void; onCaptionEditor: () => void; onNew: () => void; onOpen: () => void; onSave: () => void
+function ToolBox({ tool, onDatalink, onText, onCaptionEditor, onNew, onOpen, onSave, extra }: {
+  extra?: React.ReactNode; tool: Tool; onDatalink: () => void; onText: () => void; onCaptionEditor: () => void; onNew: () => void; onOpen: () => void; onSave: () => void
 }): JSX.Element {
   return <div className="dv09-toolbox" role="toolbar" aria-label="DeltaV_ToolBox">
     <div className="dv09-toolbox-title">DeltaV_ToolBox</div>
@@ -321,6 +365,7 @@ function ToolBox({ tool, onDatalink, onText, onCaptionEditor, onNew, onOpen, onS
       <button aria-label="Datalink Stamper" title="Datalink Stamper" className={tool?.kind === 'datalink' ? 'on' : ''} onClick={onDatalink}><span className="dv09-abc">ABC<br />100</span></button>
       <button aria-label="Text" title="Text" className={tool?.kind === 'text' ? 'on' : ''} onClick={onText}><b className="dv09-textglyph">A</b></button>
       <button aria-label="Text Caption Editor" title="Text Caption Editor" onClick={onCaptionEditor}>✎</button>
+      {extra}
     </div>
   </div>
 }
@@ -467,6 +512,7 @@ function DatalinkDialog({ onOk, onClose }: { onOk: (t: NonNullable<Tool>) => voi
   const parsed = source.trim() ? parseDatalinkSource(source) : null
   const valid = !!parsed && !('error' in parsed)
   const discrete = valid && /^(DC1|DI1|DO1)\//.test((parsed as { path: string }).path)
+  const sfcParameter = valid && !!(parsed as { sfc?: boolean }).sfc
   return <SimulatorDialog className="module-download-dialog dvd" label="Datalink" onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
       <fieldset className="dvd-group"><legend>Source</legend>
@@ -494,7 +540,7 @@ function DatalinkDialog({ onOk, onClose }: { onOk: (t: NonNullable<Tool>) => voi
     </div>
     <div className="dvd-buttons">
       <button className="tbtn sm" disabled={!valid} onClick={() => {
-        if (inPlace && !discrete) { window.alert('In-Place data entry is available for discrete SP_D parameters in this simulator'); return }
+        if (inPlace && !discrete && !sfcParameter) { window.alert('In-Place data entry is available for discrete SP_D parameters and SFC Named Set parameters in this simulator'); return }
         onOk({ kind: 'datalink', source, inPlace, refresh })
       }}>OK</button>
       <button className="tbtn sm" onClick={onClose}>Cancel</button><button className="tbtn sm" onClick={() => window.alert('Datalink: Source, Data Entry, Error Configuration and Formatting (Course DV-09 pp 3-32, 3-33).')}>Help</button></div>
@@ -538,25 +584,33 @@ function ExpressionBuilder({ initial, refresh, onOk, onClose }: { initial: strin
 function BrowseDialog({ onOk, onClose }: { onOk: (path: string) => void; onClose: () => void }): JSX.Element {
   const areas = useStore(s => s.areas)
   const modules = useStore(s => s.modules)
+  const sfcs = useStore(s => s.sfcs)
+  const sfcLifecycle = useStore(s => s.sfcLifecycle)
   const [area, setArea] = useState(areas[0] ?? '')
   const [tag, setTag] = useState<string | null>(null)
   const [block, setBlock] = useState<string | null>(null)
   const [pick, setPick] = useState('')
   const module = tag ? modules[tag] : undefined
-  const paths = pictureSourcePaths(module).filter(p => !p.path.startsWith('ALARMS'))
-  const blocks = [...new Set(paths.map(p => p.path.split('/')[0]))]
+  // Course DV-09 chapter 7: a control module SFC lists its module parameters (MESSAGE) directly.
+  const isSfc = !!tag && !!sfcs[tag]
+  const paths = pictureSourcePaths(module)
+  // Items without a block (an alarm such as HI_ALM, ALARMS[1].A_LAALM or an AO input parameter such as CAS_SP) are listed next to the blocks.
+  const blocks = [...new Set(paths.filter(p => p.path.includes('/')).map(p => p.path.split('/')[0]))]
+  const moduleLevel = paths.filter(p => !p.path.includes('/')).map(p => p.path)
   const params = block ? paths.filter(p => p.path.startsWith(`${block}/`)).map(p => p.path.split('/')[1]) : []
   const choose = (s: string): void => setPick(s)
-  const full = tag && block && pick ? `DVSYS.${tag}/${block}/${pick}.F_CV` : ''
-  const list = block ? params : tag ? blocks : Object.values(modules).filter(m => m.area === area).map(m => m.tag)
-  const open = (s: string): void => { if (block) choose(s); else if (tag) { setBlock(s); setPick('') } else { setTag(s); setPick('') } }
+  const suffix = (name: string, blockName?: string): string => (/ALARMS\[|\.A_/.test(name) ? '' : /_ALM$/.test(name) || blockName === 'DC1' ? '.A_CV' : '.F_CV')
+  const full = isSfc ? (pick ? `DVSYS.${tag}/${pick}.F_CV` : '') : tag && block && pick ? `DVSYS.${tag}/${block}/${pick}${suffix(pick, block)}` : tag && !block && moduleLevel.includes(pick) ? `DVSYS.${tag}/${pick}${suffix(pick)}` : ''
+  const list = isSfc && tag ? Object.keys(sfcLifecycle[tag]?.draft.parameters ?? sfcs[tag].parameters ?? {}) : block ? params : tag ? [...blocks, ...moduleLevel] :
+    [...Object.values(modules).filter(m => m.area === area).map(m => m.tag), ...Object.values(sfcs).filter(s => s.area === area).map(s => s.name)]
+  const open = (s: string): void => { if (isSfc || block || moduleLevel.includes(s)) choose(s); else if (tag) { setBlock(s); setPick('') } else { setTag(s); setPick('') } }
   return <SimulatorDialog className="module-download-dialog dvd" label="Browse" onClose={onClose}>
     <div className="lib-dlg-fields dvd-panel">
       <label>Look in:<select aria-label="Look in" value={area} onChange={e => { setArea(e.target.value); setTag(null); setBlock(null); setPick('') }}>{areas.map(a => <option key={a}>{a}</option>)}</select></label>
       <div className="dvd-inline"><button className="tbtn sm" aria-label="Up One Level" disabled={!tag} onClick={() => { if (block) { setBlock(null); setPick('') } else setTag(null) }}>↑</button>
         <span className="exp-hint">{[area, tag, block].filter(Boolean).join(' / ')}</span></div>
       <ul className="dv09-browse-list" aria-label="Browse list">{list.length === 0 && <li className="exp-hint">(empty)</li>}
-        {list.map(item => <li key={item} className={pick === item ? 'sel' : ''} data-browse-item={item} onClick={() => (block ? choose(item) : undefined)} onDoubleClick={() => open(item)}>{item}</li>)}</ul>
+        {list.map(item => <li key={item} className={pick === item ? 'sel' : ''} data-browse-item={item} onClick={() => (block || isSfc || moduleLevel.includes(item) ? choose(item) : undefined)} onDoubleClick={() => open(item)}>{item}</li>)}</ul>
       <label>Object Name:<input aria-label="Object Name" readOnly value={full ? full.replace('DVSYS.', '') : tag ?? ''} /></label>
       <label>Object Type:<select aria-label="Object Type" defaultValue="Module Parameters"><option>Module Parameters</option></select></label>
     </div>

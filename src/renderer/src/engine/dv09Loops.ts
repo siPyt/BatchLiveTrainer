@@ -5,6 +5,7 @@ import { moduleNameError } from './naming'
 import { findDst } from './traditionalIo'
 import { conditionSourceError } from './fbCondition'
 import { materializeMotorStrategy, motorTemplateStrategy } from './motorStrategy'
+import { createMtr11, MTR11 } from './dv09Mtr11'
 import { aoConfigurationError } from './standaloneAo'
 import {
   useDv09Cm, cmExtensions, fail, log, patchModule, setCmsPatch, nameInUse, createFromTemplate as createDiscreteFromTemplate, dv09Module,
@@ -68,6 +69,7 @@ function uniqueTemplateName(template: string): string {
  */
 export function createFromTemplate(template: string, area: string): { tag: string } | { error: string } {
   if (template === 'DISCRETE') return createDiscreteFromTemplate(template, area)
+  if (template === MTR11) return createMtr11(area)
   if (!isLoopTemplate(template)) return { error: `Module template ${template} is not modeled; use ANALOG, DISCRETE, MTR-11_ILOCK or PID_LOOP` }
   const s = state()
   if (!s.areas.includes(area)) return { error: fail(template, `Area ${area} does not exist`) }
@@ -304,6 +306,9 @@ export function setCondition(tag: string, block: 'CND1' | 'CND2', patch: Conditi
 }
 
 // ---- module properties -----------------------------------------------------------------------------------------------------
+
+/** The Properties button of Control Studio opened the module Properties dialog (Event Journal evidence). */
+export const propertiesOpened = (tag: string): void => log(tag, 'Module Properties opened', 'DIAGNOSTIC')
 
 export const DOWNLOAD_BEHAVIORS = ['Use configured values', 'Preserve critical block values', 'Preserve user-defined and critical block values'] as const
 /** Module Properties > General: Restore parameter values after restart and the Parameter download behavior (pp 4-12, 4-13). */
