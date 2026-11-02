@@ -65,11 +65,14 @@ export function OperateDv09(): JSX.Element {
     setSelEl(null); setTool(null); setCtx(null)
     logOperate(next === 'run' ? 'Operate switched to Run' : 'Operate switched to Configure')
   }
+  const removeRef = useRef<() => void>(() => undefined)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
         e.preventDefault()
         switchMode(useOperate.getState().mode === 'run' ? 'configure' : 'run')
+      } else if (e.key === 'Delete' && useOperate.getState().mode === 'configure' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+        removeRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -109,6 +112,7 @@ export function OperateDv09(): JSX.Element {
   }
   const save = (): void => { if (active) { const e = savePicture(active); setMessage(e ?? `${displayName(active)}.grf saved`) } }
   const remove = (): void => { if (active && selEl) { deleteElement(active, selEl); setSelEl(null) } }
+  removeRef.current = remove
   const stampAt = (x: number, y: number): void => {
     if (!active || !tool) return
     if (tool.kind === 'datalink') {
@@ -366,7 +370,7 @@ function NewPictureDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     <div className="lib-dlg-fields dvd-panel">
       <label>Picture Name:<input aria-label="Picture Name" autoFocus value={name} onChange={e => { setName(e.target.value); setError(null) }} /></label>
       <label>Template:</label>
-      <select aria-label="Template" size={7} value={template} onChange={e => setTemplate(e.target.value)} className="dv09-list">{TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+      <select aria-label="Template" size={9} value={template} onChange={e => setTemplate(e.target.value)} className="dv09-list">{TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}</select>
       {error && <p role="alert" className="lib-dlg-error">{error}</p>}
     </div>
     <div className="dvd-buttons">

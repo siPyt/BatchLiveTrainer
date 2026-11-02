@@ -23,3 +23,7 @@
 .fluke-reading { font-size: 22px; font-weight: 700; }
 .fluke-off { color: #6c7a63; }
 .fluke-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.fb-led { margin-right: 12px; color: #7a7f86; font-size: 12px; }
+.fb-led.on-green { color: #1f8f3a; font-weight: 700; }
+.fb-led.on-red { color: #c62828; font-weight: 700; }
+.fb-led.on-amber { color: #c98a00; font-weight: 700; }

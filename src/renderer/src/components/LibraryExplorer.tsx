@@ -26,6 +26,7 @@ import { useHistUi } from './HistorianUi'
 import { useCampUi } from './CampaignUi'
 import { useCtlUi, channelName } from './ControllerUi'
 import { useSerialUi, serialCardsOf, slotName, SERIAL_PORT_IDS } from './SerialExplorerUi'
+import { useSecUi } from './SecurityExplorerUi'
 import { datasetDstName, PLC_TABLE_LABEL } from '../engine/serialIo'
 import type { TraditionalCard } from '../engine/traditionalIo'
 import { featureEnabled } from '../engine/systemPreferences'
@@ -471,7 +472,10 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   }
   return <div data-library="network">
     <Row depth={depth} open={!!open.network} onToggle={() => toggle('network')} selected={selection?.kind === 'network'}
-      icon={<DvIcon kind="network" />} pending={dp.anyController ? tri : undefined} label={<span>Physical Network</span>} onClick={() => onSelect({ kind: 'network' })}>
+      icon={<DvIcon kind="network" />} pending={dp.anyController ? tri : undefined} label={<span>Physical Network</span>} onClick={() => onSelect({ kind: 'network' })}
+      onContextMenu={e => { onSelect({ kind: 'network' }); setMenu({ x: e.clientX, y: e.clientY, label: 'Physical Network', items: [
+        { label: 'Explore', onClick: () => onSelect({ kind: 'network' }) },
+        { label: 'Export', onClick: () => useSecUi.getState().open({ t: 'export', kind: 'physical-network', names: [] }) }] }) }}>
       <Row depth={depth + 1} open={!!open.decom} onToggle={all.some(c => !c.commissioned) ? () => toggle('decom') : undefined}
         selected={selection?.kind === 'decom'} icon={<DvIcon kind="decom" />} label={<span>Decommissioned Nodes</span>}
         onClick={() => onSelect({ kind: 'decom' })}>
@@ -485,7 +489,9 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}
           onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: 'PROPLUS', items: [
             { label: 'Explore', onClick: onWorkstation },
-            { label: 'Download ▸ Workstation...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }), disabled: batchOn ? undefined : 'Enable Batch in System Preferences first' },
+            ...(useUi.getState().course === 'DV-09' ? [{ label: 'Download ▸ Workstation...', onClick: () => useSecUi.getState().open({ t: 'workstation' }) },
+              ...(batchOn ? [{ label: 'Download ▸ Batch Equipment...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }) }] : [])] :
+              [{ label: 'Download ▸ Workstation...', onClick: () => useExecUi.getState().openDialog({ t: 'downloadEquipment' }), disabled: batchOn ? undefined : 'Enable Batch in System Preferences first' }]),
             { label: 'Properties', onClick: onWorkstation }] }) }}
           dataAttr={{ 'data-workstation': 'PROPLUS' }}>
           {batchOn && <ExecutiveRows depth={depth + 3} selection={selection} onSelect={onSelect} />}
@@ -609,6 +615,7 @@ export function LibraryDetail({ selection, onSelect }: { selection: LibrarySelec
         {node?.description && <tr><td className="k">Description</td><td className="v">{node.description}</td></tr>}
         {io && <tr><td className="k">I/O (-XY suffix)</td><td className="v">{io}</td></tr>}
         <tr><td className="k">Use</td><td className="v">{selection.name === 'ANALOG' ? 'Drag onto a Control Module Class Category to create a Control Module Class (one AI1 block, HI/LO alarms).' :
+          selection.name === 'DISCRETE' ? 'Drag onto a plant area (Control Strategies) to create a control module with one DI1 block and a Discrete Alarm; rename it, then edit it in Control Studio (course DV-09 XVSTAT-101).' :
           'Reference only in BatchLiveTrainer — Chapter 1 drags ModuleTemplates/Monitoring/ANALOG; the Chapter 5 valve and motor classes (NC_VALVE, 2STAGE_VALVE, AGIT_MTR, OUT_PMP) are provided in Control Module Classes.'}</td></tr>
       </tbody></table>)
     }

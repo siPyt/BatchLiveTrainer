@@ -106,7 +106,9 @@ export function createFromTemplate(template: string, area: string): { tag: strin
     const alarm = { type: 'HI' as const, label: 'DISCRETE', priority: 'WARNING' as const, enabled: true }
     return { modules: { ...st.modules, [tag]: { ...m, downloaded: false, mode: 'AUTO', alarmOnValue: true, alarms: [alarm] } as DiscreteInput }, rev: st.rev + 1 }
   })
-  useDv09Cm.setState(st => ({ cms: { ...st.cms, [tag]: { tag, description: 'Discrete monitoring', area, template, blocks: [{ name: 'DI1', type: 'DI' }], filters: [] } } }))
+  // The Parameter View filter is a Control Studio setting that stays selected from module to module.
+  const inherited = Object.values(useDv09Cm.getState().cms).find(c => c.filters.length)?.filters ?? ['Quick Configuration', 'Common Configuration']
+  useDv09Cm.setState(st => ({ cms: { ...st.cms, [tag]: { tag, description: 'Discrete monitoring', area, template, blocks: [{ name: 'DI1', type: 'DI' }], filters: inherited } } }))
   log(tag, `Module created from template ${template}`)
   return { tag }
 }

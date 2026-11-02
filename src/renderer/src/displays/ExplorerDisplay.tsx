@@ -25,6 +25,7 @@ import type { EquipmentModule } from '../engine/equipment'
 import { SecurityPropertiesPanel } from '../components/SecurityPropertiesPanel'
 import { SignatureSetupPanel } from '../components/SignatureSetupPanel'
 import { ExportImportPanel } from '../components/ExportImportPanel'
+import { useSecUi } from '../components/SecurityExplorerUi'
 import { useDatabaseClient } from '../components/useDatabaseClient'
 import { useSystem } from '../engine/systemPreferences'
 import { DownloadStatusIndicator } from '../components/DownloadStatusIndicator'
@@ -148,7 +149,7 @@ export function ExplorerDisplay(): JSX.Element {
   const [selectedConditionAlarm, setSelectedConditionAlarm] = useState<string | null>(null)
   const [conditionAlarmCreateRequest, setConditionAlarmCreateRequest] = useState(0)
   const [menu, setMenu] = useState<
-    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet'; target: string } | null
+    { x: number; y: number; kind: 'strategies' | 'area' | 'module' | 'sfc' | 'em' | 'namedSets' | 'namedSet' | 'setupProps'; target: string } | null
   >(null)
   const [libSel, setLibSel] = useState<LibrarySelection | null>(null)
   /** Selected container in the DeltaV tree (root, System Configuration, Setup, Control Strategies, AREA:x, CELL:x, UNIT:x, EM:x...). */
@@ -432,7 +433,8 @@ export function ExplorerDisplay(): JSX.Element {
 
   const setupItem = (view: typeof setupView, label: string, depth: number, extra: Partial<Parameters<typeof TreeRow>[0]> = {}): JSX.Element =>
     <TreeRow key={view + label} depth={depth} icon={<DvIcon kind="item" />} label={<span>{label}</span>}
-      selected={!node && !libSel && setupView === view} onClick={() => pickSetup(view)} {...extra} />
+      selected={!node && !libSel && setupView === view} onClick={() => pickSetup(view)}
+      onContextMenu={view.startsWith('security') || view === 'signatures' ? e => { pickSetup(view); setMenu({ x: e.clientX, y: e.clientY, kind: 'setupProps', target: view }) } : undefined} {...extra} />
 
   const selectedArea = node?.startsWith('AREA:') ? node.slice(5) : selected?.area ?? areas[0]
   const deleteSelected = (): void => {
@@ -660,13 +662,18 @@ export function ExplorerDisplay(): JSX.Element {
                 setNamedSetPropertiesRequest(previous => ({ name: menu.target, serial: (previous?.serial ?? 0) + 1 }))
                 setMenu(null)
               }}>Properties...</button>
-              <button className="ctx-item" onClick={() => { setSetupView('export'); setMenu(null) }}>Export...</button>
+              <button className="ctx-item" onClick={() => { if (useUi.getState().course === 'DV-09') useSecUi.getState().open({ t: 'export', kind: 'named-sets', names: [menu.target] }); else setSetupView('export'); setMenu(null) }}>{useUi.getState().course === 'DV-09' ? 'Export' : 'Export...'}</button>
             </>
           ) : menu.kind === 'strategies' ? (
             <>
               <div className="ctx-label">Control Strategies</div>
               <button className="ctx-item" onClick={newArea}>New Area</button>
-              <button className="ctx-item" onClick={() => { setSetupView('export'); setMenu(null) }}>Export...</button>
+              <button className="ctx-item" onClick={() => { if (useUi.getState().course === 'DV-09') useSecUi.getState().open({ t: 'export', kind: 'control-strategies', names: [] }); else setSetupView('export'); setMenu(null) }}>{useUi.getState().course === 'DV-09' ? 'Export' : 'Export...'}</button>
+            </>
+          ) : menu.kind === 'setupProps' ? (
+            <>
+              <div className="ctx-label">{SETUP_LABEL[menu.target as typeof setupView] ?? menu.target}</div>
+              <button className="ctx-item" onClick={() => { pickSetup(menu.target as typeof setupView); setMenu(null) }}>Properties</button>
             </>
           ) : menu.kind === 'area' ? (
             <>

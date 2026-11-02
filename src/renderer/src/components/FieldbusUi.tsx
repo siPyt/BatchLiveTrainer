@@ -358,7 +358,7 @@ export function FieldbusTreeRows({ controller, depth, selection, onSelect }: { c
       const cardLabel = card.redundant ? `${slotLabel(card.slot)}/${slotLabel(card.partnerSlot ?? card.slot + 1)}` : slotLabel(card.slot)
       return <TreeRow key={card.id} depth={depth} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />} selected={isSel(`card:${card.id}`)}
         pending={card.downloaded ? undefined : tri} label={<span>{cardLabel}</span>} sub={`Series 2 H1 Fieldbus card${card.redundant ? ' (redundant)' : ''}${card.downloaded ? '' : ' · not downloaded'}`}
-        dataAttr={{ 'data-h1-card': card.id }} onClick={() => pick(`card:${card.id}`, cardLabel)}
+        dataAttr={{ 'data-fb-card': card.id }} onClick={() => pick(`card:${card.id}`, cardLabel)}
         onContextMenu={e => { pick(`card:${card.id}`, cardLabel); show(e, cardLabel, [
           { label: 'Explore', onClick: () => toggle(card.id) },
           { label: 'Download ▸ Card...', onClick: () => ui.open({ t: 'download', cardId: card.id }) },
@@ -374,7 +374,7 @@ export function FieldbusTreeRows({ controller, depth, selection, onSelect }: { c
           const decom = act.ffInventory(card, portId).filter(r => !r.tag && r.deviceId)
           return <TreeRow key={portId} depth={depth + 1} open={!!open[key]} onToggle={() => toggle(key)} icon={<DvIcon kind="item" />} selected={isSel(`port:${key}`)}
             label={<span>{portId}</span>} sub={`Fieldbus Port · ${port.enabled ? 'enabled' : 'disabled'}${port.description ? ` · ${port.description}` : ''}`}
-            dataAttr={{ 'data-h1-port': key }} onClick={() => pick(`port:${key}`, portId)}
+            dataAttr={{ 'data-fb-port': key }} onClick={() => pick(`port:${key}`, portId)}
             onDoubleClick={() => ui.open({ t: 'port', cardId: card.id, port: portId })}
             onContextMenu={e => { pick(`port:${key}`, portId); show(e, portId, [
               { label: 'Explore', onClick: () => toggle(key) },

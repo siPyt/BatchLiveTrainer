@@ -1,0 +1,215 @@
+const assert = require('node:assert/strict')
+const test = require('node:test')
+const { fixture } = require('./helpers/dv09-fixture.cjs')
+const { checkDv09Ch8 } = require('../src/renderer/src/engine/dv09Ch8Checks.ts')
+const { DV09_CH8 } = require('../src/renderer/src/engine/dv09Ch8.ts')
+const { DV09_CHAPTERS } = require('../src/renderer/src/engine/dv09Registry.ts')
+const { useStore } = require('../src/renderer/src/engine/store.ts')
+const { useSecurity, lockScope, effectiveLocks } = require('../src/renderer/src/engine/security.ts')
+const { useSystem } = require('../src/renderer/src/engine/systemPreferences.ts')
+const { usePictures } = require('../src/renderer/src/engine/pictureStore.ts')
+const { exportConfiguration } = require('../src/renderer/src/engine/projectTransfer.ts')
+const courseSave = require('../src/renderer/src/engine/courseSave.ts')
+const { useLibrary } = require('../src/renderer/src/engine/libraryStore.ts')
+const setup = require('./helpers/dv09-ch8-setup.cjs')
+
+const S = () => useSecurity.getState()
+const verdicts = ctx => Object.fromEntries(checkDv09Ch8({ main: ctx.M(), security: S(), system: useSystem.getState(), library: ctx.L() }).map(c => [c.id, c.verdict]))
+const pend = v => Object.entries(v).filter(([, x]) => x === 'pending').map(([k]) => k)
+const ok = (r, w) => assert.equal(r, null, w ?? String(r))
+const createOperator = (over = {}) => {
+  assert.equal(S().addUser({ name: 'OperatorA', fullName: 'Alpha Operator', password: 'operatora', locks: [], ...over }), true)
+  ok(S().addGroupMember('Operate', 'OperatorA', 'PLANT_AREA_A'))
+}
+const createSupervisor = () => {
+  assert.equal(S().addUser({ name: 'Supervisor1', fullName: 'Sarge Supervisor', password: 'supervisor1', locks: [] }), true)
+  ok(S().addGroupMember('Tune', 'Supervisor1', null))
+  ok(S().grantUserKey('Supervisor1', 'CAN_DOWNLOAD', null))
+}
+const exportOf = (kind, names = []) => assert.ok(!('error' in exportConfiguration(kind, names)), kind)
+
+test('chapter 8 registry: workshops, unique step ids and a check for every step that is not tick-only', () => fixture(2, ctx => {
+  assert.equal(DV09_CHAPTERS.find(c => c.number === 8), DV09_CH8)
+  const ws = DV09_CH8.module.workshops
+  assert.deepEqual(ws.map(w => w.id), ['dv09-ch8-reading', 'dv09-ch8-users', 'dv09-ch8-export', 'dv09-ch8-esig'])
+  const ids = ws.flatMap(w => w.steps.map(s => s.id))
+  assert.equal(new Set(ids).size, ids.length)
+  const checks = DV09_CH8.check({ main: ctx.M(), security: S(), system: useSystem.getState(), library: ctx.L() })
+  assert.equal(checks.length, 14)
+  const checked = new Set(checks.map(c => c.id))
+  for (const id of checked) assert.ok(ids.includes(id), id)
+  assert.deepEqual(ids.filter(i => !checked.has(i) && !i.startsWith('dv09-8r-')), ['dv09-8x-6', 'dv09-8x-9'], 'only the Windows steps are tick-only besides the reading items')
+  assert.equal(pend(verdicts(ctx)).length, 14, 'nothing is verified from the chapter 2 state')
+}))
+
+test('chapter 8 baseline: the DV-09 User Manager starts without OperatorA and Supervisor1 and has the built-in groups', () => fixture(2, () => {
+  assert.equal(S().scope, 'DV-09')
+  assert.equal(S().users.some(u => u.name === 'OperatorA' || u.name === 'Supervisor1'), false)
+  assert.deepEqual(S().groups.map(g => g.name), ['Maintenance', 'Operate', 'SIS Engineering', 'SIS Operate', 'SIS Supervise', 'Supervise', 'Tune'])
+  assert.ok(S().users.some(u => u.name === 'administrator' && u.password === 'deltav'))
+  // going back to class 7016 restores its seeded accounts, DV-09 again drops them
+  S().enterSecurityScope('7016')
+  assert.ok(S().users.some(u => u.name === 'OperatorA') && S().scope === '7016')
+  S().enterSecurityScope('DV-09')
+  assert.equal(S().users.some(u => u.name === 'OperatorA'), false)
+}))
+
+test('chapter 8 Defining Users steps 1 and 2: the accounts are verified from their groups, keys and Plant Areas', () => fixture(2, ctx => {
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'pending')
+  // a wrong password, the Control key for every area, or the Tune group leaves step 1 pending
+  assert.equal(S().addUser({ name: 'OperatorA', fullName: 'Alpha Operator', password: 'wrong', locks: [] }), true)
+  ok(S().addGroupMember('Operate', 'OperatorA', 'PLANT_AREA_A'))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'pending', 'password must be operatora')
+  S().deleteUser('OperatorA')
+  assert.equal(S().addUser({ name: 'OperatorA', fullName: 'Alpha Operator', password: 'operatora', locks: [] }), true)
+  ok(S().addGroupMember('Operate', 'OperatorA', null))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'pending', 'sitewide operate is not "only for PLANT_AREA_A"')
+  ok(S().setMemberAreas('Operate', 'OperatorA', ['PLANT_AREA_B']))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'pending', 'wrong area')
+  ok(S().setMemberAreas('Operate', 'OperatorA', ['PLANT_AREA_A']))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'verified')
+  ok(S().addGroupMember('Tune', 'OperatorA', null))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'pending', 'an operator that can tune is not the OPERATE-only account')
+  ok(S().removeGroupMember('Tune', 'OperatorA'))
+  assert.equal(verdicts(ctx)['dv09-8u-1'], 'verified')
+  // step 2
+  assert.equal(S().addUser({ name: 'Supervisor1', fullName: 'Sarge Supervisor', password: 'supervisor1', locks: [] }), true)
+  ok(S().addGroupMember('Tune', 'Supervisor1', null))
+  assert.equal(verdicts(ctx)['dv09-8u-2'], 'pending', 'no download capability yet')
+  assert.match(S().grantUserKey('Supervisor1', 'CAN_DOWNLOAD', 'PLANT_AREA_A'), /Sitewide/)
+  ok(S().grantUserKey('Supervisor1', 'CAN_DOWNLOAD', null))
+  assert.equal(verdicts(ctx)['dv09-8u-2'], 'verified')
+}))
+
+test('chapter 8 Plant Area keys: Can Download only takes effect Sitewide and a scoped key only works in its area', () => fixture(2, ctx => {
+  createOperator(); createSupervisor()
+  const u = n => S().users.find(x => x.name === n)
+  assert.match(S().grantUserKey('Supervisor1', 'CAN_CONFIGURE', 'PLANT_AREA_A'), /Sitewide/)
+  assert.deepEqual(lockScope(u('OperatorA'), S().groups, 'CONTROL'), ['PLANT_AREA_A'])
+  assert.equal(lockScope(u('OperatorA'), S().groups, 'TUNING'), null)
+  assert.equal(lockScope(u('Supervisor1'), S().groups, 'TUNING'), 'sitewide')
+  assert.ok(effectiveLocks(u('OperatorA'), S().groups).includes('CONTROL'))
+  assert.ok(effectiveLocks(u('Supervisor1'), S().groups).includes('CAN_DOWNLOAD'))
+  // a Can Download granted to one area is not an effective key
+  S().setUserLocks('OperatorA', ['CAN_DOWNLOAD'])
+  assert.equal(S().users.find(x => x.name === 'OperatorA').keyScopes, undefined)
+  // revoking a key clears its Plant Area scopes
+  ok(S().grantUserKey('OperatorA', 'ALARMS', 'PLANT_AREA_B'))
+  assert.deepEqual(lockScope(u('OperatorA'), S().groups, 'ALARMS'), ['PLANT_AREA_B', 'PLANT_AREA_A'], 'the own key and the Operate group each bring their area')
+  S().setUserLocks('OperatorA', ['CAN_DOWNLOAD'])
+  assert.deepEqual(lockScope(u('OperatorA'), S().groups, 'ALARMS'), ['PLANT_AREA_A'], 'only the group grant is left')
+  ok(S().addGroupMember('Tune', 'OperatorA', null))
+}))
+
+test('chapter 8 Defining Users step 5: OperatorA writes only in PLANT_AREA_A and cannot tune; Supervisor1 tunes and downloads', () => fixture(2, ctx => {
+  const M = ctx.M
+  createOperator(); createSupervisor()
+  assert.equal(M().createModule({ tag: 'FIC-A', type: 'PID', area: 'PLANT_AREA_A', description: 'A' }), true)
+  assert.equal(M().createModule({ tag: 'FIC-B', type: 'PID', area: 'PLANT_AREA_B', description: 'B' }), true)
+  ok(S().downloadWorkstation())
+  assert.equal(S().login('OperatorA', 'operatora'), true)
+  assert.equal(M().setSetpoint('FIC-A', 12), true, 'control in PLANT_AREA_A')
+  assert.equal(M().setSetpoint('FIC-B', 12), false, 'no control in PLANT_AREA_B')
+  assert.match(S().lastDenied, /PLANT_AREA_B/)
+  assert.equal(M().setTuning('FIC-A', { gain: 2 }), false, 'an operator cannot tune')
+  assert.match(S().lastDenied, /Tuning/)
+  assert.equal(S().login('Supervisor1', 'supervisor1'), true)
+  assert.equal(M().setTuning('FIC-A', { gain: 2 }), true, 'sitewide tuning')
+  assert.equal(M().setTuning('FIC-B', { gain: 2 }), true, 'sitewide tuning')
+  assert.equal(S().login('Supervisor1', 'wrong'), false)
+  S().login('admin', 'admin123')
+}))
+
+test('chapter 8 Defining Users steps 3 to 5: workstation download and logons are verified in order', () => fixture(2, ctx => {
+  const M = ctx.M
+  createOperator(); createSupervisor()
+  assert.deepEqual(['dv09-8u-3', 'dv09-8u-4', 'dv09-8u-5'].map(k => verdicts(ctx)[k]), ['pending', 'pending', 'pending'])
+  // logging on before the download does not count for step 4
+  assert.equal(S().login('OperatorA', 'operatora'), true); M().logEvent('SECURITY', 'OperatorA', 'User logged on')
+  S().login('admin', 'admin123')
+  ok(S().downloadWorkstation()); M().logEvent('CONFIGURE', 'PROPLUS', 'Workstation download complete: 10 user(s), 7 group(s), 0 lock assignment(s)')
+  assert.equal(verdicts(ctx)['dv09-8u-3'], 'verified')
+  assert.equal(verdicts(ctx)['dv09-8u-4'], 'pending')
+  assert.equal(S().login('OperatorA', 'operatora'), true); M().logEvent('SECURITY', 'OperatorA', 'User logged on')
+  assert.equal(verdicts(ctx)['dv09-8u-4'], 'verified')
+  assert.equal(verdicts(ctx)['dv09-8u-5'], 'pending', 'Supervisor1 has not logged on')
+  assert.equal(S().login('Supervisor1', 'supervisor1'), true); M().logEvent('SECURITY', 'Supervisor1', 'User logged on')
+  assert.equal(verdicts(ctx)['dv09-8u-5'], 'verified')
+  // a change after the download needs a new download
+  S().login('admin', 'admin123')
+  ok(S().addGroupMember('Supervise', 'Supervisor1', null))
+  assert.equal(verdicts(ctx)['dv09-8u-3'], 'pending')
+  // a user created after the download cannot log on until the next download
+  assert.equal(S().addUser({ name: 'Late', fullName: 'Late', password: 'late', locks: [] }), true)
+  assert.equal(S().login('Late', 'late'), false)
+  assert.match(S().lastDenied, /not downloaded/)
+}))
+
+test('chapter 8 Export workshop: each export is verified on its own', () => fixture(2, ctx => {
+  const M = ctx.M
+  const v = () => verdicts(ctx)
+  assert.deepEqual(['dv09-8x-1', 'dv09-8x-3', 'dv09-8x-4', 'dv09-8x-5', 'dv09-8x-8'].map(k => v()[k]), Array(5).fill('pending'))
+  exportOf('physical-network'); assert.equal(v()['dv09-8x-1'], 'verified')
+  exportOf('control-strategies'); assert.equal(v()['dv09-8x-3'], 'verified')
+  assert.equal(M().createNamedSet('NS-T101'), true); assert.equal(M().createNamedSet('phase_failures'), true)
+  exportOf('named-sets', ['NS-T101', 'phase_failures'])
+  assert.deepEqual([v()['dv09-8x-4'], v()['dv09-8x-5']], ['pending', 'pending'], 'both sets in one file are not the two exports of the workshop')
+  exportOf('named-sets', ['NS-T101']); assert.equal(v()['dv09-8x-4'], 'verified'); assert.equal(v()['dv09-8x-5'], 'pending')
+  exportOf('named-sets', ['phase_failures']); assert.equal(v()['dv09-8x-5'], 'verified')
+  for (const n of ['OVW_REF', 'TANK101', 'TANK201']) usePictures.getState().createPicture(n)
+  exportOf('pictures', ['TANK101', 'TANK201']); assert.equal(v()['dv09-8x-8'], 'pending', 'Ovw_ref is missing')
+  exportOf('pictures', ['OVW_REF']); assert.equal(v()['dv09-8x-8'], 'verified')
+  // exporting needs Can Configure
+  S().login('OPERATOR', 'admin123')
+  assert.ok('error' in exportConfiguration('physical-network', []))
+  S().login('admin', 'admin123')
+}))
+
+test('chapter 8 optional Electronic Signatures workshop: policy for MESSAGE with confirm and verify on SFC-T101', () => fixture(2, ctx => {
+  const M = ctx.M
+  const v = () => verdicts(ctx)
+  assert.equal(v()['dv09-8o-1'], 'pending')
+  ok(useSystem.getState().setPendingFeature('signaturePolicies', true))
+  assert.equal(v()['dv09-8o-1'], 'pending', 'a pending selection is not active')
+  ok(useSystem.getState().acknowledgePending()); ok(useSystem.getState().shutdownServer()); ok(useSystem.getState().connectServer())
+  assert.equal(v()['dv09-8o-1'], 'verified')
+  assert.equal(M().setSignatureApplication({ operate: true }), true)
+  assert.equal(v()['dv09-8o-2'], 'pending', 'Control Studio is not enabled yet')
+  assert.equal(M().setSignatureApplication({ controlStudio: true }), true)
+  assert.equal(v()['dv09-8o-2'], 'verified')
+  ok(M().saveSignaturePolicy({ name: 'MESSAGE_POL', description: '', allowSamePerson: true, parameters: { MESSAGE: 'CONFIRM' } }))
+  assert.equal(v()['dv09-8o-3'], 'pending', 'one signature is not confirm and verify')
+  ok(M().saveSignaturePolicy({ name: 'MESSAGE_POL', description: '', allowSamePerson: true, parameters: { MESSAGE: 'CONFIRM_VERIFY' } }))
+  assert.equal(v()['dv09-8o-3'], 'verified')
+  assert.equal(v()['dv09-8o-4'], 'pending', 'no SFC yet')
+  M().createSfc('SFC-T101', 'PLANT_AREA_A')
+  assert.equal(M().setModuleSignaturePolicy('SFC-T101', 'MESSAGE_POL'), true)
+  assert.equal(v()['dv09-8o-4'], 'pending', 'the area is not enabled')
+  assert.equal(M().setSignatureArea('PLANT_AREA_A', true), true)
+  assert.equal(v()['dv09-8o-4'], 'verified')
+}))
+
+test('chapter 8 DV-09 security (users, groups, workstation) is part of the DV-09 project save', () => fixture(2, ctx => {
+  courseSave.setActiveProject('DV-09')
+  try {
+    createOperator()
+    ok(S().downloadWorkstation())
+    const text = JSON.stringify(courseSave.courseSnapshot())
+    S().enterSecurityScope('DV-09')
+    assert.equal(S().users.some(u => u.name === 'OperatorA'), false)
+    assert.equal(S().workstation, null)
+    assert.equal(courseSave.restoreCourseDatabase(text), true)
+    assert.ok(S().users.some(u => u.name === 'OperatorA'))
+    assert.deepEqual(S().users.find(u => u.name === 'OperatorA').groupScopes, { Operate: ['PLANT_AREA_A'] })
+    assert.ok(S().workstation && !S().workstationPending())
+    // a 7016 snapshot does not carry security data
+    courseSave.setActiveProject('7016')
+    assert.equal(courseSave.courseSnapshot().stores.security, undefined)
+  } finally { courseSave.setActiveProject('7016') }
+}))
+
+test('chapter 8 setup helper performs both workshops; only the optional workshop stays pending', () => fixture(2, ctx => {
+  setup(ctx)
+  assert.deepEqual(pend(verdicts(ctx)), ['dv09-8o-1', 'dv09-8o-2', 'dv09-8o-3', 'dv09-8o-4'])
+  assert.equal(S().currentUser, 'admin')
+}))

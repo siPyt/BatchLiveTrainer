@@ -22,9 +22,11 @@ export function rigPlug(end: RigEnd, terminal: string | null): string | null {
   const error = rigPlugError(rig, end, terminal)
   if (error) return error
   const label = RIG_END_DEFS.find(d => d.id === end)?.label ?? end
+  const wasPowered = evalRig(rig).powered
   commit({ ...rig, plugs: { ...rig.plugs, [end]: terminal } }, terminal ? `${label} connected to ${RIG_TERMINAL_LABEL[terminal] ?? terminal}` : `${label} disconnected`)
   const ev = evalRig(getRig())
-  if (end === 'supply-ac' && terminal === 'strip') useStore.getState().logEvent('DIAGNOSTIC', TAG, ev.powered ? 'Power applied to the Fieldbus segment' : 'Fieldbus power supply plugged in but the 24VDC plug is not correctly on the Mother Board')
+  if (ev.powered && !wasPowered) useStore.getState().logEvent('DIAGNOSTIC', TAG, 'Power applied to the Fieldbus segment')
+  else if (end === 'supply-ac' && terminal === 'strip' && !ev.powered) useStore.getState().logEvent('DIAGNOSTIC', TAG, 'Fieldbus power supply plugged in but the 24VDC plug is not correctly on the Mother Board')
   return null
 }
 

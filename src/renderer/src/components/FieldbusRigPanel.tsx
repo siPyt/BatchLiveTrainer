@@ -13,7 +13,7 @@ import '../dv09-chapters.css'
 const FIELD_JB: Record<string, string> = { 'jb-P1': 'P1', 'jb-S0': 'S0', 'jb-S1': 'S1', 'jb-S2': 'S2', 'jb-S3': 'S3', 'jb-S4': 'S4', 'jb-S5': 'S5', 'jb-S6': 'S6' }
 
 function Led({ on, color, label }: { on: boolean; color: 'green' | 'red' | 'amber'; label: string }): JSX.Element {
-  return <span className={`led led-${on ? color : 'off'}`} title={`${label}: ${on ? 'on' : 'off'}`} style={{ marginRight: 10 }}>● {label}</span>
+  return <span className={`fb-led ${on ? 'on-' + color : 'off'}`} title={`${label}: ${on ? 'on' : 'off'}`}>● {label}</span>
 }
 
 function Meter({ now }: { now: number }): JSX.Element {
@@ -92,7 +92,7 @@ export function FieldbusRigPanel(): JSX.Element {
     <div data-rig-status>
       <Led on={ev.powered} color="green" label="DC OK" />
       <Led on={ev.hostPort !== null} color="green" label={`Host on ${ev.hostPort ?? 'no port'}`} />
-      <Led on={ev.reversedSupply} color="red" label="Supply polarity reversed" />
+      {ev.reversedSupply && <Led on color="red" label="Supply polarity reversed" />}
       <Led on={ev.transmitterOnBus} color="green" label="3144P on the segment" />
       <Led on={yellow && ev.transmitterOnBus} color="amber" label="H1 port LED" />
       <span> Terminators: {ev.totalTerminators} (hub {rig.hubTerminator ? 1 : 0} + field {ev.fieldTerminators})</span>

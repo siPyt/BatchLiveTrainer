@@ -23,6 +23,7 @@ import { HistorianDialogHost } from './components/HistorianUi'
 import { CampaignDialogHost } from './components/CampaignUi'
 import { ControllerDialogHost } from './components/ControllerUi'
 import { SerialDialogHost } from './components/SerialExplorerUi'
+import { SecurityDialogHost } from './components/SecurityExplorerUi'
 import { FieldbusDialogHost } from './components/FieldbusUi'
 import { HistorianAdminDisplay, BatchHistoryViewDisplay } from './displays/HistorianDisplays'
 import { CampaignManagerDisplay } from './displays/CampaignDisplay'
@@ -128,6 +129,7 @@ export function App(): JSX.Element {
       <CampaignDialogHost />
       <ControllerDialogHost />
       <SerialDialogHost />
+      <SecurityDialogHost />
       <FieldbusDialogHost />      <NoticeHost />
       <SaveReminderHost />
       <AccessDeniedToast />

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import './dvUserManager.css'
 import { SimulatorDialog } from './SimulatorDialog'
 import { ContextMenu } from './LibraryExplorer'
 import { useStore } from '../engine/store'

@@ -1725,7 +1725,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const h1Cards = { ...(hardware.h1Cards ?? {}) }
       for (const installed of controller.installedH1) {
         const card = makeH1Card(tag, installed.slot, false)
-        if (!h1Cards[card.id]) { h1Cards[card.id] = card; sensedH1.push(card.id) }
+        if (!h1Cards[card.id]) { h1Cards[card.id] = { ...card, deviceAlarms: true }; sensedH1.push(card.id) }
       }
       hardware = applyRig({ ...hardware, h1Cards })
     }
