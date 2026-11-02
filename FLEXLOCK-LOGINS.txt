@@ -7,6 +7,7 @@ plant or Emerson credentials. Names are not case sensitive; passwords are.
 Name         Password      Full name          Keys (permissions)
 -----------  ------------  -----------------  ---------------------------------
 admin        admin123      Administrator      ALL keys
+administrator deltav       Administrator      ALL keys (course DV-09 chapter 1 logon workshop; lower case)
 admin123     admin123      Administrator      ALL keys
 ENGINEER     admin123      System Engineer    ALL keys
 Supervisor1  admin123      Sarge Supervisor   CONTROL, RESTRICTED_CONTROL,
@@ -14,7 +15,7 @@ Supervisor1  admin123      Sarge Supervisor   CONTROL, RESTRICTED_CONTROL,
                                               CAN_DOWNLOAD
 OperatorA    admin123      Alpha Operator     CONTROL, ALARMS, BATCH_OPERATE
 
-Every account uses the password admin123 (changed 2026-10-27; it used to be a
+Every account uses the password admin123, except administrator (password deltav, from the DV-09 course logon workshop) (changed 2026-10-27; it used to be a
 different password per account).
 
 Notes

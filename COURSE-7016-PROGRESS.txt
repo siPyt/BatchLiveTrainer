@@ -675,6 +675,52 @@ Scripts are NOT in the repository (session folder files/pw14, files/pw15; Playwr
   literal requireLock action needs a securityTargets.ts pattern.
 
 
+5M. CLASS SELECTOR AND CLASS DV-09 (Engineering Training Manual, chapters 1-2)  [added 2026-11-01]
+---------------------------------------------------------------------------
+Source: source_pdfs\deltaV\740124885-Deltav-O-M-Training-Manual (2).pdf (575 pages, 13 chapters; course DV-09). Text extracted with
+PyMuPDF into the session folder (files\dv09-om.txt; pypdf cannot read it: AES). The PDF stays out of git (copyrighted).
+- Class selector (top bar, right of the display selector, aria-label "Current class"): Class 7016, Class 7017 (not built yet),
+  Class DV-09. ui/courses.ts (list), ui/courseSwitch.ts (openCourse / bootProject / newProjectForActiveClass), uiStore.course,
+  persisted in the UI session. Selecting 7017 only shows a notice and a Workshops placeholder; the loaded project stays.
+- Each built class has its own project and autosaved database: 7016 keeps key batchlivetrainer.course7016.database.v1, DV-09 uses
+  batchlivetrainer.dv09.database.v1 (engine/courseSave.ts: setActiveProject / saveKeyFor). Switching saves the old one, installs
+  the other (libraryStore.installDv09Project) and restores its save. File > New Course <class> Project works per class. The DV-09
+  navigation hides the Batch-only displays (ui/displayNavigation.ts navigationFor / homeDisplayFor; DV-09 home = Workshops).
+  System Preferences are still global (Enable Batch etc. are shared by both classes).
+- DV-09 starting project: plant area AREA_A, one decommissioned simplex controller CTLR-02F896 (p1-53) with four installed I/O
+  cards (AI, AO, DI, DO). The cards join the configuration only when the controller is auto-sensed, under the commissioned
+  name (Controller.installedCards; store.autoSenseController). Account administrator / deltav (all keys) added for the p1-50
+  logon workshop (engine/security.ts; FLEXLOCK-LOGINS.txt).
+- Chapter 1 DeltaV Overview (pp 1-1 .. 1-70): 3 workshops, 6 live checks (engine/dv09Ch1Workshops.ts, dv09Ch1Checks.ts, ids
+  dv09-1a-4, dv09-1c-1..5): FlexLock logon; DeltaV Explorer > Physical Network > Decommissioned Nodes > CTLR-02F896 >
+  Properties > Flash lights (Identify pop-up, Stop Flashing or close); drag it onto Control Network > commissioning Properties
+  (name, description, area, hardware alarms, network redundancy, time sync, Node is redundant greyed for simplex) > Auto-Sense
+  I/O Cards Yes/No; controller Properties > Controller tab > Cold Restart (Always Disabled / Always Enabled / Within a time
+  limit, days / hours / minutes). components/ControllerUi.tsx holds the dialogs (useCtlUi, ControllerDialogHost). The reading
+  workshop (pp 1-4 .. 1-50, 1-65 .. 1-70) is tick-only. The Windows XP steps (power up, Windows log-on, FlexLock Windows
+  Desktop) are not simulated and are tick-only.
+- Chapter 2 The Simulated Process (pp 2-1 .. 2-34): 5 workshops, 9 live checks (dv09Ch2Workshops.ts, dv09Ch2Checks.ts, ids
+  dv09-2a-1/2, 2b-1..4, 2d-1/2, 2e-1): rename AREA_A to PLANT_AREA_A and add PLANT_AREA_B; Explorer CTLR > I/O > card (C01..C04)
+  > channel (CH01..CH08) > Properties (Description, Channel type, Device Tag, Enable) for the eight DSTs of the p2-91 table;
+  CTLR > Download > Controller (options with Verify, verify result, cautionary note Yes, Downloading Selected Objects list with
+  check marks and stippled items, Close); the blue download triangle sits on the controller and its I/O until the controller
+  matches the configuration database (engine/controllerConfig.ts: signature of cold restart, redundancy, cards and DSTs;
+  engine/downloadPending.ts; only controllers flagged trackDownload, so the 7016 controller is unaffected); Diagnostics
+  (Explorer Applications > Diagnostics, or the Physical Network display) records "DeltaV Diagnostics launched" and must be
+  launched after the download.
+- Simplified / not implemented: Update Download Status, Download Subsets, Cold Restart Memory and Re-send Last Known Good are
+  described in the reading workshop only (no menu commands); DSTs are not configurable through the Explorer I/O Configuration
+  button; the Channel type list has one entry (it follows the card); the Windows desktop is not simulated; the control modules
+  of PLANT_AREA_A / PLANT_AREA_B (LEVEL-101, XV-101, FIC-102, SFC-T101 ...) are created in later chapters (not built yet).
+- UI verification: Playwright scripts (session folder files\pw16: g1 Chapter 1, g3 Chapter 2 areas and DSTs, g4 Chapter 2
+  download and Diagnostics, g2 class switching persistence) on fresh profiles, twice: the Workshops page showed all 15 live
+  steps of chapters 1 and 2 Verified both times; switching 7016 <-> DV-09 <-> 7017 keeps both projects.
+- Fixes found in the UI passes: a selector that built a new array each render (Maximum update depth) in the controller dialog
+  host; the Identify pop-up was blocked behind the modal Properties window (now its own stacked dialog); a controller with
+  installed cards could not be renamed at commissioning (cards now appear at auto-sense).
+- tests: tests/dv09-ch1.test.cjs (6) and tests/dv09-ch2.test.cjs (6); npm run test:dv09.
+
+
 6. TESTS AND VERIFICATION
 -------------------------
 - tests/course7016-ch1.test.cjs     Chapter 1 end to end.
@@ -723,6 +769,10 @@ Scripts are NOT in the repository (session folder files/pw14, files/pw15; Playwr
 - tests/course7016-ch13.test.cjs    Chapter 13 version control (npm run test:course13): 10 tests, section 5H.
 - tests/course7016-ch14.test.cjs    Chapter 14 Batch Historian (npm run test:course14): 5 tests, section 5I.
 - tests/course7016-ch15.test.cjs    Chapter 15 Campaign Manager (npm run test:course15): 5 tests, section 5J.
+- tests/dv09-ch1.test.cjs           Class DV-09 chapter 1 (npm run test:dv09): project, identify / commission / auto-sense / cold
+                                    restart, FlexLock logon, workshop definitions. 6 tests, section 5M.
+- tests/dv09-ch2.test.cjs           Class DV-09 chapter 2: plant areas, DSTs, controller download and triangle, Diagnostics. 6 tests.
+- Full suite: 888 of 889 pass after DV-09 chapters 1-2 (2026-11-01); only dv09-audit fails (needs pdf_om.txt).
 - Full suite after Chapter 15: 875 of 876 pass (2026-11-01); only dv09-audit fails (needs pdf_om.txt). Typecheck clean.
 - Full suite: 780 of 781 pass (2026-10-26); tests/dv09-audit.test.cjs needs pdf_om.txt (BatchLive's DV-09 manual
   text, not in this repository) and fails at load, as it did before this work. Typecheck and the Electron production
@@ -831,6 +881,9 @@ Dated log (newest last; commit hashes on siPyt/BatchLiveTrainer main):
 - 2026-11-01  (next commit)  Optional extras: Chapter 15 setup + cleanup batches and Terminate Campaign (checks 15o-4 / 15o-5,
                        journal line "has setup batch ... and cleanup batch ..."), coverage check of every workshop and optional
                        item (section 5K), UI-pass method (section 5L).
+- 2026-11-01  (next commit)  Class selector (7016 / 7017 / DV-09) with a separate project and save per class; class DV-09 chapters 1
+                       (DeltaV Overview: logon, identify, commission, auto-sense, cold restart) and 2 (The Simulated Process:
+                       plant areas, DSTs, controller download, Diagnostics) built and UI-verified twice. See section 5M.
 - 2026-11-01  (uncommitted until the Chapter 15 pass was done, then one commit)  Chapters 8-10 page-by-page audit incl. the optional
                        workshops (Action Confirmation, Client Configuration, electronic signatures, Procedure as Table,
                        Unacknowledged Prompts); Chapter 11 (unit procedures, procedures, link groups, aliases, class-based
@@ -1238,7 +1291,14 @@ trainer can be matched). Everything below is trainer behaviour that is NOT prove
     the OS mode constant, division by zero returning +-3.4E38, the ST field, block execution numbers (#1, #2 ...), and a
     default BLOCK1 (watchdog/switchover CALC) in a NEW phase class's FAIL_MONITOR (slides 6-33/6-37). AWAITING DELTAV CONFIRMATION.
 
-WHERE WE LEFT OFF (2026-11-01, Chapters 8-15 - latest, DONE):
+WHERE WE LEFT OFF (2026-11-01, class DV-09 chapters 1-2 - latest):
+- The class selector exists and class DV-09 is built through chapter 2 (section 5M): DV-09 Chapter 1 DeltaV Overview and Chapter 2
+  The Simulated Process, each walked through the real UI twice (Workshops page 15/15 live steps Verified both times).
+  Next: DV-09 chapter 3 Control Modules (workshops: Creating Module XV-101, XVSTAT-101, Adding a Datalink, a Dynamo, Creating
+  Static Objects / Text, a New Picture, Operating & Verifying; pdf pages 106-157), then chapters 4-13 in order. Class 7017 is
+  still a placeholder. The 7016 work (chapters 1-15) is unchanged.
+
+WHERE WE LEFT OFF (2026-11-01, Chapters 8-15 - superseded, DONE):
 - Everything through Chapter 15 is built, tested and was walked through the real browser UI (Playwright against the Vite
   preview, port 5199). Chapters 8-10 were re-audited page by page (optional workshops included); Chapters 11, 12, 13, 14
   and 15 were each done twice from start to finish on fresh profiles (Chapter 14 three times: the first run was 14/15 until

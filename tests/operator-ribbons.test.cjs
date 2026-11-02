@@ -63,7 +63,7 @@ test('BatchLiveTrainer shows only the Course 7016 displays: no BatchLive site ar
   assert.equal(useUi.getState().display, 'process', 'the Process picture is the home display')
 })
 
-test('the class selector sits next to the display selector: 7016 is built, 7017 and DV-09 are listed as not built yet', () => {
+test('the class selector sits next to the display selector: 7016 and DV-09 are built, 7017 is listed as not built yet', () => {
   const html = render(TopBar)
   const display = html.indexOf('aria-label="Current display"')
   const cls = html.indexOf('aria-label="Current class"')
@@ -71,7 +71,7 @@ test('the class selector sits next to the display selector: 7016 is built, 7017 
   assert.ok(html.indexOf('ribbon-picture-name') > cls, 'and comes before the picture name')
   assert.match(html, /<option value="7016" selected="">Class 7016<\/option>/)
   assert.match(html, /<option value="7017">Class 7017 \(not built yet\)<\/option>/)
-  assert.match(html, /<option value="DV-09">Class DV-09 \(not built yet\)<\/option>/)
+  assert.match(html, /<option value="DV-09">Class DV-09<\/option>/)
   assert.equal(useUi.getState().course, '7016', 'class 7016 is the default')
 })
 

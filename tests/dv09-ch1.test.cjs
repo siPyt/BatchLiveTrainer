@@ -125,5 +125,5 @@ test('Chapter 1 workshop definitions: every live check belongs to a step, ids ar
   assert.deepEqual(ids.filter(id => seven.has(id)), [])
   const checkIds = checkDv09Ch1(M().hardware, []).map(c => c.id)
   assert.deepEqual(checkIds.filter(id => !ids.includes(id)), [])
-  assert.deepEqual(DV09_COURSE.flatMap(m => m.workshops).map(w => w.id), ['dv09-ch1-reading', 'dv09-ch1-logon', 'dv09-ch1-commission'])
+  assert.deepEqual(DV09_COURSE[0].workshops.map(w => w.id), ['dv09-ch1-reading', 'dv09-ch1-logon', 'dv09-ch1-commission'])
 })
