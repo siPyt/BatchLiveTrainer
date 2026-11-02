@@ -13,7 +13,15 @@ import { useCampaigns } from './campaignManager'
 // File -> New Course 7016 Project replaces the saved database with a fresh copy.
 
 export const COURSE_SAVE_KEY = 'batchlivetrainer.course7016.database.v1'
+const DV09_SAVE_KEY = 'batchlivetrainer.dv09.database.v1'
 const VERSION = 1
+
+/** The class whose project is loaded; the 7016 project keeps its original storage key so existing saves still load. */
+export type ProjectCourse = '7016' | 'DV-09'
+let activeProject: ProjectCourse = '7016'
+export const setActiveProject = (c: ProjectCourse): void => { activeProject = c }
+export const getActiveProject = (): ProjectCourse => activeProject
+export const saveKeyFor = (c: ProjectCourse): string => (c === 'DV-09' ? DV09_SAVE_KEY : COURSE_SAVE_KEY)
 
 type Store = { getState: () => object; setState: (partial: Record<string, unknown>) => void }
 const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 'historian' | 'campaigns', Store> = {
@@ -41,7 +49,7 @@ export function courseSnapshot(): CourseSave {
 export function saveCourseDatabase(): boolean {
   try {
     if (typeof localStorage === 'undefined') return false
-    localStorage.setItem(COURSE_SAVE_KEY, JSON.stringify(courseSnapshot()))
+    localStorage.setItem(saveKeyFor(activeProject), JSON.stringify(courseSnapshot()))
     return true
   } catch {
     return false
@@ -51,10 +59,11 @@ export function saveCourseDatabase(): boolean {
 /** Restore a saved database; false when there is none (or it is unreadable), so the caller installs a fresh DV_School. */
 export function restoreCourseDatabase(text?: string | null): boolean {
   try {
-    const raw = text ?? (typeof localStorage === 'undefined' ? null : localStorage.getItem(COURSE_SAVE_KEY))
+    const raw = text ?? (typeof localStorage === 'undefined' ? null : localStorage.getItem(saveKeyFor(activeProject)))
     if (!raw) return false
     const saved = JSON.parse(raw) as CourseSave
-    if (saved.version !== VERSION || !saved.stores?.main || !saved.stores.library?.process) return false
+    if (saved.version !== VERSION || !saved.stores?.main || !saved.stores.library) return false
+    if (activeProject === '7016' && !saved.stores.library.process) return false
     for (const [k, s] of Object.entries(STORES)) {
       const data = saved.stores[k]
       if (!data) continue
@@ -63,6 +72,7 @@ export function restoreCourseDatabase(text?: string | null): boolean {
       s.setState(Object.fromEntries(Object.entries(data).filter(([f]) => known.has(f))))
     }
     const state = useStore.getState()
+    if (activeProject !== '7016') return true
     const defaults = courseNamedSets()
     const builtIns = ['phase_failures', '$phase_restart_types']
     const additions = Object.fromEntries(builtIns.filter(name => !state.namedSets.configured[name]).map(name => [name, defaults[name]]))
@@ -81,7 +91,7 @@ export function restoreCourseDatabase(text?: string | null): boolean {
 }
 
 export function clearCourseDatabase(): void {
-  try { if (typeof localStorage !== 'undefined') localStorage.removeItem(COURSE_SAVE_KEY) } catch { /* nothing saved */ }
+  try { if (typeof localStorage !== 'undefined') localStorage.removeItem(saveKeyFor(activeProject)) } catch { /* nothing saved */ }
 }
 
 let timer: ReturnType<typeof setInterval> | null = null

@@ -96,6 +96,8 @@ interface LibraryState {
 
   resetLibrary: () => void
   installCourseProject: () => boolean
+  /** Class DV-09: an empty plant with one decommissioned controller (course p1-52) that the student commissions in Chapter 1. */
+  installDv09Project: () => boolean
 
   newCategory: (parent: string | null) => Result<string>
   renameCategory: (name: string, next: string) => Result<string>
@@ -293,6 +295,18 @@ export function courseNamedSets(): Record<string, NamedSetDefinition> {
   }
 }
 
+export const DV09_CONTROLLER = 'CTLR-02F896'
+
+/** A new controller starts decommissioned (course p1-53); this one is simplex hardware, as on the DV-09 training stations. */
+function dv09Controller(): Controller {
+  return {
+    tag: DV09_CONTROLLER, description: '', commissioned: false, redundant: false, networkRedundant: false, controlNetworkAddress: null,
+    identified: false, coldRestartMinutes: 0, powerDownAt: null, lastAutoSense: null, primary: 'N/A', secondary: 'N/A', scanTimeMs: 0,
+    cpuLoadPct: 0, carrierIds: [], simplexOnly: true, trackDownload: true,
+    installedCards: [{ slot: 1, type: 'AI' }, { slot: 2, type: 'AO' }, { slot: 3, type: 'DI' }, { slot: 4, type: 'DO' }]
+  }
+}
+
 function courseController(): Controller {
   return {
     tag: COURSE_CONTROLLER, description: 'DV_School training controller', commissioned: true, redundant: false,
@@ -309,6 +323,23 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   ...empty(),
 
   resetLibrary: () => { set(empty()); libraryHooks.reset.forEach(fn => fn(false)) },
+
+  installDv09Project: () => {
+    if (!requireUnlockedLock('CAN_CONFIGURE', 'New Project (course DV-09)')) return false
+    useStore.getState().newProject('blank')
+    useStore.setState(s => ({
+      areas: ['AREA_A'],
+      modules: {},
+      hardware: { ...s.hardware, controllers: { [DV09_CONTROLLER]: dv09Controller() }, traditionalCards: {} },
+      namedSets: { configured: {}, deployed: {} },
+      rev: s.rev + 1
+    }))
+    set({ ...empty() })
+    libraryHooks.reset.forEach(fn => fn(true))
+    usePictures.setState({ pictures: {} })
+    log('DV-09', 'Course DV-09 training database loaded: plant area AREA_A and decommissioned controller CTLR-02F896 (four I/O cards installed)')
+    return true
+  },
 
   installCourseProject: () => {
     if (!requireUnlockedLock('CAN_CONFIGURE', 'New Project (course 7016 DV_School)')) return false

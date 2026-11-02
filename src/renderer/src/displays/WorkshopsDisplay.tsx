@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useUi, type DisplayId } from '../ui/uiStore'
 import { useProgress } from '../engine/progressStore'
 import { COURSE, type Workshop } from '../engine/workshops'
+import { DV09_COURSE } from '../engine/dv09Course'
+import { checkDv09Ch1 } from '../engine/dv09Ch1Checks'
+import { checkDv09Ch2 } from '../engine/dv09Ch2Checks'
 import { useStore } from '../engine/store'
 import type { StepCheck } from '../engine/workshopChecks'
 import { checkCourse7016Ch1 } from '../engine/course7016Checks'
@@ -35,9 +38,10 @@ export function WorkshopsDisplay(): JSX.Element {
   const done = useProgress((s) => s.done)
   const navigate = useUi((s) => s.navigate)
   const course = useUi((s) => s.course)
-  const all = COURSE.flatMap((m) => m.workshops)
+  const modules = course === 'DV-09' ? DV09_COURSE : COURSE
+  const all = modules.flatMap((m) => m.workshops)
   const [selId, setSelId] = useState<string>(all[0]?.id ?? '')
-  const sel = all.find((w) => w.id === selId)
+  const sel = all.find((w) => w.id === selId) ?? all[0]
 
   const pct = (w: Workshop): number => {
     const ids = stepIds(w)
@@ -49,11 +53,11 @@ export function WorkshopsDisplay(): JSX.Element {
   const doneSteps = all.reduce((a, w) => a + stepIds(w).filter((i) => done[i]).length, 0)
   const overall = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 0
 
-  if (course !== '7016') {
+  if (course === '7017') {
     return (
       <div className="display workshops" data-course-placeholder={course}>
         <div className="ws-detail">
-          <div className="exp-empty">Class {course} is not built out yet. Choose Class 7016 in the class selector (top bar, next to the display selector) for the workshops.</div>
+          <div className="exp-empty">Class {course} is not built out yet. Choose Class 7016 or Class DV-09 in the class selector (top bar, next to the display selector) for the workshops.</div>
         </div>
       </div>
     )
@@ -73,7 +77,7 @@ export function WorkshopsDisplay(): JSX.Element {
             {doneSteps} / {totalSteps} steps ticked. Steps marked Verified are checked live against the simulator.
           </div>
         </div>
-        {COURSE.map((m) => (
+        {modules.map((m) => (
           <div key={m.module}>
             <div className="ws-module">{m.module}</div>
             {m.workshops.map((w) => (
@@ -115,6 +119,8 @@ function WorkshopPanel({
   const toggle = useProgress((s) => s.toggle)
   const reset = useProgress((s) => s.reset)
   const eventLog = useStore((s) => s.eventLog)
+  const hardware = useStore((s) => s.hardware)
+  const areas = useStore((s) => s.areas)
   const modules = useStore((s) => s.modules)
   const signature = useStore((s) => s.signature)
   const namedSets = useStore((s) => s.namedSets)
@@ -132,6 +138,8 @@ function WorkshopPanel({
     assignments: library.assignments, modules, transfers: library.transfers, sims: library.sims, runSince: blendersDownloadedAt(em.deployed)
   }
   const checks: StepCheck[] | null =
+    w.id.startsWith('dv09-ch1-') ? checkDv09Ch1(hardware, eventLog) :
+    w.id.startsWith('dv09-ch2-') ? checkDv09Ch2(areas, hardware, eventLog) :
     w.id === '7016-ch7-drain' ? checkCourse7016Ch7(batch, eventLog, namedSets) :
     w.id.startsWith('7016-ch8-') ? checkCourse7016Ch8(batch, eventLog) :
     w.id.startsWith('7016-ch10-') ? checkCourse7016Ch10({ ...batch, ...exec }, eventLog, signature, tag => modules[tag]?.area) :

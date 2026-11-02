@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { isValidDeltaVTag } from './naming'
-import type { AnalogDstBindings, DeviceDstBindings, TraditionalCard } from './traditionalIo'
+import type { AnalogDstBindings, DeviceDstBindings, TraditionalCard, TraditionalCardType } from './traditionalIo'
 
 export type CharmType = 'AI' | 'AI_HART' | 'AO' | 'DI' | 'DO' | 'RTD' | 'TC'
 
@@ -76,6 +76,13 @@ export interface Controller {
   timeSynced?: boolean
   /** Simplex hardware cannot be made redundant. */
   simplexOnly?: boolean
+  /** Cards physically installed in the I/O subsystem; auto-sense discovers them and adds them to the configuration. */
+  installedCards?: { slot: number; type: TraditionalCardType }[]
+  /** Class DV-09: Explorer shows the blue download triangle until the controller's hardware configuration (I/O cards, DSTs, cold restart, redundancy) is downloaded. */
+  trackDownload?: boolean
+  /** Signature of the hardware configuration at the last total download, and when that happened. */
+  downloadedConfig?: string
+  downloadedAt?: number
   /** Outcome of the most recent power restoration, for the cold-restart status display. */
   lastRestoration?: { at: number; outageMinutes: number; coldRestart: boolean; reason: string }
 }

@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../engine/store'
 import { useUi } from '../ui/uiStore'
 import { useSecurity } from '../engine/security'
-import { useLibrary } from '../engine/libraryStore'
 import { useSystem } from '../engine/systemPreferences'
-import { courseSnapshot, restoreCourseDatabase, saveCourseDatabase } from '../engine/courseSave'
+import { courseSnapshot, getActiveProject, restoreCourseDatabase, saveCourseDatabase } from '../engine/courseSave'
 import { ConfirmDialog } from './AppNotices'
 import { clockString, dateString } from '../utils/format'
-import { DISPLAY_NAVIGATION } from '../ui/displayNavigation'
+import { homeDisplayFor, navigationFor } from '../ui/displayNavigation'
 import { COURSES } from '../ui/courses'
+import { newProjectForActiveClass, openCourse } from '../ui/courseSwitch'
 import { OperatorRibbonIcon, type RibbonIconKind } from './OperatorRibbonIcon'
 
 function RibbonButton({ icon, label, onClick, disabled, pressed }: {
@@ -76,7 +76,6 @@ export function TopBar(): JSX.Element {
   const setSpeed = useStore((s) => s.setSpeed)
   const display = useUi((s) => s.display)
   const course = useUi((s) => s.course)
-  const setCourse = useUi((s) => s.setCourse)
   const navigate = useUi((s) => s.navigate)
   const back = useUi((s) => s.back)
   const forward = useUi((s) => s.forward)
@@ -102,9 +101,9 @@ export function TopBar(): JSX.Element {
     lockWorkstation()
   }
 
-  const current = DISPLAY_NAVIGATION.find(n => n.id === display)
+  const current = navigationFor(course).find(n => n.id === display)
   const searchText = query.trim().toLowerCase()
-  const matchingDisplays = DISPLAY_NAVIGATION.filter(n => n.label.toLowerCase().includes(searchText))
+  const matchingDisplays = navigationFor(course).filter(n => n.label.toLowerCase().includes(searchText))
   const matchingModules = Object.values(modules).filter(m =>
     `${m.tag} ${m.description}`.toLowerCase().includes(searchText)
   )
@@ -128,7 +127,7 @@ export function TopBar(): JSX.Element {
   const [confirmNew, setConfirmNew] = useState(false)
   const [pendingImport, setPendingImport] = useState<{ name: string; text: string } | null>(null)
   const startNewProject = (): void => {
-    if (!useLibrary.getState().installCourseProject()) { window.alert('New Course 7016 Project needs the Can Configure key and an unlocked workstation.'); return }
+    if (!newProjectForActiveClass()) { window.alert(`New Course ${getActiveProject()} Project needs the Can Configure key and an unlocked workstation.`); return }
     useSystem.getState().resetPreferences()
     saveCourseDatabase()
     resetToOverview()
@@ -147,7 +146,7 @@ export function TopBar(): JSX.Element {
     void file.text().then(text => setPendingImport({ name: file.name, text }))
   }
   const finishImport = (name: string, text: string): void => {
-    if (!useLibrary.getState().installCourseProject()) return
+    if (!newProjectForActiveClass()) return
     if (!restoreCourseDatabase(text)) { window.alert(`${name} is not a BatchLiveTrainer database export.`); return }
     saveCourseDatabase()
     resetToOverview()
@@ -206,7 +205,7 @@ export function TopBar(): JSX.Element {
       <DropdownMenu
         label="File"
         items={[
-          { label: '🎓 New Course 7016 Project (DV_School)', onClick: () => setConfirmNew(true) },
+          { label: `🎓 New Course ${getActiveProject()} Project (${getActiveProject() === 'DV-09' ? 'DV-09 plant' : 'DV_School'})`, onClick: () => setConfirmNew(true) },
           { label: '💾 Save DV_School now (also autosaved)', onClick: () => { if (!saveCourseDatabase()) window.alert('The database could not be saved (storage unavailable or full).') } },
           { label: '⤓ Export DV_School database...', onClick: exportDatabase },
           { label: '⤒ Import DV_School database...', onClick: () => importRef.current?.click() }
@@ -214,8 +213,8 @@ export function TopBar(): JSX.Element {
       />
       <input ref={importRef} type="file" accept=".json" hidden aria-label="Import DV_School database file"
         onChange={e => { importDatabase(e.target.files?.[0]); e.target.value = '' }} />
-      {confirmNew && <ConfirmDialog title="New Course 7016 Project (DV_School)" okLabel="Start over"
-        text={'Discard your saved DV_School database and start Course 7016 over with a fresh copy (ED_CENTER_BATCH)?\n\nEverything you configured is removed and Enable Batch is turned off again (Chapter 3). Your workshop check-box ticks are kept.\n\nUse File → Export DV_School database first if you want a backup. This cannot be undone.'}
+      {confirmNew && <ConfirmDialog title={`New Course ${getActiveProject()} Project`} okLabel="Start over"
+        text={`Discard your saved ${getActiveProject() === 'DV-09' ? 'DV-09' : 'DV_School'} database and start Course ${getActiveProject()} over with a fresh copy?\n\nEverything you configured is removed${getActiveProject() === '7016' ? ' and Enable Batch is turned off again (Chapter 3)' : ''}. Your workshop check-box ticks are kept.\n\nUse File → Export database first if you want a backup. This cannot be undone.`}
         onOk={startNewProject} onClose={() => setConfirmNew(false)} />}
       {pendingImport && <ConfirmDialog title="Import DV_School database" okLabel="Import"
         text={`Replace the current DV_School database with ${pendingImport.name}?`}
@@ -246,18 +245,18 @@ export function TopBar(): JSX.Element {
       <div className="nav-arrows">
         <RibbonButton icon="back" label="Back" disabled={histIndex <= 0} onClick={back} />
         <RibbonButton icon="forward" label="Forward" disabled={histIndex >= histLen - 1} onClick={forward} />
-        <RibbonButton icon="up" label="Up to Process" disabled={display === 'process'} onClick={() => navigate('process')} />
-        <RibbonButton icon="home" label="Home display" onClick={() => navigate('process')} />
+        <RibbonButton icon="up" label="Up to Process" disabled={display === homeDisplayFor(course)} onClick={() => navigate(homeDisplayFor(course))} />
+        <RibbonButton icon="home" label="Home display" onClick={() => navigate(homeDisplayFor(course))} />
       </div>
       <select className="picture-selector" aria-label="Current display" value={display}
         onChange={event => {
-          const target = DISPLAY_NAVIGATION.find(n => n.id === event.target.value)
+          const target = navigationFor(course).find(n => n.id === event.target.value)
           if (target) navigate(target.id)
         }}>
-        <optgroup label="Process displays">{DISPLAY_NAVIGATION.filter(n => n.operator).map(n =>
+        <optgroup label="Process displays">{navigationFor(course).filter(n => n.operator).map(n =>
           <option key={n.id} value={n.id}>{n.label}</option>
         )}</optgroup>
-        <optgroup label="Tools and engineering">{DISPLAY_NAVIGATION.filter(n => !n.operator).map(n =>
+        <optgroup label="Tools and engineering">{navigationFor(course).filter(n => !n.operator).map(n =>
           <option key={n.id} value={n.id}>{n.label}</option>
         )}</optgroup>
       </select>
@@ -265,8 +264,8 @@ export function TopBar(): JSX.Element {
         onChange={event => {
           const next = COURSES.find(c => c.id === event.target.value)
           if (!next) return
-          setCourse(next.id)
-          if (!next.built) window.alert(`Class ${next.id} is not built out yet. Only class 7016 has workshops and checks so far.`)
+          if (!openCourse(next.id)) { window.alert(`Class ${next.id} could not be opened: it needs the Can Configure key and an unlocked workstation.`); return }
+          if (!next.built) window.alert(`Class ${next.id} is not built out yet. Only classes 7016 and DV-09 have workshops and checks so far.`)
         }}>
         {COURSES.map(c => <option key={c.id} value={c.id}>{`Class ${c.id}${c.built ? '' : ' (not built yet)'}`}</option>)}
       </select>

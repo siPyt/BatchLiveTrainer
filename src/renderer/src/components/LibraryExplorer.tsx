@@ -24,10 +24,15 @@ import { useExecUi } from '../ui/executiveUi'
 import { useWindows } from '../ui/windowStore'
 import { useHistUi } from './HistorianUi'
 import { useCampUi } from './CampaignUi'
+import { useCtlUi, channelName } from './ControllerUi'
+import type { TraditionalCard } from '../engine/traditionalIo'
+
+const IO_CARD_LABEL: Record<string, string> = { AI: 'Analog Input', AO: 'Analog Output', DI: 'Discrete Input', DO: 'Discrete Output' }
 
 export const DRAG_TEMPLATE = 'application/x-bl-template'
 export const DRAG_CLASS = 'application/x-bl-class'
 export const DRAG_AREA = 'application/x-bl-area'
+export const DRAG_CONTROLLER = 'application/x-bl-controller'
 
 export type LibrarySelection =
   | { kind: 'library' }
@@ -342,6 +347,8 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
   onWorkstation?: () => void; workstationSelected?: boolean
 }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)
+  const traditionalCards = useStore(s => s.hardware.traditionalCards)
+  const ioCards = (tag: string): TraditionalCard[] => Object.values(traditionalCards ?? {}).filter(card => card.controllerTag === tag).sort((a, b) => a.slot - b.slot)
   const lib = useLibrary()
   const batch = useBatch()
   const dp = useDownloadPending()
@@ -372,18 +379,32 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
       dataAttr={{ 'data-controller': c.tag }}
       onClick={() => onSelect({ kind: 'controller', tag: c.tag })}
       drop={{ accepts: [DRAG_AREA, DRAG_PCELL, DRAG_UNIT], onDrop: (type, v) => (type === DRAG_AREA ? assignArea(c.tag)(type, v) : assignBatch(c.tag)(type, v)) }}
+      drag={c.commissioned ? undefined : { type: DRAG_CONTROLLER, value: c.tag }}
       onContextMenu={e => { onSelect({ kind: 'controller', tag: c.tag }); setMenu({ x: e.clientX, y: e.clientY, label: c.tag, items: [
         { label: 'Explore', onClick: () => onSelect({ kind: 'controller', tag: c.tag }) },
-        { label: 'Download ▸ Controller...', onClick: () => setDownloading(c.tag), disabled: c.commissioned ? undefined : 'Commission the controller first' },
+        c.commissioned ? { label: 'Download ▸ Controller...', onClick: () => (c.trackDownload ? useCtlUi.getState().open({ t: 'download', tag: c.tag }) : setDownloading(c.tag)) }
+          : { label: 'Commission...', onClick: () => useCtlUi.getState().open({ t: 'commission', tag: c.tag }) },
         { label: 'Upload', disabled: 'There is no need to perform an upload in this workshop' },
+        ...(c.commissioned ? [{ label: 'Auto-Sense I/O Cards...', onClick: () => useCtlUi.getState().open({ t: 'sense', tag: c.tag }) }] : []),
         sep,
         { label: "What's this?", onClick: () => window.alert(WHATS_THIS.controller) },
-        { label: 'Properties', onClick: () => onSelect({ kind: 'controller', tag: c.tag }) }
+        { label: 'Properties', onClick: () => { onSelect({ kind: 'controller', tag: c.tag }); useCtlUi.getState().open({ t: 'props', tag: c.tag }) } }
       ] }) }}>
       <Row depth={d + 1} icon={<DvIcon kind="folder" />} label={<span>Assigned Modules</span>} sub={`${count} module(s)`}
         pending={pendingFor(c.tag) ? tri : undefined}
         selected={selection?.kind === 'controller' && selection.tag === c.tag && !!selection.assigned}
         onClick={() => onSelect({ kind: 'controller', tag: c.tag, assigned: true })} />
+      {c.commissioned && c.trackDownload && <Row depth={d + 1} open={!!open[`${c.tag}:io`]} onToggle={() => toggle(`${c.tag}:io`)} icon={<DvIcon kind="folder" />}
+        label={<span>I/O</span>} sub={`${ioCards(c.tag).length} card(s)`} pending={pendingFor(c.tag) ? tri : undefined} dataAttr={{ 'data-io': c.tag }}>
+        {ioCards(c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
+          label={<span>C{String(card.slot).padStart(2, '0')}</span>} sub={`${IO_CARD_LABEL[card.type]} card, 8 channels`} dataAttr={{ 'data-io-card': card.id }}>
+          {card.channels.map(ch => <Row key={ch.channel} depth={d + 3} icon={<DvIcon kind="item" />} label={<span>{channelName(ch.channel)}</span>}
+            sub={`${ch.dst || '(unnamed)'}${ch.enabled ? ' · enabled' : ''}`} dataAttr={{ 'data-io-channel': `${card.id}/${channelName(ch.channel)}` }}
+            onClick={() => undefined}
+            onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: `${channelName(ch.channel)}`, items: [
+              { label: 'Properties', onClick: () => useCtlUi.getState().open({ t: 'channel', cardId: card.id, channel: ch.channel }) }] }) }} />)}
+        </Row>)}
+      </Row>}
       {unitsOn(c.tag).map(u => <Row key={u} depth={d + 1} icon={<BatchIcon kind="unit" />} label={<span>{u}</span>} sub="Assigned unit module"
         dataAttr={{ 'data-controller-unit': u }}
         selected={selection?.kind === 'batch' && selection.sel.t === 'unit' && selection.sel.name === u}
@@ -400,7 +421,8 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         {all.filter(c => !c.commissioned).map(c => node(c, depth + 2))}
       </Row>
       <Row depth={depth + 1} open={!!open.ctlnet} onToggle={() => toggle('ctlnet')} selected={selection?.kind === 'ctlnet'}
-        icon={<DvIcon kind="ctlnet" />} pending={dp.anyController ? tri : undefined} label={<span>Control Network</span>} onClick={() => onSelect({ kind: 'ctlnet' })}>
+        icon={<DvIcon kind="ctlnet" />} pending={dp.anyController ? tri : undefined} label={<span>Control Network</span>} onClick={() => onSelect({ kind: 'ctlnet' })}
+        drop={{ accepts: [DRAG_CONTROLLER], onDrop: (_type, tag) => useCtlUi.getState().open({ t: 'commission', tag }) }}>
         {onWorkstation && <Row depth={depth + 2} selected={workstationSelected} icon={<DvIcon kind="workstation" />}
           open={batchOn ? open.proplus !== false : undefined} onToggle={batchOn ? () => setOpen(o => ({ ...o, proplus: o.proplus === false })) : undefined}
           label={<span>PROPLUS</span>} sub="ProfessionalPLUS workstation (simulated) — Licensing Properties" onClick={onWorkstation}

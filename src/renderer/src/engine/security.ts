@@ -235,6 +235,8 @@ interface SecurityState {
 const DEFAULT_PASSWORD = 'admin123'
 const DEFAULT_USERS: DvUser[] = [
   { name: 'admin', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
+  // Course DV-09 workshop (p1-50): the DeltaV logon is administrator / deltav (lower case).
+  { name: 'administrator', fullName: 'Administrator', password: 'deltav', locks: [...ALL_LOCKS] },
   { name: 'admin123', fullName: 'Administrator', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
   { name: 'ENGINEER', fullName: 'System Engineer', password: DEFAULT_PASSWORD, locks: [...ALL_LOCKS] },
   {

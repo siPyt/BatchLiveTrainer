@@ -16,6 +16,8 @@ export type TraditionalCardType = 'AI' | 'AO' | 'DI' | 'DO'
 export interface TraditionalChannel {
   channel: number
   dst: string
+  /** Free-text description from the channel Properties window (DST configuration, p1-90). */
+  description?: string
   enabled: boolean
   value: number
   bad: boolean

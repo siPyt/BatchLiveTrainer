@@ -281,7 +281,7 @@ interface StoreState extends PlantState {
   downloadSerialCard: (cardId: string) => string | null
   addTraditionalCard: (controllerTag: string, slot: number, type: TraditionalCardType) => boolean
   configureTraditionalChannel: (cardId: string, channel: number,
-    patch: { dst: string; enabled: boolean; tiebackDst?: string }) => boolean
+    patch: { dst: string; enabled: boolean; tiebackDst?: string; description?: string }) => boolean
   setTraditionalInput: (dst: string, value: number) => boolean
   /** DV09-014: set a DO channel to Latching, Momentary (pulse width) or Continuous pulse (period). */
   configureOutputOption: (cardId: string, channel: number, option: DoOutputOption) => boolean
@@ -1697,11 +1697,22 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get()
     const controller = state.hardware.controllers[tag]
     if (!controller || !controller.commissioned || controllerIsDown(controller)) return false
-    const result = scanControllerIo(state.hardware, tag, new Set(Object.keys(state.modules)))
+    // Auto-sense discovers the installed cards and adds them under the controller's (commissioned) name.
+    let hardware = state.hardware
+    if (controller.installedCards?.length) {
+      const cards = { ...(hardware.traditionalCards ?? {}) }
+      for (const installed of controller.installedCards) {
+        const card = makeTraditionalCard(tag, installed.slot, installed.type)
+        if (!cards[card.id]) cards[card.id] = card
+      }
+      hardware = { ...hardware, traditionalCards: cards }
+    }
+    const result = scanControllerIo(hardware, tag, new Set(Object.keys(state.modules)))
     if (!result) return false
     set((s) => ({
       hardware: {
         ...s.hardware,
+        traditionalCards: hardware.traditionalCards,
         controllers: { ...s.hardware.controllers, [tag]: { ...s.hardware.controllers[tag], lastAutoSense: result } }
       },
       rev: s.rev + 1
@@ -2316,7 +2327,8 @@ export const useStore = create<StoreState>((set, get) => ({
   configureTraditionalChannel: (cardId, channelNumber, patch) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure ${cardId} channel ${channelNumber}`)) return false
     const normalized = { ...patch, dst: patch.dst.trim().toUpperCase(),
-      tiebackDst: patch.tiebackDst?.trim().toUpperCase() || undefined }
+      tiebackDst: patch.tiebackDst?.trim().toUpperCase() || undefined,
+      ...(patch.description !== undefined ? { description: patch.description.trim().slice(0, 255) } : {}) }
     const card = get().hardware.traditionalCards?.[cardId]
     const error = channelConfigurationError(get().hardware, cardId, channelNumber, normalized)
     if (error || !card) {

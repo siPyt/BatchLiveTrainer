@@ -25,6 +25,7 @@
                     "test:course13": "node --test tests/course7016-ch13.test.cjs",
                     "test:course14": "node --test tests/course7016-ch14.test.cjs",
                     "test:course15": "node --test tests/course7016-ch15.test.cjs",
+                    "test:dv09": "node --test tests/dv09-ch1.test.cjs tests/dv09-ch2.test.cjs",
                     "dist":  "electron-vite build \u0026\u0026 electron-builder",
                     "dist:win":  "electron-vite build \u0026\u0026 electron-builder --win",
                     "icon":  "node scripts/gen-icon.mjs",

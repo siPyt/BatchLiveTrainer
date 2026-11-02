@@ -39,6 +39,9 @@ const ROLE_COLOR: Record<string, string> = {
 export function PhysicalNetworkDisplay(): JSX.Element {
   const fieldbusEnabled = useSystem((s) => s.features.fieldbus)
   const hardware = useStore((s) => s.hardware)
+  const logEvent = useStore((s) => s.logEvent)
+  // This display stands in for DeltaV Diagnostics (Explorer toolbar button, Utilities menu, Physical Network ribbon button).
+  useEffect(() => { logEvent('DIAGNOSTIC', 'DeltaV Diagnostics', 'DeltaV Diagnostics launched') }, [logEvent])
   const createController = useStore((s) => s.createController)
   const failController = useStore((s) => s.failController)
   const restoreController = useStore((s) => s.restoreController)

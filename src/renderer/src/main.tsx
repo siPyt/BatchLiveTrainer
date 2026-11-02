@@ -1,10 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
-import { useLibrary } from './engine/libraryStore'
 import './engine/batchStore'
 import { useStore } from './engine/store'
-import { restoreCourseDatabase, startCourseAutosave } from './engine/courseSave'
+import { startCourseAutosave } from './engine/courseSave'
+import { bootProject, savedProject } from './ui/courseSwitch'
 import { startKeepAwake } from './engine/keepAwake'
 import { startHealthMonitor } from './engine/health'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
@@ -17,8 +17,8 @@ import './styles.css'
 
 // BatchLiveTrainer opens on the Course 7016 DV_School training database (ED_CENTER_BATCH): the student's saved
 // database when there is one, otherwise a fresh copy. It is autosaved while the app runs.
-useLibrary.getState().installCourseProject()
-if (restoreCourseDatabase()) useStore.getState().logEvent('CONFIGURE', 'DV_School', 'Saved Course 7016 database restored')
+const bootedProject = savedProject()
+if (bootProject()) useStore.getState().logEvent('CONFIGURE', bootedProject === 'DV-09' ? 'DV-09' : 'DV_School', `Saved Course ${bootedProject} database restored`)
 startCourseAutosave()
 // Stay on the same screen across reloads and keep the display awake (an idle tab that sleeps reloads to Process).
 restoreUiSession()

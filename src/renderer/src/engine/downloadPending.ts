@@ -3,6 +3,7 @@ import { useLibrary, downloadState } from './libraryStore'
 import { useBatch, unitDownloadState } from './batchStore'
 import { useEm, emDownloadState } from './emStore'
 import { moduleDownloadStatus } from './downloadStatus'
+import { controllerHardwarePending } from './controllerConfig'
 
 /**
  * Where DeltaV Explorer shows the blue "download required" triangle: on every changed object and on all of its
@@ -67,6 +68,7 @@ export function computeDownloadPending(): DownloadPending {
   const controllers = new Set<string>()
   for (const tag of assignedTags) controllers.add(lib.assignments[tag])
   for (const u of unitOwn) { const c = batch.unitAssignments[u]; if (c) controllers.add(c) }
+  for (const c of Object.values(main.hardware.controllers)) if (controllerHardwarePending(c, main.hardware)) controllers.add(c.tag)
 
   return {
     tag: t => rowTags.has(t),

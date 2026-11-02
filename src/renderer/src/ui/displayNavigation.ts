@@ -1,4 +1,5 @@
 import type { DisplayId } from './uiStore'
+import type { CourseId } from './courses'
 
 export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boolean }[] = [
   { id: 'process', label: 'Process (ED_CENTER_BATCH)', operator: true },
@@ -24,3 +25,15 @@ export const DISPLAY_NAVIGATION: { id: DisplayId; label: string; operator: boole
   { id: 'applications', label: 'DeltaV Applications', operator: false },
   { id: 'hardware', label: 'Physical Network', operator: false }
 ]
+
+/** Displays that only make sense with the 7016 Batch plant; class DV-09 hides them. */
+const BATCH_ONLY: DisplayId[] = ['process', 'batchhelp', 'batchlist', 'unackprompts', 'histadmin', 'histview', 'campaigns', 'boi', 'recipestudio', 'batchmgr']
+
+export function navigationFor(course: CourseId): { id: DisplayId; label: string; operator: boolean }[] {
+  return DISPLAY_NAVIGATION
+    .filter(n => course !== 'DV-09' || !BATCH_ONLY.includes(n.id))
+    .map(n => (n.id === 'workshops' ? { ...n, label: `Course ${course} Workshops` } : n))
+}
+
+/** The display a class opens to and returns to with Home / Up. */
+export const homeDisplayFor = (course: CourseId): DisplayId => (course === 'DV-09' ? 'workshops' : 'process')
