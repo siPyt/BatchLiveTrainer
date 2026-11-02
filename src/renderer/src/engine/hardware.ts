@@ -78,6 +78,8 @@ export interface Controller {
   simplexOnly?: boolean
   /** Cards physically installed in the I/O subsystem; auto-sense discovers them and adds them to the configuration. */
   installedCards?: { slot: number; type: TraditionalCardType }[]
+  /** Series 2 H1 interfaces physically installed (course DV-09 chapter 12: slot 5); auto-sense adds them once FOUNDATION fieldbus is enabled. */
+  installedH1?: { slot: number }[]
   /** Class DV-09: Explorer shows the blue download triangle until the controller's hardware configuration (I/O cards, DSTs, cold restart, redundancy) is downloaded. */
   trackDownload?: boolean
   /** Signature of the hardware configuration at the last total download, and when that happened. */
@@ -130,6 +132,8 @@ export interface HardwareState {
   serialCards?: Record<string, import('./serialIo').SerialCard>
   /** DV09-096..127 FOUNDATION fieldbus H1 cards keyed by card id. */
   h1Cards?: Record<string, import('./fieldbus').H1Card>
+  /** Course DV-09 chapter 12 workshop rig: the wired H1 segment (power supply, host/trunk/spur cables, terminator) and its test meter. */
+  fieldbusRig?: import('./fieldbusRigModel').FieldbusRig
   /** DV09-123 area each controller (node) is assigned to; device alarms can inherit it. */
   controllerAreas?: Record<string, string>
   /** DV09-006 named Control Network slots a decommissioned controller can be dropped onto. */
@@ -139,6 +143,8 @@ export interface HardwareState {
   /** Standalone AI / PID AI1, AO1, AO2 physical channel bindings. */
   analogBindings?: Record<string, AnalogDstBindings>
   deviceBindings?: Record<string, DeviceDstBindings>
+  /** DV-09 training rig: a discrete input DST that reads a discrete output DST through the simulated process (input DST -> output DST). */
+  simulatedWiring?: Record<string, string>
 }
 
 function channel(slot: number, type: CharmType | null, boundTag?: string, boundField?: BoundField): CharmChannel {

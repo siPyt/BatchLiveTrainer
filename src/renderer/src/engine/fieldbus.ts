@@ -28,6 +28,8 @@ export const H1_LIMITS = {
 } as const
 
 export const MACROCYCLE_BANDS_MS = [500, 1000, 2000, 4000] as const
+/** Requested macrocycle list of the port Properties dialog (p12-23): 150 and 250 ms and 5 s also exist besides the module bands. */
+export const REQUESTED_MACROCYCLE_OPTIONS_MS = [150, 250, 500, 1000, 2000, 5000] as const
 
 export type FfBlockType = 'AI' | 'AO' | 'MAI' | 'PID' | 'DI' | 'DO' | 'ISEL'
 export type FfMode = 'AUTO' | 'MAN' | 'OOS'
@@ -150,7 +152,10 @@ export const FF_CATALOG: FfCatalogEntry[] = [
   { id: 'VI-FV300', manufacturer: 'Virtual Instruments', model: 'FV-300 valve positioner', deviceType: 'POSITIONER', revisions: [2, 3], ddRevisions: [2, 3], linkMaster: true, reannunciation: true,
     blocks: [{ tag: 'AO1', type: 'AO' }, { tag: 'PID1', type: 'PID' }, { tag: 'ISEL1', type: 'ISEL' }], transducers: [{ tag: 'TB1', kind: 'VALVE' }] },
   { id: 'VI-FM400', manufacturer: 'Virtual Instruments', model: 'FM-400 flow meter', deviceType: 'FLOW', revisions: [1], ddRevisions: [1], linkMaster: false, reannunciation: false,
-    blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'DI1', type: 'DI' }], transducers: [{ tag: 'TB1', kind: 'FLOW' }] }
+    blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'DI1', type: 'DI' }], transducers: [{ tag: 'TB1', kind: 'FLOW' }] },
+  // The temperature transmitter of the DV-09 training simulator rig (chapter 12): a generic 3144P-style device, not a certified device model.
+  { id: 'RM-3144P', manufacturer: 'Rosemount Inc.', model: '3144P temperature transmitter', deviceType: 'TEMPERATURE', revisions: [1, 2], ddRevisions: [1, 2], linkMaster: false, reannunciation: true,
+    blocks: [{ tag: 'AI1', type: 'AI' }, { tag: 'AI2', type: 'AI' }, { tag: 'PID1', type: 'PID' }], transducers: [{ tag: 'TB1', kind: 'TEMPERATURE' }] }
 ]
 
 export const catalogEntry = (id: string): FfCatalogEntry | undefined => FF_CATALOG.find((entry) => entry.id === id)
@@ -250,6 +255,8 @@ export interface H1PortConfig {
   enabled: boolean
   description: string
   requestedMacrocycleMs: number
+  /** Properties > General: Requested macrocycle = Module-driven (blocks run in the bands of their module scan rates). */
+  moduleDriven?: boolean
   minCdSpacingMs: number
   devices: Record<string, FfDevice>
   links: FfLink[]
@@ -433,7 +440,8 @@ export function portMacrocycle(port: H1PortConfig): { requestedMs: number; calcu
 }
 
 export function h1PortError(patch: Partial<H1PortConfig>): string | null {
-  if (patch.requestedMacrocycleMs !== undefined && !(MACROCYCLE_BANDS_MS as readonly number[]).includes(patch.requestedMacrocycleMs)) {
+  if (patch.requestedMacrocycleMs !== undefined && !(MACROCYCLE_BANDS_MS as readonly number[]).includes(patch.requestedMacrocycleMs) &&
+    !(REQUESTED_MACROCYCLE_OPTIONS_MS as readonly number[]).includes(patch.requestedMacrocycleMs)) {
     return `Requested macrocycle must be one of ${MACROCYCLE_BANDS_MS.join(', ')} ms`
   }
   if (patch.minCdSpacingMs !== undefined && (!Number.isInteger(patch.minCdSpacingMs) || patch.minCdSpacingMs < 0 || patch.minCdSpacingMs > H1_LIMITS.maxCdSpacingMs)) {

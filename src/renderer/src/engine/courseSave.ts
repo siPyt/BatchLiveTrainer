@@ -6,6 +6,8 @@ import { useExecutive } from './executive'
 import { useVc } from './versionControl'
 import { useHistorian } from './batchHistorian'
 import { useCampaigns } from './campaignManager'
+import { useDv09Cm } from './dv09Cm'
+import { usePictures } from './pictureStore'
 
 // BatchLiveTrainer keeps the student's Course 7016 DV_School database between sessions: the configuration
 // built in Chapters 1-5 (classes, modules, unit/phase/EM configuration, assignments, downloads) and the
@@ -24,7 +26,7 @@ export const getActiveProject = (): ProjectCourse => activeProject
 export const saveKeyFor = (c: ProjectCourse): string => (c === 'DV-09' ? DV09_SAVE_KEY : COURSE_SAVE_KEY)
 
 type Store = { getState: () => object; setState: (partial: Record<string, unknown>) => void }
-const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 'historian' | 'campaigns', Store> = {
+const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 'historian' | 'campaigns' | 'dv09cm' | 'pictures', Store> = {
   main: useStore as unknown as Store,
   library: useLibrary as unknown as Store,
   batch: useBatch as unknown as Store,
@@ -32,7 +34,9 @@ const STORES: Record<'main' | 'library' | 'batch' | 'em' | 'executive' | 'vc' | 
   executive: useExecutive as unknown as Store,
   vc: useVc as unknown as Store,
   historian: useHistorian as unknown as Store,
-  campaigns: useCampaigns as unknown as Store
+  campaigns: useCampaigns as unknown as Store,
+  dv09cm: useDv09Cm as unknown as Store,
+  pictures: usePictures as unknown as Store
 }
 
 export interface CourseSave { version: number; savedAt: number; stores: Record<string, Record<string, unknown>> }
@@ -43,7 +47,9 @@ function dataOf(state: object): Record<string, unknown> {
 }
 
 export function courseSnapshot(): CourseSave {
-  return { version: VERSION, savedAt: Date.now(), stores: Object.fromEntries(Object.entries(STORES).map(([k, s]) => [k, dataOf(s.getState())])) }
+  // The operator pictures of the DV-09 project (workshop pictures) are part of its database; the 7016 save is unchanged.
+  const entries = Object.entries(STORES).filter(([k]) => k !== 'pictures' || activeProject === 'DV-09')
+  return { version: VERSION, savedAt: Date.now(), stores: Object.fromEntries(entries.map(([k, s]) => [k, dataOf(s.getState())])) }
 }
 
 export function saveCourseDatabase(): boolean {

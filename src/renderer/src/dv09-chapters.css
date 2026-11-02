@@ -1,0 +1,5 @@
+/* Course DV-09 chapters 10-13: System Preferences / Database Administration, the fieldbus segment rig and Fluke 123, Explorer H1 dialogs, Alarm List Quick Edit. */
+.sp-start { align-self: flex-start; }
+.sp-dbicons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px 4px; padding: 6px; }
+.sp-dbicons span { font-size: 10px; text-align: center; color: #1b1f24; line-height: 1.2; }
+.sp-dbicons span::before { content: ''; display: block; width: 22px; height: 18px; margin: 0 auto 2px; background: linear-gradient(#5b8e57, #2f6a38); border-radius: 3px; }

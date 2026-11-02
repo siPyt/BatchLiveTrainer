@@ -66,6 +66,8 @@ export interface SerialDatasetConfig {
 
 export interface SerialDeviceConfig {
   name: string
+  /** Free text shown in the device Properties (p9-17). */
+  description?: string
   address: number
   datasets: Record<string, SerialDatasetConfig>
 }

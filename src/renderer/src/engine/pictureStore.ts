@@ -64,6 +64,8 @@ export interface PicElement {
 export interface Picture {
   name: string
   elements: PicElement[]
+  /** Course DV-09: signature of the picture as last saved with File > Save (see pictureSignature). */
+  saved?: string
   /** DV09-027 picture template, background color and size (default 1000 x 640). */
   template?: PictureTemplateName
   background?: string
@@ -75,10 +77,17 @@ export interface Picture {
 
 export type PictureTarget = { kind: 'display'; display: 'alarms' | 'process' } | { kind: 'picture'; name: string }
 
+/** Everything File > Save stores of a picture; a picture whose signature differs from `saved` has unsaved changes. */
+export function pictureSignature(p: Picture): string {
+  const { saved: _saved, ...rest } = p
+  void _saved
+  return JSON.stringify(rest)
+}
+
 export function resolvePictureTarget(name: string, pictures: Record<string, Picture>): PictureTarget | null {
   const full = name.trim().toUpperCase()
   const key = full.replace(/\.GRF$/, '')
-  if (key === 'OVW_REF') return { kind: 'display', display: 'process' }
+  if (key === 'OVW_REF') return pictures['OVW_REF'] ? { kind: 'picture', name: 'OVW_REF' } : { kind: 'display', display: 'process' }
   if (key === 'ALARMLIST') return { kind: 'display', display: 'alarms' }
   if (key === 'PROCESS') return { kind: 'display', display: 'process' }
   const picture = pictures[full] ?? pictures[key]
@@ -353,6 +362,7 @@ export const usePictures = create<PictureState>((set, get) => ({
       return rejectPicture(pic, `Picture Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
     useStore.getState().logEvent('CONFIGURE', pic, 'Picture saved to local browser database; not a native .grf file')
+    set(s => ({ pictures: { ...s.pictures, [pic]: { ...s.pictures[pic], saved: pictureSignature(s.pictures[pic]) } } }))
     return true
   },
 

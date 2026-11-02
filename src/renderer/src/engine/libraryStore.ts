@@ -3,6 +3,7 @@ import { useStore } from './store'
 import { usePictures } from './pictureStore'
 import { useSecurity } from './security'
 import { controllerIsDown, type Controller } from './hardware'
+import { DV09_SIM_WIRING } from './traditionalIo'
 import { moduleNameError } from './naming'
 import type { AlarmLimit, AnalogIndicator, AnyModule } from './types'
 import type { NamedSetDefinition } from './namedSets'
@@ -303,7 +304,8 @@ function dv09Controller(): Controller {
     tag: DV09_CONTROLLER, description: '', commissioned: false, redundant: false, networkRedundant: false, controlNetworkAddress: null,
     identified: false, coldRestartMinutes: 0, powerDownAt: null, lastAutoSense: null, primary: 'N/A', secondary: 'N/A', scanTimeMs: 0,
     cpuLoadPct: 0, carrierIds: [], simplexOnly: true, trackDownload: true,
-    installedCards: [{ slot: 1, type: 'AI' }, { slot: 2, type: 'AO' }, { slot: 3, type: 'DI' }, { slot: 4, type: 'DO' }]
+    installedCards: [{ slot: 1, type: 'AI' }, { slot: 2, type: 'AO' }, { slot: 3, type: 'DI' }, { slot: 4, type: 'DO' }],
+    installedH1: [{ slot: 5 }]
   }
 }
 
@@ -330,7 +332,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     useStore.setState(s => ({
       areas: ['AREA_A'],
       modules: {},
-      hardware: { ...s.hardware, controllers: { [DV09_CONTROLLER]: dv09Controller() }, traditionalCards: {} },
+      hardware: { ...s.hardware, controllers: { [DV09_CONTROLLER]: dv09Controller() }, traditionalCards: {}, simulatedWiring: DV09_SIM_WIRING },
       namedSets: { configured: {}, deployed: {} },
       rev: s.rev + 1
     }))

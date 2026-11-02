@@ -13,6 +13,9 @@ export type DeviceDstBindings = Partial<Record<DeviceBindingPort, string>>
 
 export type TraditionalCardType = 'AI' | 'AO' | 'DI' | 'DO'
 
+/** Course DV-09 training rig (slides 3-12, 3-16): XV-1 (DO) is wired to LSO-1 (DI) and ZX-2 (DO) to XI-2 (DI) through the simulated process. */
+export const DV09_SIM_WIRING: Record<string, string> = { 'LSO-1': 'XV-1', 'XI-2': 'ZX-2' }
+
 export interface TraditionalChannel {
   channel: number
   dst: string
@@ -259,7 +262,7 @@ export function sampleDiscreteInputs(hw: HardwareState, modules: Record<string, 
     if (!module || (module.type !== 'DI' && module.type !== 'DO')) continue
     const target = findDst(hw, dst)
     module.ioBad = !target || target.card.type !== module.type ||
-      channelBad(hw, target.card, target.channel) || target.channel.bad || module.mode === 'OOS'
+      channelBad(hw, target.card, target.channel) || target.channel.bad || module.mode === 'OOS' || module.downloaded === false
     if (module.type === 'DI' && !module.ioBad && target) module.state = target.channel.value !== 0
   }
 }
@@ -292,9 +295,10 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       const tag = writers.get(channel.dst)
       const module = tag ? modules[tag] : undefined
       if (module?.type !== 'DO') continue
-      channel.bad ||= module.mode === 'OOS'
+      channel.bad ||= module.mode === 'OOS' || module.downloaded === false
       module.ioBad = channel.bad
-      if (!channel.bad) channel.value = driveDigitalOutput(channel, !!module.commanded, dt)
+      if (!channel.bad) channel.value = driveDigitalOutput(channel, !!module.commanded && module.modeTarget !== 'CAS', dt)
+      else if (module.downloaded === false) channel.value = 0
       module.state = channel.value !== 0
     }
   }
@@ -345,6 +349,12 @@ export function advanceTraditionalIo(hw: HardwareState, modules: Record<string, 
       channel.bad ||= !source || source.card.type !== (card.type === 'DI' ? 'DO' : 'AO') || source.channel.bad
       if (!channel.bad && source) channel.value = source.channel.value
     }
+  }
+  for (const [inputDst, outputDst] of Object.entries(hw.simulatedWiring ?? {})) {
+    const input = findDst(next, inputDst)
+    const output = findDst(next, outputDst)
+    if (input?.card.type !== 'DI' || output?.card.type !== 'DO' || input.channel.tiebackDst || !input.channel.enabled) continue
+    input.channel.value = output.channel.value
   }
   for (const card of Object.values(cards)) {
     if (card.type !== 'AI') continue

@@ -181,7 +181,7 @@ export function pictureSourcePaths(module: AnyModule | undefined): { path: strin
 export interface DiscretePath { block: 'DC1' | 'DI1' | 'DO1'; role: 'command' | 'feedback' }
 
 export function pictureDiscretePath(path: string | undefined): DiscretePath | null {
-  const match = (path ?? '').trim().toUpperCase().match(/^(DC1|DI1|DO1)\/(SP_D|PV_D)(?:\.CV)?$/)
+  const match = (path ?? '').trim().toUpperCase().match(/^(DC1|DI1|DO1)\/(SP_D|PV_D)(?:\.(?:F_)?CV)?$/)
   return match ? { block: match[1] as DiscretePath['block'], role: match[2] === 'SP_D' ? 'command' : 'feedback' } : null
 }
 
@@ -256,7 +256,7 @@ export interface DynamoSetInfo {
 }
 
 export const DYNAMO_SETS: Record<DynamoSetName, DynamoSetInfo> = {
-  VALVE17: { label: 'Valve17', width: 72, height: 56, modules: ['VALVE', 'PID'], defaults: ['#ffffff', '#ffe000'], hint: 'On/off valve; follows open feedback (VALVE) or applied output (PID)' },
+  VALVE17: { label: 'Valve17', width: 72, height: 56, modules: ['VALVE', 'PID', 'DO'], defaults: ['#ffffff', '#ffe000'], hint: 'On/off valve; follows open feedback (VALVE), the discrete output state (DO) or applied output (PID)' },
   PUMPS_ANIM: { label: 'PumpsAnim', width: 72, height: 72, modules: ['MOTOR'], defaults: ['#ffffff', '#ffe000'], hint: 'Pump; impeller turns while the motor feedback is running' },
   PIPES_ANIM: { label: 'PipesAnim', width: 160, height: 16, modules: ['MOTOR', 'VALVE'], defaults: ['#ffffff', '#ffe000'], hint: 'Pipe segment; flow marks move while the motor runs or the valve is open' },
   VALVE_HORIZONTAL_CONTROL_D1: { label: 'ValveHorizontalControlD1', width: 96, height: 64, modules: ['PID', 'AO'], defaults: ['#ffffff', '#ffe000'], hint: 'Horizontal control valve; position bar shows applied OUT' }
@@ -288,6 +288,7 @@ export function dynamoState(el: PicElement, modules: Record<string, AnyModule>):
   let bad = false
   if (m.type === 'MOTOR') { active = m.running; bad = !!(m.ioInputBad || m.ioOutputBad) }
   else if (m.type === 'VALVE') { active = m.open; bad = !!(m.ioInputBad || m.ioOutputBad) }
+  else if (m.type === 'DO') { active = m.state; bad = !!m.ioBad }
   else if (m.type === 'PID') { position = m.out; active = m.out > 0; bad = !Number.isFinite(m.out) }
   else if (m.type === 'AO') { position = m.out; active = m.out > 0; bad = m.bad }
   return { active, position, bad, color: bad ? '#b8b8b8' : active ? colors.active : colors.inactive }

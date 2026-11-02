@@ -22,6 +22,7 @@ import { VcDialogHost } from './components/VersionControlUi'
 import { HistorianDialogHost } from './components/HistorianUi'
 import { CampaignDialogHost } from './components/CampaignUi'
 import { ControllerDialogHost } from './components/ControllerUi'
+import { SerialDialogHost } from './components/SerialExplorerUi'
 import { HistorianAdminDisplay, BatchHistoryViewDisplay } from './displays/HistorianDisplays'
 import { CampaignManagerDisplay } from './displays/CampaignDisplay'
 import { NoticeHost } from './components/AppNotices'
@@ -125,6 +126,7 @@ export function App(): JSX.Element {
       <HistorianDialogHost />
       <CampaignDialogHost />
       <ControllerDialogHost />
+      <SerialDialogHost />
       <NoticeHost />
       <SaveReminderHost />
       <AccessDeniedToast />

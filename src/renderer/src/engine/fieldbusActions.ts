@@ -3,6 +3,7 @@ import { useSecurity, type LockType } from './security'
 import { controllerIsDown } from './hardware'
 import { usePictures } from './pictureStore'
 import { deviceAlarmRankError } from './deviceAlarms'
+import { applyRig } from './fieldbusRigModel'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
 import {
   FF_BLOCK_PARAMS,
@@ -141,7 +142,7 @@ export function addH1Card(controllerTag: string, slot: number, redundant: boolea
   const error = h1PlacementError(slot, redundant, occupied)
   if (error) return fail(controllerTag, error)
   const card = makeH1Card(controllerTag, slot, redundant)
-  useStore.setState((s) => ({ hardware: { ...s.hardware, h1Cards: { ...s.hardware.h1Cards, [card.id]: card } }, rev: s.rev + 1 }))
+  useStore.setState((s) => ({ hardware: applyRig({ ...s.hardware, h1Cards: { ...s.hardware.h1Cards, [card.id]: card } }), rev: s.rev + 1 }))
   useStore.getState().logEvent('CONFIGURE', card.id, `${redundant ? 'Redundant' : 'Simplex'} Series 2 H1 card added`)
   return null
 }
@@ -164,7 +165,7 @@ export function removeH1Card(cardId: string): string | null {
   return null
 }
 
-export function configureH1Port(cardId: string, port: H1PortId, patch: Partial<Pick<H1PortConfig, 'enabled' | 'description' | 'requestedMacrocycleMs' | 'minCdSpacingMs'>>): string | null {
+export function configureH1Port(cardId: string, port: H1PortId, patch: Partial<Pick<H1PortConfig, 'enabled' | 'description' | 'requestedMacrocycleMs' | 'minCdSpacingMs' | 'moduleDriven'>>): string | null {
   if (!allow('CAN_CONFIGURE', `Configure H1 card ${cardId}`)) return denial('Requires the Can Configure key')
   const error = h1PortError(patch)
   if (error) return fail(cardId, error)

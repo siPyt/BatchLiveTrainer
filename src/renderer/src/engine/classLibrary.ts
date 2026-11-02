@@ -110,6 +110,7 @@ export const LIBRARY_TEMPLATES: TemplateNode[] = [
     ] },
     { name: 'Monitoring', kind: 'folder', children: [
       mt('ANALOG', 'Analog monitoring: read-only indication with an AI block and HI/LO alarms (also shipped as ANALOG_MON / MON_ANALOG). Used for the Chapter 1 LEVEL_INDICATOR class.', true),
+      mt('DISCRETE', 'Discrete monitoring: read-only indication of a discrete input (DI1 block) with a DISCRETE alarm. Drag it onto a plant area to create a control module (course DV-09 XVSTAT-101).'),
       mt('DISCRETE_MON', 'Discrete monitoring: read-only indication and alarms with a DI block.'),
       mt('TOTALIZER', 'Integrates an analog flow into a total.')
     ] },

@@ -25,6 +25,8 @@ import { useWindows } from '../ui/windowStore'
 import { useHistUi } from './HistorianUi'
 import { useCampUi } from './CampaignUi'
 import { useCtlUi, channelName } from './ControllerUi'
+import { useSerialUi, serialCardsOf, slotName, SERIAL_PORT_IDS } from './SerialExplorerUi'
+import { datasetDstName, PLC_TABLE_LABEL } from '../engine/serialIo'
 import type { TraditionalCard } from '../engine/traditionalIo'
 
 const IO_CARD_LABEL: Record<string, string> = { AI: 'Analog Input', AO: 'Analog Output', DI: 'Discrete Input', DO: 'Discrete Output' }
@@ -348,6 +350,7 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
 }): JSX.Element {
   const controllers = useStore(s => s.hardware.controllers)
   const traditionalCards = useStore(s => s.hardware.traditionalCards)
+  const serialCards = useStore(s => s.hardware.serialCards)
   const ioCards = (tag: string): TraditionalCard[] => Object.values(traditionalCards ?? {}).filter(card => card.controllerTag === tag).sort((a, b) => a.slot - b.slot)
   const lib = useLibrary()
   const batch = useBatch()
@@ -395,7 +398,54 @@ export function PhysicalNetworkTree({ selection, onSelect, depth = 0, onWorkstat
         selected={selection?.kind === 'controller' && selection.tag === c.tag && !!selection.assigned}
         onClick={() => onSelect({ kind: 'controller', tag: c.tag, assigned: true })} />
       {c.commissioned && c.trackDownload && <Row depth={d + 1} open={!!open[`${c.tag}:io`]} onToggle={() => toggle(`${c.tag}:io`)} icon={<DvIcon kind="folder" />}
-        label={<span>I/O</span>} sub={`${ioCards(c.tag).length} card(s)`} pending={pendingFor(c.tag) ? tri : undefined} dataAttr={{ 'data-io': c.tag }}>
+        label={<span>I/O</span>} sub={`${ioCards(c.tag).length + serialCardsOf(serialCards, c.tag).length} card(s)`} pending={pendingFor(c.tag) ? tri : undefined} dataAttr={{ 'data-io': c.tag }}
+        onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: 'I/O', items: [
+          { label: 'Explore', onClick: () => toggle(`${c.tag}:io`) },
+          { label: 'New Card...', onClick: () => useSerialUi.getState().open({ t: 'newCard', controller: c.tag }) },
+          sep,
+          { label: "What's this?", onClick: () => window.alert('I/O — the cards of this controller. Auto-sense detects the installed cards; New Card configures a placeholder for a card (for example the Serial card) before it is connected.') },
+          { label: 'Properties', disabled: 'Not modeled' }] }) }}>
+        {serialCardsOf(serialCards, c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
+          label={<span>{slotName(card.slot)}</span>} sub={`Serial card${card.placeholder ? ' (placeholder)' : ''}, 2 ports${card.deployed ? '' : ' · not downloaded'}`} dataAttr={{ 'data-serial-card': card.id }}
+          pending={!card.deployed || JSON.stringify(card.deployed) !== JSON.stringify(card.configured) ? tri : undefined}
+          onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: slotName(card.slot), items: [
+            { label: 'Explore', onClick: () => toggle(card.id) },
+            { label: 'Download ▸ Card...', onClick: () => useSerialUi.getState().open({ t: 'download', cardId: card.id }) },
+            { label: 'Delete', danger: true, onClick: () => { void askConfirm(`Delete serial card ${slotName(card.slot)}?`).then(yes => { if (yes) { const err = useStore.getState().removeSerialCard(card.id); if (err) window.alert(err) } }) } },
+            sep,
+            { label: 'Properties', disabled: 'The ports are configured with Pn > Properties' }] }) }}>
+          {SERIAL_PORT_IDS.map(portId => { const port = card.configured.ports[portId]; const devices = Object.values(port.devices)
+            return <Row key={portId} depth={d + 3} open={!!open[`${card.id}/${portId}`]} onToggle={devices.length ? () => toggle(`${card.id}/${portId}`) : undefined} icon={<DvIcon kind="item" />}
+              label={<span>{portId}</span>} sub={`Port · ${port.enabled ? 'enabled' : 'disabled'} · ${port.mode === 'MASTER' ? 'master' : 'slave'}`} dataAttr={{ 'data-serial-port': `${card.id}/${portId}` }}
+              onDoubleClick={() => useSerialUi.getState().open({ t: 'port', cardId: card.id, port: portId })}
+              onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: portId, items: [
+                { label: 'Explore', onClick: () => toggle(`${card.id}/${portId}`) },
+                { label: 'New Serial device', onClick: () => { setOpen(o => ({ ...o, [`${card.id}/${portId}`]: true })); useSerialUi.getState().open({ t: 'device', cardId: card.id, port: portId }) } },
+                { label: 'Diagnose', disabled: 'Use Diagnostics (Physical Network display)' },
+                sep,
+                { label: "What's this?", onClick: () => window.alert('Serial port — each port communicates with as many as 16 serial devices over RS232 (one device) or RS422/485.') },
+                { label: 'Properties', onClick: () => useSerialUi.getState().open({ t: 'port', cardId: card.id, port: portId }) }] }) }}>
+              {devices.map(dev => <Row key={dev.name} depth={d + 4} open={!!open[`${card.id}/${portId}/${dev.name}`]} onToggle={Object.keys(dev.datasets).length ? () => toggle(`${card.id}/${portId}/${dev.name}`) : undefined}
+                icon={<DvIcon kind="item" />} label={<span>{dev.name}</span>} sub={`Serial I/O device · address ${dev.address}${dev.description ? ` · ${dev.description}` : ''}`}
+                dataAttr={{ 'data-serial-device': `${card.id}/${portId}/${dev.name}` }}
+                onDoubleClick={() => useSerialUi.getState().open({ t: 'device', cardId: card.id, port: portId, device: dev.name })}
+                onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: dev.name, items: [
+                  { label: 'Explore', onClick: () => toggle(`${card.id}/${portId}/${dev.name}`) },
+                  { label: 'New Dataset', onClick: () => { setOpen(o => ({ ...o, [`${card.id}/${portId}/${dev.name}`]: true })); useSerialUi.getState().open({ t: 'dataset', cardId: card.id, port: portId, device: dev.name }) } },
+                  { label: 'Delete', danger: true, onClick: () => { const err = useStore.getState().removeSerialDevice(card.id, portId, dev.name); if (err) window.alert(err) } },
+                  sep,
+                  { label: 'Properties', onClick: () => useSerialUi.getState().open({ t: 'device', cardId: card.id, port: portId, device: dev.name }) }] }) }}>
+                {Object.values(dev.datasets).map(ds => <Row key={ds.name} depth={d + 5} icon={<DvIcon kind="item" />} label={<span>{ds.name}</span>}
+                  sub={`Dataset ${ds.tag} · ${ds.direction === 'OUTPUT' ? 'output' : 'input'} · ${PLC_TABLE_LABEL[ds.plcTable]} · ${datasetDstName(ds, 0)}`}
+                  dataAttr={{ 'data-serial-dataset': `${card.id}/${portId}/${dev.name}/${ds.name}` }}
+                  onDoubleClick={() => useSerialUi.getState().open({ t: 'dataset', cardId: card.id, port: portId, device: dev.name, dataset: ds.name })}
+                  onContextMenu={e => { setMenu({ x: e.clientX, y: e.clientY, label: ds.name, items: [
+                    { label: 'Delete', danger: true, onClick: () => { const err = useStore.getState().removeSerialDataset(card.id, portId, dev.name, ds.name); if (err) window.alert(err) } },
+                    sep,
+                    { label: 'Properties', onClick: () => useSerialUi.getState().open({ t: 'dataset', cardId: card.id, port: portId, device: dev.name, dataset: ds.name }) }] }) }} />)}
+              </Row>)}
+            </Row> })}
+        </Row>)}
         {ioCards(c.tag).map(card => <Row key={card.id} depth={d + 2} open={!!open[card.id]} onToggle={() => toggle(card.id)} icon={<DvIcon kind="item" />}
           label={<span>C{String(card.slot).padStart(2, '0')}</span>} sub={`${IO_CARD_LABEL[card.type]} card, 8 channels`} dataAttr={{ 'data-io-card': card.id }}>
           {card.channels.map(ch => <Row key={ch.channel} depth={d + 3} icon={<DvIcon kind="item" />} label={<span>{channelName(ch.channel)}</span>}

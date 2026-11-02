@@ -35,6 +35,8 @@ import { DEFAULT_RECIPE_NAME, defaultRecipe, recipeErrors, resolveRecipe, type R
 import { hostTimeoutError, hostWriteError, markHostBad, remoteHostOf, writeHostSignal, type HostInput } from './remoteHost'
 import { isDefaultSchedule, validateExecutionOrder, validateScanMultiple, type ModuleScheduling } from './moduleScheduling'
 import { featureDisabledError, featureEnabled } from './systemPreferences'
+import { makeH1Card } from './fieldbus'
+import { applyRig } from './fieldbusRigModel'
 import {
   SERIAL_LIMITS,
   SERIAL_PORT_IDS,
@@ -274,7 +276,9 @@ interface StoreState extends PlantState {
   removeSerialCard: (cardId: string) => string | null
   configureSerialCard: (cardId: string, patch: Partial<Pick<SerialCardConfig, 'tieback' | 'capacity'>>) => string | null
   configureSerialPort: (cardId: string, port: SerialPortId, patch: Partial<Omit<SerialPortConfig, 'devices'>>) => string | null
-  addSerialDevice: (cardId: string, port: SerialPortId, name: string, address: number) => string | null
+  addSerialDevice: (cardId: string, port: SerialPortId, name: string, address: number, description?: string) => string | null
+  /** Device Properties (p9-17): change the description and the device address. */
+  updateSerialDevice: (cardId: string, port: SerialPortId, name: string, patch: { description?: string; address?: number }) => string | null
   removeSerialDevice: (cardId: string, port: SerialPortId, name: string) => string | null
   saveSerialDataset: (cardId: string, port: SerialPortId, device: string, dataset: SerialDatasetConfig, existingName?: string) => string | null
   removeSerialDataset: (cardId: string, port: SerialPortId, device: string, dataset: string) => string | null
@@ -1267,6 +1271,13 @@ export const useStore = create<StoreState>((set, get) => ({
   toggleDO: (tag) => {
     if (!useSecurity.getState().requireLock('CONTROL', `Toggle ${tag}`)) return
     const module = get().modules[tag]
+    if (module?.type === 'DO' && (module.modeTarget === 'CAS' || module.downloaded === false)) {
+      const message = module.downloaded === false ? `${tag} is not downloaded; download it before writing SP_D` :
+        `${tag}/DO1/SP_D cannot be written: the MODE target is CAS, not AUTO`
+      get().logEvent('DIAGNOSTIC', tag, message)
+      window.alert(message)
+      return
+    }
     if (module?.type !== 'DO' || module.mode === 'OOS') {
       const message = `${tag} must be a DO module in AUTO to accept SP_D writes`
       get().logEvent('DIAGNOSTIC', tag, message)
@@ -1279,7 +1290,8 @@ export const useStore = create<StoreState>((set, get) => ({
         if (!get().hardware.discreteBindings?.[tag]) m.state = m.commanded
       }
     })
-    get().logEvent('OPERATOR', tag, 'Discrete output toggled')
+    const written = get().modules[tag]
+    get().logEvent('OPERATOR', tag, written?.type === 'DO' && written.modeTarget !== undefined ? `${tag}/DO1/SP_D set to ${written.commanded ? 1 : 0}` : 'Discrete output toggled')
   },
 
   toggleInterlock: (tag) => {
@@ -1707,12 +1719,23 @@ export const useStore = create<StoreState>((set, get) => ({
       }
       hardware = { ...hardware, traditionalCards: cards }
     }
+    // Auto-sense also finds a Series 2 H1 interface installed in its slot (class DV-09 chapter 12) once FOUNDATION fieldbus is enabled.
+    const sensedH1: string[] = []
+    if (controller.installedH1?.length && featureEnabled('fieldbus')) {
+      const h1Cards = { ...(hardware.h1Cards ?? {}) }
+      for (const installed of controller.installedH1) {
+        const card = makeH1Card(tag, installed.slot, false)
+        if (!h1Cards[card.id]) { h1Cards[card.id] = card; sensedH1.push(card.id) }
+      }
+      hardware = applyRig({ ...hardware, h1Cards })
+    }
     const result = scanControllerIo(hardware, tag, new Set(Object.keys(state.modules)))
     if (!result) return false
     set((s) => ({
       hardware: {
         ...s.hardware,
         traditionalCards: hardware.traditionalCards,
+        ...(sensedH1.length ? { h1Cards: hardware.h1Cards } : {}),
         controllers: { ...s.hardware.controllers, [tag]: { ...s.hardware.controllers[tag], lastAutoSense: result } }
       },
       rev: s.rev + 1
@@ -1722,6 +1745,7 @@ export const useStore = create<StoreState>((set, get) => ({
       tag,
       `I/O auto-sense complete: ${result.carriersScanned} carriers, ${result.baseplatesScanned} baseplates, ${result.channelsDetected} channels detected, ${result.unresolvedBindings.length} unresolved bindings`
     )
+    for (const id of sensedH1) get().logEvent('CONFIGURE', id, 'Series 2 H1 card sensed by auto-sense and added to the I/O')
     return true
   },
 
@@ -2211,7 +2235,7 @@ export const useStore = create<StoreState>((set, get) => ({
     return null
   },
 
-  addSerialDevice: (cardId, portId, name, address) => {
+  addSerialDevice: (cardId, portId, name, address, description) => {
     if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
     const card = get().hardware.serialCards?.[cardId]
     if (!card || !SERIAL_PORT_IDS.includes(portId)) return 'Serial card or port does not exist'
@@ -2222,9 +2246,26 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     const port = card.configured.ports[portId]
     const configured = { ...card.configured, ports: { ...card.configured.ports,
-      [portId]: { ...port, devices: { ...port.devices, [name]: { name, address, datasets: {} } } } } }
+      [portId]: { ...port, devices: { ...port.devices, [name]: { name, ...(description ? { description } : {}), address, datasets: {} } } } } }
     set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
     get().logEvent('CONFIGURE', `${cardId}/${portId}/${name}`, `Serial device added at address ${address}`)
+    return null
+  },
+
+  updateSerialDevice: (cardId, portId, name, patch) => {
+    if (!useSecurity.getState().requireLock('CAN_CONFIGURE', `Configure serial card ${cardId}`)) return 'Requires the Can Configure key'
+    const card = get().hardware.serialCards?.[cardId]
+    const port = card?.configured.ports[portId]
+    const device = port?.devices[name]
+    if (!card || !port || !device) return 'Serial device does not exist'
+    if (patch.address !== undefined && patch.address !== device.address) {
+      if (!Number.isInteger(patch.address) || patch.address < 1 || patch.address > SERIAL_LIMITS.maxAddress) return `Device address must be a whole number from 1 to ${SERIAL_LIMITS.maxAddress}`
+      if (Object.values(port.devices).some(d => d.name !== name && d.address === patch.address)) return `Address ${patch.address} is already used on ${portId}`
+    }
+    const next = { ...device, ...(patch.description !== undefined ? { description: patch.description } : {}), ...(patch.address !== undefined ? { address: patch.address } : {}) }
+    const configured = { ...card.configured, ports: { ...card.configured.ports, [portId]: { ...port, devices: { ...port.devices, [name]: next } } } }
+    set(s => ({ hardware: { ...s.hardware, serialCards: { ...s.hardware.serialCards, [cardId]: { ...card, configured } } }, rev: s.rev + 1 }))
+    get().logEvent('CONFIGURE', `${cardId}/${portId}/${name}`, `Serial device changed: ${JSON.stringify(patch)}`)
     return null
   },
 

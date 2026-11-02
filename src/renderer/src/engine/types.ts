@@ -546,6 +546,9 @@ export interface DiscreteInput extends ModuleDisplayProperties {
   mode?: 'AUTO' | 'OOS'
   ioBad?: boolean
   alarmOnValue?: boolean
+  /** Course DV-09 modules are created undownloaded: the discrete I/O does not run until the module is downloaded. */
+  downloaded?: boolean
+  controllerTag?: string
   activeDescriptor: string
   inactiveDescriptor: string
   alarms: AlarmLimit[]
@@ -561,6 +564,10 @@ export interface DiscreteOutput extends ModuleDisplayProperties {
   state: boolean
   commanded: boolean
   mode?: 'AUTO' | 'OOS'
+  /** Course DV-09 DO1 MODE target (a new DO block starts in CAS); SP_D is only written in AUTO or MAN. */
+  modeTarget?: 'CAS' | 'AUTO' | 'MAN' | 'OOS'
+  downloaded?: boolean
+  controllerTag?: string
   ioBad?: boolean
   activeDescriptor: string
   inactiveDescriptor: string
